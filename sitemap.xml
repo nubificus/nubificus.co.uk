@@ -4,14 +4,33 @@
   
   <url>
     <loc>/categories/</loc>
+    <priority>0</priority>
+  </url>
+  
+  <url>
+    <loc>/jobs/</loc>
   </url>
   
   <url>
     <loc>/</loc>
+    <priority>0</priority>
+  </url>
+  
+  <url>
+    <loc>/jobs/job1/</loc>
+  </url>
+  
+  <url>
+    <loc>/jobs/job3/</loc>
+  </url>
+  
+  <url>
+    <loc>/jobs/job2/</loc>
   </url>
   
   <url>
     <loc>/tags/</loc>
+    <priority>0</priority>
   </url>
   
 </urlset>

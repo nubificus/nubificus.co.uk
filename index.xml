@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>Nubificus Ltd</title>
@@ -6,9 +6,21 @@
     <description>Recent content on Nubificus Ltd</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
+    <lastBuildDate>Thu, 03 Dec 2020 11:00:00 +0000</lastBuildDate>
     
 	<atom:link href="/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>vAccel now available on Firecracker</title>
+      <link>/news/news1/</link>
+      <pubDate>Thu, 03 Dec 2020 11:00:00 +0000</pubDate>
+      
+      <guid>/news/news1/</guid>
+      <description>Today, Nubificus LTD introduced vAccel support on AWS Firecracker, opening the door for enabling hardware acceleration for serverless computing.
+With a slim design and precise abstractions, vAccel semantically exposes hardware acceleration features to users with little to no knoweldge of software acceleration framework internals.
+Serverless computing workflows are now able to enjoy compute-offload mechanisms to provide AI/ML services as functions, triggered thousands or millions of times by events, on-demand, auto-scaling to multiple physical and virtual nodes.</description>
+    </item>
     
     <item>
       <title>Senior Systems Software Engineer (SSSEBGR)</title>

@@ -82,7 +82,7 @@ Tensorflow supports offloading computations on hardware accelerators (GPUs, TPUs
       <guid>/jobs/job5/</guid>
       <description>Internship title: BLAS bindings to the vAccel framework
 Short description:
-The BLAS (Basic Linear Algebra Subprograms) 1 are routines that provide standard building blocks for performing basic vector and matrix operations. The Level 1 BLAS perform scalar, vector and vector-vector operations, the Level 2 BLAS perform matrix-vector operations, and the Level 3 BLAS perform matrix-matrix operations.
+The BLAS (Basic Linear Algebra Subprograms) are routines that provide standard building blocks for performing basic vector and matrix operations. The Level 1 BLAS perform scalar, vector and vector-vector operations, the Level 2 BLAS perform matrix-vector operations, and the Level 3 BLAS perform matrix-matrix operations.
 vAccel is a framework offering hardware acceleration primitives with focus on portability. It exposes &amp;ldquo;accelerate-able&amp;rdquo; functions to programmers and abstracts away hardware complexity by means of a pluggable design.</description>
     </item>
     

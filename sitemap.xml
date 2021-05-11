@@ -3,13 +3,38 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   
   <url>
-    <loc>/news/</loc>
-    <lastmod>2020-12-04T11:00:00+00:00</lastmod>
+    <loc>/jobs/</loc>
+    <lastmod>2021-05-11T11:00:00+00:00</lastmod>
   </url>
   
   <url>
     <loc>/</loc>
-    <lastmod>2020-12-04T11:00:00+00:00</lastmod>
+    <lastmod>2021-05-11T11:00:00+00:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>/jobs/job1/</loc>
+    <lastmod>2021-05-11T11:00:00+00:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>/jobs/job3/</loc>
+    <lastmod>2021-05-11T11:00:00+00:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>/news/</loc>
+    <lastmod>2021-05-11T00:00:00+00:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>/news/news2/</loc>
+    <lastmod>2021-05-11T00:00:00+00:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>/jobs/job2/</loc>
+    <lastmod>2021-05-10T11:00:00+00:00</lastmod>
   </url>
   
   <url>
@@ -18,23 +43,17 @@
   </url>
   
   <url>
+    <loc>/jobs/job4/</loc>
+    <lastmod>2019-05-11T11:00:00+00:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>/jobs/job5/</loc>
+    <lastmod>2018-05-11T11:00:00+00:00</lastmod>
+  </url>
+  
+  <url>
     <loc>/categories/</loc>
-  </url>
-  
-  <url>
-    <loc>/jobs/</loc>
-  </url>
-  
-  <url>
-    <loc>/jobs/job1/</loc>
-  </url>
-  
-  <url>
-    <loc>/jobs/job3/</loc>
-  </url>
-  
-  <url>
-    <loc>/jobs/job2/</loc>
   </url>
   
   <url>

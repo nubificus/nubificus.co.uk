@@ -6,7 +6,52 @@
     <description>Recent content on Nubificus Ltd</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Fri, 04 Dec 2020 11:00:00 +0000</lastBuildDate><atom:link href="/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Tue, 11 May 2021 11:00:00 +0000</lastBuildDate>
+    
+	<atom:link href="/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Senior Systems Software Engineer (SSSER)</title>
+      <link>/jobs/job1/</link>
+      <pubDate>Tue, 11 May 2021 11:00:00 +0000</pubDate>
+      
+      <guid>/jobs/job1/</guid>
+      <description>Responsibilities:
+ Develop software and research for a cutting edge technology project Design and develop reusable and reliable code using at least one of the following: C / Python / GO / C++ / Rust Partake in all aspects of the project’s life cycle Research and solve complex engineering challenges Lead a small team of engineers and coordinate effort to achieve short-term goals Lead upstreaming efforts to contribute to open-source projects Communicate the team&amp;rsquo;s findings &amp;amp; results to company&amp;rsquo;s partners  Requirements:</description>
+    </item>
+    
+    <item>
+      <title>Software Engineer (SER)</title>
+      <link>/jobs/job3/</link>
+      <pubDate>Tue, 11 May 2021 11:00:00 +0000</pubDate>
+      
+      <guid>/jobs/job3/</guid>
+      <description>Responsibilities:
+ Develop software for a cutting edge technology project Design and develop reusable and reliable code using at least one of the following: C / Python / GO / C++ / Rust Participate in upstreaming efforts to contribute to open-source projects  Requirements:
+ Minimum 3 years of experience in software development BSc or MSc degree in Computer Science/Engineering, Telecommunications or similar Good understanding of best practices in software development Working knowledge of control systems like git Working knowledge of Go Familiarity with container runtimes and orchestrators (Kubernetes) Proficiency in spoken and written English Ability to work in a distributed team  Location:</description>
+    </item>
+    
+    <item>
+      <title>Nubificus LTD enables efficient &amp; secure execution at the edge</title>
+      <link>/news/news2/</link>
+      <pubDate>Tue, 11 May 2021 00:00:00 +0000</pubDate>
+      
+      <guid>/news/news2/</guid>
+      <description>Nubificus LTD participates in the ICT-40-2020 SERRANO Project (H2020 GA No 101017168): Transparent Application Deployment in a Secure, Accelerated and Cognitive Cloud Continuum, which kicked off in January 2021 and will last three years. SERRANO consortium consists of 11 partners from industry and academia. SERRANO investigates the transparent deployment of applications in a secure and accelerated infrastructure of edge, cloud and HPC resources, based on FPGAs, GPUs, Virtual Platforms and Smart NICs, while facilitating their automated and cognitive orchestration.</description>
+    </item>
+    
+    <item>
+      <title>Systems Software Engineer (SSER)</title>
+      <link>/jobs/job2/</link>
+      <pubDate>Mon, 10 May 2021 11:00:00 +0000</pubDate>
+      
+      <guid>/jobs/job2/</guid>
+      <description>Responsibilities:
+ Develop software for a cutting edge technology project Design and develop reusable and reliable code using at least one of the following: C / Python / GO / C++ / Rust Participate in upstreaming efforts to contribute to open-source projects  Requirements:
+ Minimum 3 years of experience in software development BSc or MSc degree in Computer Science/Engineering, Telecommunications or similar Good understanding of best practices in software development Working knowledge of C Working knowledge of control systems like git Experience with Linux kernel and virtualization development Proficiency in spoken and written English Ability to work in a distributed team  Location:</description>
+    </item>
+    
     <item>
       <title>vAccel now available on Firecracker</title>
       <link>/news/news1/</link>
@@ -19,35 +64,26 @@ Serverless computing workflows are now able to enjoy compute-offload mechanisms 
     </item>
     
     <item>
-      <title>Senior Systems Software Engineer (SSSEBGR)</title>
-      <link>/jobs/job1/</link>
-      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      <title>Software Engineer / Intern (SEITFR)</title>
+      <link>/jobs/job4/</link>
+      <pubDate>Sat, 11 May 2019 11:00:00 +0000</pubDate>
       
-      <guid>/jobs/job1/</guid>
-      <description>Responsibilities:
- Develop software and research for a cutting edge technology project Design and develop reusable and reliable code using at least one of the following: C / Python / GO / C++ / Rust Partake in all aspects of the project’s life cycle Research and solve complex engineering challenges Lead a small team of engineers and coordinate effort to achieve short-term goals Lead upstreaming efforts to contribute to open-source projects  Requirements:</description>
+      <guid>/jobs/job4/</guid>
+      <description>Internship title: Explore TF internal operations to be offloaded to a generic transport mechanism
+Short description:
+Tensorflow supports offloading computations on hardware accelerators (GPUs, TPUs). In order to use an accelerator, a Tensorflow instance currently needs direct access to the relevant hardware. Although this requirement doesn&amp;rsquo;t prevent distributed deployments (either by Tensorflow itself or by higher level frameworks like pycharm) in heterogeneous hardware, it limits flexibility of integrating hardware accelerators to virtualized setups where Tensorflow applications are executed, especially when there are latency constraints (ie.</description>
     </item>
     
     <item>
-      <title>Software Engineer (SEBGR)</title>
-      <link>/jobs/job3/</link>
-      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      <title>Application Engineer / Intern (AEIBR)</title>
+      <link>/jobs/job5/</link>
+      <pubDate>Fri, 11 May 2018 11:00:00 +0000</pubDate>
       
-      <guid>/jobs/job3/</guid>
-      <description>Responsibilities:
- Develop software for a cutting edge technology project Design and develop reusable and reliable code using at least one of the following: C / Python / GO / C++ / Rust Participate in upstreaming efforts to contribute to open-source projects  Requirements:
- Minimum 3 years of experience in software development BSc or MSc degree in Computer Science/Engineering, Telecommunications or similar Good understanding of best practices in software development Working knowledge of control systems like git Working knowledge of Go Familiarity with container runtimes and orchestrators (docker swarm, Kubernetes) Proficiency in spoken and written English Ability to work in a distributed team  </description>
-    </item>
-    
-    <item>
-      <title>Systems Software Engineer (SSEBGR)</title>
-      <link>/jobs/job2/</link>
-      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
-      
-      <guid>/jobs/job2/</guid>
-      <description>Responsibilities:
- Develop software for a cutting edge technology project Design and develop reusable and reliable code using at least one of the following: C / Python / GO / C++ / Rust Participate in upstreaming efforts to contribute to open-source projects  Requirements:
- Minimum 3 years of experience in software development BSc or MSc degree in Computer Science/Engineering, Telecommunications or similar Good understanding of best practices in software development Working knowledge of C Working knowledge of control systems like git Experience with Linux kernel and virtualization development Proficiency in spoken and written English Ability to work in a distributed team  </description>
+      <guid>/jobs/job5/</guid>
+      <description>Internship title: BLAS bindings to the vAccel framework
+Short description:
+The BLAS (Basic Linear Algebra Subprograms) 1 are routines that provide standard building blocks for performing basic vector and matrix operations. The Level 1 BLAS perform scalar, vector and vector-vector operations, the Level 2 BLAS perform matrix-vector operations, and the Level 3 BLAS perform matrix-matrix operations.
+vAccel is a framework offering hardware acceleration primitives with focus on portability. It exposes &amp;ldquo;accelerate-able&amp;rdquo; functions to programmers and abstracts away hardware complexity by means of a pluggable design.</description>
     </item>
     
   </channel>

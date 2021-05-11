@@ -6,7 +6,20 @@
     <description>Recent content in News on Nubificus Ltd</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Fri, 04 Dec 2020 11:00:00 +0000</lastBuildDate><atom:link href="/news/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Tue, 11 May 2021 00:00:00 +0000</lastBuildDate>
+    
+	<atom:link href="/news/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Nubificus LTD enables efficient &amp; secure execution at the edge</title>
+      <link>/news/news2/</link>
+      <pubDate>Tue, 11 May 2021 00:00:00 +0000</pubDate>
+      
+      <guid>/news/news2/</guid>
+      <description>Nubificus LTD participates in the ICT-40-2020 SERRANO Project (H2020 GA No 101017168): Transparent Application Deployment in a Secure, Accelerated and Cognitive Cloud Continuum, which kicked off in January 2021 and will last three years. SERRANO consortium consists of 11 partners from industry and academia. SERRANO investigates the transparent deployment of applications in a secure and accelerated infrastructure of edge, cloud and HPC resources, based on FPGAs, GPUs, Virtual Platforms and Smart NICs, while facilitating their automated and cognitive orchestration.</description>
+    </item>
+    
     <item>
       <title>vAccel now available on Firecracker</title>
       <link>/news/news1/</link>

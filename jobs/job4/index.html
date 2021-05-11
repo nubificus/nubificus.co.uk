@@ -101,7 +101,7 @@
                           </a>
                         </li>
               		
-                        <li class="nav-item  active">
+                        <li class="nav-item ">
                           <a class="nav-link" href="/news/" title="News">
                              
                               <span>News</span>
@@ -123,119 +123,51 @@
     
 	    <div class="section-heading">
         
-            <h1 class="section-title">News</h1>
+            <h1 class="section-title">Software Engineer / Intern (SEITFR)</h1>
         
         </div>
     </div>
 	</div>
     <div class="row">
 	<div class="col-12 col-md-12 text-centered">
+      <p>Internship title: Explore TF internal operations to be offloaded to a generic transport mechanism</p>
+<p>Short description:</p>
+<p>Tensorflow supports offloading computations on hardware accelerators (GPUs,
+TPUs). In order to use an accelerator, a Tensorflow instance currently needs
+direct access to the relevant hardware. Although this requirement doesn&rsquo;t
+prevent distributed deployments (either by Tensorflow itself or by higher level
+frameworks like pycharm) in heterogeneous hardware, it limits flexibility of
+integrating hardware accelerators to virtualized setups where Tensorflow
+applications are executed, especially when there are latency constraints (ie.
+AWS Lambda/Firecracker). Adding a generic transport mechanism to Tensorflow&rsquo;s
+internal operations could provide the necessary abstraction to efficiently use
+accelerators in all aforementioned environments.</p>
+<p>Responsibilities:</p>
+<ul>
+<li>Identify the internal Tensorflow operations performing the accelerator offloading</li>
+<li>Study up on the semantics and data handling of the relevant functions</li>
+<li>Implement bindings to use with a generic transport mechanism</li>
+</ul>
+<p>Essential skills:</p>
+<ul>
+<li>Comfortable programming in C/C++/Python</li>
+<li>Understanding of basic Tensorflow/Machine Learning concepts</li>
+</ul>
+<p>Desirable skills and experience:</p>
+<ul>
+<li>Some experience of Tensorflow coding</li>
+</ul>
+<p>Location:</p>
+<ul>
+<li>Remote</li>
+</ul>
+
 
       
 	</div>
 	</div>
-	                          
-	       <!-- News Section -->
-            <div class="row pt-4">
-                <div class="col-md-12 ">
-                
-                    <h2 class="">Nubificus LTD enables efficient &amp; secure execution at the edge</h2>
-                
-        	
-		<h6>May 11, 2021 </h6>
-        	
-                </div>
-            </div>
-
-            <div class="row">
-                <div class="col-md-12 ">
-                
-		<span style="font-variant: small-caps;">Sheffield, UK</span> <p><img src="/images/serrano-logo.png#floatright" alt="">
-Nubificus LTD participates in the ICT-40-2020 SERRANO Project (H2020 GA No
-101017168): Transparent Application Deployment in a Secure, Accelerated and
-Cognitive Cloud Continuum, which kicked off in January 2021 and will last three
-years. SERRANO consortium consists of 11 partners from industry and academia.
-SERRANO investigates the transparent deployment of applications in a secure and
-accelerated infrastructure of edge, cloud and HPC resources, based on FPGAs,
-GPUs, Virtual Platforms and Smart NICs, while facilitating their automated and
-cognitive orchestration.</p>
-<p>SERRANO investigates the transparent deployment of applications in a
-secure and accelerated infrastructure of edge, cloud and HPC resources,
-based on FPGAs, GPUs, Virtual Platforms and Smart NICs, while
-facilitating their automated and cognitive orchestration.</p>
-<p>Nubificus LTD will lead the development of lightweight mechanisms to enable
-workload isolation and trusted execution in multi-tenancy nodes, hardware
-acceleration abstractions for serverless workloads and the development of
-resource orchestration and lightweight virtualization mechanisms.</p>
-<ul>
-<li>SERRANO website: <a href="https://ict-serrano.eu">https://ict-serrano.eu</a></li>
-<li>Twitter: <a href="https://twitter.com/ProjectSerrano">https://twitter.com/ProjectSerrano</a></li>
-<li>LinkedIn: <a href="https://www.linkedin.com/company/serrano-project">https://www.linkedin.com/company/serrano-project</a></li>
-<li>Researchgate:
-<a href="https://www.researchgate.net/project/SERRANO-Transparent-Application-Deployment-in-a-Secure-Accelerated-and-Cognitive-Cloud-Continuum">https://www.researchgate.net/project/SERRANO-Transparent-Application-Deployment-in-a-Secure-Accelerated-and-Cognitive-Cloud-Continuum</a></li>
-</ul>
-
-                
-                </div>
-            </div>
-
-	    <hr>
-
-	                          
-	       <!-- News Section -->
-            <div class="row pt-4">
-                <div class="col-md-12 ">
-                
-                    <h2 class="">vAccel now available on Firecracker</h2>
-                
-        	
-		<h6>Dec 4, 2020 </h6>
-        	
-                </div>
-            </div>
-
-            <div class="row">
-                <div class="col-md-12 ">
-                
-		<span style="font-variant: small-caps;">Sheffield, UK</span> <p>Today, Nubificus LTD introduced <a href="https://blog.cloudkernels.net/posts/vaccel">vAccel</a> support on <a href="https://firecracker-microvm.github.io/">AWS Firecracker</a>,
-opening the door for enabling hardware acceleration for serverless computing.</p>
-<p>With a slim design and precise abstractions, <a href="https://blog.cloudkernels.net/posts/vaccel">vAccel</a> semantically exposes
-hardware acceleration features to users with little to no knoweldge of software
-acceleration framework internals.</p>
-<p>Serverless computing workflows are now able to enjoy compute-offload mechanisms
-to provide AI/ML services as functions, triggered thousands or millions of
-times by events, on-demand, auto-scaling to multiple physical and virtual
-nodes.</p>
-<p>The core of vAccel is the runtime system, essentially a library, that
-translates complicated compute frameworks to meaningful functions that users
-can directly call. These frameworks, commonly used on hardware accelerators,
-such as TensorRT, Tensorflow, Jetson-inference, or even lower-level
-abstractions such as CUDA, OpenCL, OpenACC, are now easily usable by the
-end-user via vAccel. Moreover, vAccel offers a virtualization backend,
-facilitating the execution of functions on Virtual Machines. Apart from support
-for AWS Firecracker, <a href="https://blog.cloudkernels.net/posts/vaccel">QEMU/KVM support</a> is also availabe.</p>
-<p>End-users can get a sneak peek at what vAccel on AWS Firecracker has to offer
-on the project&rsquo;s <a href="https://vaccel.org">website</a>, on <a href="https://github.com/cloudkernels/vaccelrt">github</a>, or on-prem, by using the
-distributed binaries, or just a container image. To get started, follow one of
-the tutorials currently available at <a href="https://blog.cloudkernels.net">https://blog.cloudkernels.net</a></p>
-
-                
-                </div>
-            </div>
-
-	    <hr>
-
 	
 	<div class="pb-5"></div>
-
-      <p>At Nubificus, we are exploring systems software optimizations for deploying
-lightweight applications in the Cloud and at the Edge. Based on existing
-open-source tools and frameworks we mix and match application dependencies and
-tailor the Operating Systems layer to match the applications’ requirements.
-We are a fully distributed company working from the UK, Greece &amp; Spain.</p>
-<p>For news enquiries please send an email to <a href="mailto:press@nubificus.com">press@nubificus.com</a>.</p>
-<p>Make sure you follow us on Social Media! You can find the relevant links at the bottom of this page!</p>
-
 
   </div>
 </section>

@@ -73,6 +73,16 @@
     </item>
     
     <item>
+      <title>DevOps / Intern (DOIR)</title>
+      <link>/jobs/job8/</link>
+      <pubDate>Sun, 11 Apr 2021 11:00:00 +0000</pubDate>
+      
+      <guid>/jobs/job8/</guid>
+      <description>Internship title: Deploying ML workflows in the Cloud &amp;amp; at the Edge
+The Cloud computing paradigm appears ideal to deploy and manage application execution at scale. In order to support the cloud computing execution model at the Edge, devices need to support virtualization and run a full hypervisor stack. At the same time, hardware acceleration offers a high degree of computational throughput in a very small power envelope for a wide range of application domains.</description>
+    </item>
+    
+    <item>
       <title>vAccel now available on Firecracker</title>
       <link>/news/news1/</link>
       <pubDate>Fri, 04 Dec 2020 11:00:00 +0000</pubDate>
@@ -92,18 +102,6 @@ Serverless computing workflows are now able to enjoy compute-offload mechanisms 
       <description>Internship title: Explore TF internal operations to be offloaded to a generic transport mechanism
 Short description:
 Tensorflow supports offloading computations on hardware accelerators (GPUs, TPUs). In order to use an accelerator, a Tensorflow instance currently needs direct access to the relevant hardware. Although this requirement doesn&amp;rsquo;t prevent distributed deployments (either by Tensorflow itself or by higher level frameworks like pycharm) in heterogeneous hardware, it limits flexibility of integrating hardware accelerators to virtualized setups where Tensorflow applications are executed, especially when there are latency constraints (ie.</description>
-    </item>
-    
-    <item>
-      <title>Application Engineer / Intern (AEIBR)</title>
-      <link>/jobs/job5/</link>
-      <pubDate>Fri, 11 May 2018 11:00:00 +0000</pubDate>
-      
-      <guid>/jobs/job5/</guid>
-      <description>Internship title: BLAS bindings to the vAccel framework
-Short description:
-The BLAS (Basic Linear Algebra Subprograms) are routines that provide standard building blocks for performing basic vector and matrix operations. The Level 1 BLAS perform scalar, vector and vector-vector operations, the Level 2 BLAS perform matrix-vector operations, and the Level 3 BLAS perform matrix-matrix operations.
-vAccel is a framework offering hardware acceleration primitives with focus on portability. It exposes &amp;ldquo;accelerate-able&amp;rdquo; functions to programmers and abstracts away hardware complexity by means of a pluggable design.</description>
     </item>
     
   </channel>

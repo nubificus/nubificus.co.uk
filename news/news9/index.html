@@ -1,0 +1,52 @@
+<!doctype html><html class=no-js lang=en-us><head><meta charset=utf-8><meta http-equiv=x-ua-compatible content="IE=edge"><title>Nubificus Ltd</title><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="Serverless computing in the Cloud &amp; at the Edge"><meta name=keywords content="serverless,edge,unikernels,lightweight execution,hardware acceleration"><meta name=author content="Nubificus LTD"><meta property=og:title content><meta property=og:image content><meta property=og:url content><meta property=og:site_name content><meta property=og:description content><meta name=twitter:title content><meta name=twitter:image content><meta name=twitter:url content><meta name=twitter:card content><meta name=generator content="Hugo 0.58.3"><link rel="shortcut icon" href=/favicon.ico><link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,300,600,400italic,700" rel=stylesheet typ e=text/css><link rel=stylesheet href=/css/animate.css><link rel=stylesheet href=/css/icomoon.css><link rel=stylesheet href=/css/simple-line-icons.css><link rel=stylesheet href=/css/bootstrap.min.css><link rel=stylesheet href=/css/style.css><script src=/js/modernizr.min.js></script></head><body><header role=banner id=header class=navbar-fixed-top><nav class="navbar navbar-expand-md navbar-light navbar-nbfc navbar-default"><div class=container><a class=navbar-brand href=/><img src=/images/n_logo_horizontal_with_outline_cloud_cropped.svg height=35 alt=logo></a>
+<a type=button class="js-nbfc-nav-toggle nbfc-nav-toggle ml-auto" data-toggle=collapse data-target=#navbar aria-expanded=false aria-controls=navbar><i></i></a><div id=navbar class="collapse navbar-collapse"><ul class="navbar-nav ml-auto"><li class=nav-item><a class=nav-link href=/#home title=Home><span>Home</span></a></li><li class=nav-item><a class=nav-link href=/#features title=Features><span>Features</span></a></li><li class=nav-item><a class=nav-link href=/#services title=Services><span>Services</span></a></li><li class=nav-item><a class=nav-link href=/#use-cases title="Use Cases"><span>Use Cases</span></a></li><li class=nav-item><a class=nav-link href=/#open-source title="Open Source"><span>Open Source</span></a></li><li class=nav-item><a class=nav-link href=/#contact title=Contact><span>Contact</span></a></li><li class=nav-item><a class=nav-link href=/jobs/ title="Job Positions"><span>Job Positions</span></a></li><li class=nav-item><a class=nav-link href=/news/ title=News><span>News</span></a></li></ul></div></div></nav></header><section class=section><div class=container><div class=row><div class="col-12 col-md-12 text-center"><div class=section-heading><h1 class=section-title>vAccel v0.6 is out!</h1></div></div></div><div class=row><div class="col-12 col-md-12 text-centered"></div></div><div class=pb-5></div><figure><img src=/images/vaccel-logo_draft.svg#floatright width=180px alt style=floatleft></figure><p>Nubificus LTD proudly presents the latest release of the vAccel framework.
+<a href=https://github.com/cloudkernels/vaccelrt/releases/tag/v0.6.0>vAccel v0.6.0</a>
+is available, as well as a <a href=https://github.com/cloudkernels/vaccelrt/releases/tag/v0.6.1>hot fix
+followup</a> for
+<code>x86_64</code>, <code>aarch64</code>, and <code>armv7l</code> architectures, with the essential binaries
+for users to get started.</p><figure><img src=/images/pytorch-logo.png#floatright width=50px alt></figure><p>A major addition to our previous release is Torch support. Users are now able
+to run inference on Torch models seamlessly, on local and remote targets
+(CPU/GPU etc.). A short <a href=https://youtu.be/6VMguN9fuHA>screen cast</a> is available
+to check torch with vAccel in action!</p><p>vAccel v0.6 includes updated <a href=https://github.com/cloudkernels/vaccelrt/blob/main/docs/vaccel_args.md>helper
+functions</a>
+for easier argument definition (<code>exec</code>), as well as enhanced CI and
+<a href=https://blog.cloudkernels.net/posts/testing_post/>testing</a> support.</p><figure><img src=/images/golang-logo.png#floatleft height=50px alt></figure><p>A fun addition was native <a href=https://github.com/nubificus/go-vaccel><code>Golang</code> bindings</a>! Users can now natively interact with
+Go programs and enjoy hardware acceleration from simple web services! <code>Golang</code>
+bindings helped a lot with our Knative integration!</p><p>vAccel v0.6 offers updated API remoting functionality over generic sockets,
+supporting <code>AF_VSOCK</code> and <code>AF_INET</code>, enabling local and remote
+execution over the network. <code>AF_VSOCK</code> support is also updated with a streaming
+optimization, to reduce the amount of memory allocated by the gRPC transport
+layer.</p><p>This iteration&rsquo;s update also contains important bug fixes and performance
+optimizations. For the list of changes, see the
+<a href=https://github.com/cloudkernels/vaccelrt/releases/tag/v0.6.0>RELEASE</a> notes.</p><p>The individual components are packaged as binary artifacts or <code>deb</code> packages
+for users to install them directly. For a list of the binary components please
+visit vAccel&rsquo;s <a href=https://docs.vaccel.org/binaries#binaries>documentation page</a>.
+The core vAccel library is open-source, available on
+<a href=https://github.com/cloudkernels/vaccelrt>github</a>.</p><p>The roadmap for v0.7 contains enhanced Torch support, <code>OpenCV</code>-native bindings, a
+<code>C++</code>-based transport layer, the move to the <code>meson</code> build system, and more!</p><h4 id=vaccel>vAccel</h4><p>vAccel enables workloads to enjoy hardware acceleration while running on
+environments that do not have direct (physical) access to acceleration devices.
+With a slim design and precise abstractions, <a href=https://vaccel.org>vAccel</a>
+semantically exposes hardware acceleration features to users with little to no
+knowledge of software acceleration framework internals.</p><figure><img src=/images/kata-logo.png#floatleft width=50px alt></figure><p>vAccel integrates with container runtimes such as
+<a href=https://katacontainers.io>kata-containers</a>. v0.6 brings updated support for
+kata-containers v3.X, both for the Go and rust runtimes, so deploying an
+application that requires hardware acceleration in a sandboxed container in
+<a href=https://kubernetes.io>k8s</a> is now possible without complicated hardware
+setups!</p><p>Serverless computing workflows are now able to enjoy compute-offload mechanisms
+to provide AI/ML services as functions, triggered thousands or millions of
+times by events, on-demand, auto-scaling to multiple physical and virtual
+nodes, without the need to directly attach a hardware device to the instance.
+This functionality is enabled through vAccel&rsquo;s virtualization backends,
+enabling the execution of hardware-accelerated functions on Virtual Machines.
+Support for numerous hypervisors is available, including <a href=https://firecracker-microvm.github.io/>AWS
+Firecracker</a>,
+<a href=https://github.com/qemu/qemu>QEMU/KVM</a>, <a href=https://www.cloudhypervisor.org/>Cloud
+Hypervisor</a>, and Dragonball, the stock
+hypervisor of kata-containers! See the <a href=https://docs.vaccel.org/vm-example>relevant
+documentation</a> on how to run an example on
+a VM.</p><p>End-users can get a sneak peek at what vAccel has to offer on the project&rsquo;s
+<a href=https://vaccel.org>website</a>, on
+<a href=https://github.com/cloudkernels/vaccelrt>github</a>, or by browsing through the available
+<a href=https://docs.vaccel.org>documentation</a>. To get started, follow the
+<a href=https://docs.vaccel.org/quickstart>Quick start guide</a>.</p></div></section><footer id=footer class="section section-bg-dark" role=contentinfo><a href=# class="gotop js-gotop"><i class=icon-arrow-up></i></a><div class=container><div class="row row-bottom-padded-sm"><div class=col-md-12><p class="copyright text-center">Nubificus LTD is a company registered in England and Wales. Company #11545167.<br>Copyright &copy; 2019-2024 Nubificus LTD. All Rights Reserved.<br>Theme based on templates by <a href=http://freehtml5.co/ target=_blank>FREEHTML5.co</a></p></div></div><div class=row><div class="col-md-12 text-center"><ul class="social social-circle"><li><a href=https://twitter.com/nubificus title=Twitter target=_blank><i class=icon-twitter></i></a></li><li><a href=https://linkedin.com/company/nubificus title=LinkedIn target=_blank><i class=icon-linkedin></i></a></li><li><a href=https://github.com/nubificus title=GitHub target=_blank><i class=icon-github></i></a></li><li><a href=https://blog.cloudkernels.net title=Blog target=_blank><i class=icon-book></i></a></li></ul></div></div></div></footer><script src=/js/jquery-3.4.1.min.js></script><script src=/js/jquery.easing.1.3.js></script><script src=/js/bootstrap.min.js></script><script src=/js/jquery.waypoints.min.js></script><script src=/js/jquery.validate.min.js></script><script src=/js/jquery.form.min.js></script><script src=/js/jquery.nav.js></script><script src=/js/main.js></script><script async src="https://www.googletagmanager.com/gtag/js?id=UA-1610214-8"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
+gtag('js',new Date());gtag('config',"UA-1610214-8");</script></body></html>

@@ -1,0 +1,51 @@
+<!doctype html><html class=no-js lang=en-us><head><meta charset=utf-8><meta http-equiv=x-ua-compatible content="IE=edge"><title>Nubificus Ltd</title><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="Serverless computing in the Cloud &amp; at the Edge"><meta name=keywords content="serverless,edge,unikernels,lightweight execution,hardware acceleration"><meta name=author content="Nubificus LTD"><meta property=og:title content><meta property=og:image content><meta property=og:url content><meta property=og:site_name content><meta property=og:description content><meta name=twitter:title content><meta name=twitter:image content><meta name=twitter:url content><meta name=twitter:card content><meta name=generator content="Hugo 0.58.3"><link rel="shortcut icon" href=/favicon.ico><link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,300,600,400italic,700" rel=stylesheet typ e=text/css><link rel=stylesheet href=/css/animate.css><link rel=stylesheet href=/css/icomoon.css><link rel=stylesheet href=/css/simple-line-icons.css><link rel=stylesheet href=/css/bootstrap.min.css><link rel=stylesheet href=/css/style.css><script src=/js/modernizr.min.js></script></head><body><header role=banner id=header class=navbar-fixed-top><nav class="navbar navbar-expand-md navbar-light navbar-nbfc navbar-default"><div class=container><a class=navbar-brand href=/><img src=/images/n_logo_horizontal_with_outline_cloud_cropped.svg height=35 alt=logo></a>
+<a type=button class="js-nbfc-nav-toggle nbfc-nav-toggle ml-auto" data-toggle=collapse data-target=#navbar aria-expanded=false aria-controls=navbar><i></i></a><div id=navbar class="collapse navbar-collapse"><ul class="navbar-nav ml-auto"><li class=nav-item><a class=nav-link href=/#home title=Home><span>Home</span></a></li><li class=nav-item><a class=nav-link href=/#features title=Features><span>Features</span></a></li><li class=nav-item><a class=nav-link href=/#services title=Services><span>Services</span></a></li><li class=nav-item><a class=nav-link href=/#use-cases title="Use Cases"><span>Use Cases</span></a></li><li class=nav-item><a class=nav-link href=/#open-source title="Open Source"><span>Open Source</span></a></li><li class=nav-item><a class=nav-link href=/#contact title=Contact><span>Contact</span></a></li><li class=nav-item><a class=nav-link href=/jobs/ title="Job Positions"><span>Job Positions</span></a></li><li class=nav-item><a class=nav-link href=/news/ title=News><span>News</span></a></li></ul></div></div></nav></header><section class=section><div class=container><div class=row><div class="col-12 col-md-12 text-center"><div class=section-heading><h1 class=section-title>Kata-containers: sandboxing container workloads for security and efficiency</h1></div></div></div><div class=row><div class="col-12 col-md-12 text-centered"></div></div><div class=pb-5></div><figure><img src=/images/kata-logo.png#floatleft width=70px alt></figure><p>Anastassios Nanos delivered an insightful
+<a href="https://youtu.be/2pNo8F3AMrw?t=10654">presentation</a> at <a href=https://oideurope2024.openinfra.dev/hungary/>OpenInfra Days
+Hungary</a>, in Budapest, earlier
+this June, highlighting the innovative capabilities of the <a href=https://katacontainers.io>Kata
+Containers</a> project. The talk focused on the
+project&rsquo;s advancements, particularly the introduction and maturity of the Rust
+runtimes, alongside the go version of the runtime, and demonstrated how the
+Kata team is leveraging these technologies to enhance the performance and
+security of serverless workloads. As a first time Architecture Committee member
+since April 2024, Dr Nanos presented the current status of the project, and how
+the team at Nubificus &amp; Nubis is using kata-containers to sandbox serverless
+workloads, while exposing hardware acceleration capabilities by integrating
+vAccel to the container runtime.</p><h5 id=key-highlights-of-the-presentation>Key Highlights of the Presentation</h5><figure><img src=/images/oidh-photo2.png#center height=180px alt style=floatright></figure><p><em>Kata Containers Project Overview</em>: Dr Nanos began by providing an overview of
+the Kata Containers project, an open-source initiative that integrates
+lightweight virtual machines (VMs) to enhance the security and isolation of
+containerized applications. He explained how Kata Containers combine the speed
+and flexibility of containers with the robust security features of VMs, making
+them an ideal solution for modern cloud-native applications.</p><figure><img src=/images/oidh-photo1.jpg#floatleft height=180px alt style=floatleft></figure><p><em>Go and Rust Runtimes</em>: A significant portion of the presentation was dedicated
+to the dual support for Go and Rust runtimes within Kata Containers. Dr Nanos
+detailed the journey from the initial Go runtime to the introduction of the
+Rust runtime, emphasizing the performance and safety benefits of Rust. He
+discussed the efforts to achieve feature parity between the two runtimes,
+enabling users to choose the runtime that best suits their needs without
+sacrificing functionality or performance.</p><p><em>Sandboxing Serverless Workloads</em>: Dr Nanos illustrated how Kata Containers are
+being used to <a href=https://dl.acm.org/doi/10.1145/3642977.3652096>sandbox serverless
+workloads</a>, a growing trend in
+cloud computing. He explained that by using Kata Containers, the team can
+provide strong isolation for serverless functions, ensuring that workloads are
+securely sandboxed and isolated from one another. This approach not only
+enhances security but also improves the reliability and stability of serverless
+environments.</p><figure><img src=/images/vaccel-logo_draft.svg#floatright width=180px alt style=floatleft></figure><p><em>vAccel Integration</em>: One of the standout points of the talk was the
+integration of <a href=https://docs.vaccel.org>vAccel</a> with Kata Containers. Dr Nanos
+explained how vAccel allows the exposure of hardware acceleration
+functionalities to sandboxed containers, significantly boosting the performance
+of compute-intensive tasks. This integration enables developers to take full
+advantage of hardware acceleration within a secure and isolated environment,
+paving the way for more efficient and powerful applications.</p><p><em>Looking Ahead</em>: Dr Nanos concluded his presentation with a look ahead to the
+future of Kata Containers, including the anticipated release of <a href=https://github.com/orgs/kata-containers/projects/43>Kata
+Containers 4.0</a>. He
+highlighted ongoing efforts to further unify the Go and Rust runtimes and to
+expand the project’s capabilities to meet the evolving needs of the
+cloud-native ecosystem.</p><p>The presentation at OpenInfra days Hungary underscored the Kata Containers
+project&rsquo;s commitment to innovation and security in containerized environments.
+With its robust feature set and continued development, Kata Containers is
+poised to play a crucial role in the future of cloud-native infrastructure.</p><p>For more information about the Kata Containers project, visit
+<a href=https://katacontainers.io>katacontainers.io</a>. All demos presented are available online at
+<a href=https://github.com/nubificus/openinfradayshu-demos>github</a>.</p><p>Many thanks to the <a href=https://openinfra.dev/>OpenInfra Foundation</a> for hosting Dr Nanos, as well as to
+<a href=https://desire6g.eu>DESIRE6G</a> and <a href=https://mlsysops.eu>MLSysOps</a> for
+supporting the development of most of the work presented.</p></div></section><footer id=footer class="section section-bg-dark" role=contentinfo><a href=# class="gotop js-gotop"><i class=icon-arrow-up></i></a><div class=container><div class="row row-bottom-padded-sm"><div class=col-md-12><p class="copyright text-center">Nubificus LTD is a company registered in England and Wales. Company #11545167.<br>Copyright &copy; 2019-2024 Nubificus LTD. All Rights Reserved.<br>Theme based on templates by <a href=http://freehtml5.co/ target=_blank>FREEHTML5.co</a></p></div></div><div class=row><div class="col-md-12 text-center"><ul class="social social-circle"><li><a href=https://twitter.com/nubificus title=Twitter target=_blank><i class=icon-twitter></i></a></li><li><a href=https://linkedin.com/company/nubificus title=LinkedIn target=_blank><i class=icon-linkedin></i></a></li><li><a href=https://github.com/nubificus title=GitHub target=_blank><i class=icon-github></i></a></li><li><a href=https://blog.cloudkernels.net title=Blog target=_blank><i class=icon-book></i></a></li></ul></div></div></div></footer><script src=/js/jquery-3.4.1.min.js></script><script src=/js/jquery.easing.1.3.js></script><script src=/js/bootstrap.min.js></script><script src=/js/jquery.waypoints.min.js></script><script src=/js/jquery.validate.min.js></script><script src=/js/jquery.form.min.js></script><script src=/js/jquery.nav.js></script><script src=/js/main.js></script><script async src="https://www.googletagmanager.com/gtag/js?id=UA-1610214-8"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
+gtag('js',new Date());gtag('config',"UA-1610214-8");</script></body></html>

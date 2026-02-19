@@ -1,0 +1,363 @@
+<!doctype html><!-- This site was created with Hugo Blox. https://hugoblox.com --><!-- Last Published: February 19, 2026 --><html lang=en-us><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=generator content="Hugo Blox Builder 5.9.7"><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link rel=preload as=style href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Roboto+Mono&family=Roboto:wght@400;700&display=swap"><link rel=stylesheet href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Roboto+Mono&family=Roboto:wght@400;700&display=swap" media=print onload='this.media="all"'><link rel=stylesheet href=/css/vendor-bundle.min.26c458e6907dc03073573976b7f4044e.css media=print onload='this.media="all"'><link rel=stylesheet href=https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1.9.4/css/academicons.min.css integrity="sha512-IW0nhlW5MgNydsXJO40En2EoCkTTjZhI3yuODrZIc8cQ4h1XcF53PsqDHa09NqnkXuIe0Oiyyj171BqZFwISBw==" crossorigin=anonymous media=print onload='this.media="all"'><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.min.css integrity crossorigin=anonymous media=print onload='this.media="all"'><link rel=stylesheet href=/css/wowchemy.0a92100ca9cf271dc93dd61885c3d747.css><link rel=stylesheet href=/css/libs/chroma/github-light.min.css title=hl-light media=print onload='this.media="all"'><link rel=stylesheet href=/css/libs/chroma/dracula.min.css title=hl-dark media=print onload='this.media="all"' disabled><meta name=author content="Charalampos Mainas"><meta name=description content="The Serverless computing paradigm has revolutionized the way applications are deployed.
+In a serverless architecture, developers can focus solely on writing code without the need to
+provision or manage servers."><link rel=alternate hreflang=en-us href=/blog/knative-diverse-deployments/><link rel=canonical href=/blog/knative-diverse-deployments/><link rel=manifest href=/manifest.webmanifest><link rel=icon type=image/png href=/media/icon_hu_76f04f0ed4ada794.png><link rel=apple-touch-icon type=image/png href=/media/icon_hu_bbf9ba2454448482.png><meta name=theme-color content="#1565c0"><meta property="twitter:card" content="summary"><meta property="twitter:site" content="@GetResearchDev"><meta property="twitter:creator" content="@GetResearchDev"><meta property="twitter:image" content="/media/logo_hu_866fdf07312224c.png"><meta property="og:type" content="website"><meta property="og:site_name" content="Nubificus"><meta property="og:url" content="/blog/knative-diverse-deployments/"><meta property="og:title" content="Knative:  A Deep Dive into K-Deployments across diverse Runtimes (part II) | Nubificus"><meta property="og:description" content="The Serverless computing paradigm has revolutionized the way applications are deployed.
+In a serverless architecture, developers can focus solely on writing code without the need to
+provision or manage servers."><meta property="og:image" content="/media/logo_hu_866fdf07312224c.png"><meta property="og:locale" content="en-us"><meta property="article:published_time" content="2023-10-09T14:28:46+00:00"><meta property="article:modified_time" content="2023-10-09T14:28:46+00:00"><script src=https://cdn.jsdelivr.net/gh/osano/cookieconsent@3.1.1/build/cookieconsent.min.js integrity="sha512-yXXqOFjdjHNH1GND+1EO0jbvvebABpzGKD66djnUfiKlYME5HGMUJHoCaeE4D5PTG2YsSJf6dwqyUUvQvS0vaA==" crossorigin=anonymous></script><link rel=stylesheet href=https://cdn.jsdelivr.net/gh/osano/cookieconsent@3.1.1/build/cookieconsent.min.css integrity="sha512-LQ97camar/lOliT/MqjcQs5kWgy6Qz/cCRzzRzUCfv0fotsCTC9ZHXaPQmJV8Xu/PVALfJZ7BDezl5lW3/qBxg==" crossorigin=anonymous><script>window.addEventListener("load",function(){window.cookieconsent.initialise({palette:{popup:{background:"#1565c0",text:"rgb(255, 255, 255)"},button:{background:"rgb(255, 255, 255)",text:"#1565c0"}},theme:"classic",content:{message:"This website uses cookies to ensure you get the best experience on our website.",dismiss:"Got it!",link:"Learn more",href:"https://www.cookiesandyou.com"}})})</script><title>Knative: A Deep Dive into K-Deployments across diverse Runtimes (part II) | Nubificus</title></head><body id=top data-spy=scroll data-offset=70 data-target=#TableOfContents class=page-wrapper data-wc-page-id=f06c69cc49c3586ebf87075efca961ed><script src=/js/wowchemy-init.min.9e4214442a7711d35691acd58f6f6361.js></script><div class="page-header header--fixed"><style>.navbar-logo{height:50px;display:flex;align-items:center}.navbar-logo img{max-height:45px;width:auto;display:block}.navbar-logo .logo-dark{display:none}body.colorscheme-dark .navbar-logo .logo-light,body.dark .navbar-logo .logo-light{display:none}body.colorscheme-dark .navbar-logo .logo-dark,body.dark .navbar-logo .logo-dark{display:block}.navbar-logo.logo-nubis,.navbar-logo.logo-nubificus{display:none}</style><script>document.addEventListener("DOMContentLoaded",function(){var e=window.location.hostname,t=e==="nubis-pc.eu"||e==="www.nubis-pc.eu",n=t?"logo-nubis":"logo-nubificus";document.querySelectorAll(".navbar-logo."+n).forEach(function(e){e.style.display="flex"}),document.querySelectorAll("[data-brand]").forEach(function(e){var n=e.getAttribute("data-brand");t?e.textContent=n==="primary"?"Nubis":"Nubificus":e.textContent=n==="primary"?"Nubificus":"Nubis"})})</script><header><nav class="navbar navbar-expand-lg navbar-light compensate-for-scrollbar" id=navbar-main><div class=container-xl><div class="d-none d-lg-inline-flex"><a class=navbar-brand href=/><div class="navbar-logo logo-nubificus"><img class=logo-light src=/media/logo-nubificus_hu_7be4fa6b19286a64.png alt=Nubificus>
+<img class=logo-dark src=/media/logo-nubificus-dark_hu_bd80a6d6121ee2ff.png alt=Nubificus></div><div class="navbar-logo logo-nubis"><img class=logo-light src=/media/logo-nubis.png alt="Nubis PC">
+<img class=logo-dark src=/media/logo-nubis-dark.png alt="Nubis PC"></div></a></div><button type=button class=navbar-toggler data-toggle=collapse data-target=#navbar-content aria-controls=navbar-content aria-expanded=false aria-label="Toggle navigation">
+<span><i class="fas fa-bars"></i></span></button><div class="navbar-brand-mobile-wrapper d-inline-flex d-lg-none"><a class=navbar-brand href=/><div class="navbar-logo logo-nubificus"><img class=logo-light src=/media/logo-nubificus_hu_7be4fa6b19286a64.png alt=Nubificus>
+<img class=logo-dark src=/media/logo-nubificus-dark_hu_bd80a6d6121ee2ff.png alt=Nubificus></div><div class="navbar-logo logo-nubis"><img class=logo-light src=/media/logo-nubis.png alt="Nubis PC">
+<img class=logo-dark src=/media/logo-nubis-dark.png alt="Nubis PC"></div></a></div><div class="navbar-collapse main-menu-item collapse justify-content-end" id=navbar-content><ul class="navbar-nav d-md-inline-flex"><li class=nav-item><a class=nav-link href=/><span>Home</span></a></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>Research</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/projects/><span>Projects</span></a>
+<a class=dropdown-item href=/publication><span>Publications</span></a></div></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>Solutions</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/solutions/edgelink/><span>edgeLink</span></a>
+<a class=dropdown-item href=/solutions/urunc/><span>urunc</span></a>
+<a class=dropdown-item href=/solutions/vaccel/><span>vAccel</span></a></div></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>Feed</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/post><span>News</span></a>
+<a class=dropdown-item href=/event><span>Events</span></a></div></li><li class=nav-item><a class="nav-link active" href=/blog><span>Blog</span></a></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>About</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/people><span>People</span></a>
+<a class=dropdown-item href=/contact><span>Contact</span></a></div></li></ul></div><ul class="nav-icons navbar-nav flex-row ml-auto d-flex pl-md-2"><li class="nav-item dropdown theme-dropdown"><a href=# class=nav-link data-toggle=dropdown aria-haspopup=true aria-label="Display preferences"><i class="fas fa-moon" aria-hidden=true></i></a><div class=dropdown-menu><a href=# class="dropdown-item js-set-theme-light"><span>Light</span>
+</a><a href=# class="dropdown-item js-set-theme-dark"><span>Dark</span>
+</a><a href=# class="dropdown-item js-set-theme-auto"><span>Automatic</span></a></div></li></ul></div></nav></header><script>document.addEventListener("DOMContentLoaded",function(){var e=document.querySelectorAll(".navbar-nav .nav-item.dropdown");e.forEach(function(t){t.addEventListener("mouseenter",function(){e.forEach(function(e){if(e!==t){e.classList.remove("show");var n=e.querySelector(".dropdown-menu");n&&n.classList.remove("show")}}),t.classList.add("show");var n=t.querySelector(".dropdown-menu");n&&n.classList.add("show")}),t.addEventListener("mouseleave",function(){t.classList.remove("show");var e=t.querySelector(".dropdown-menu");e&&e.classList.remove("show")})})})</script></div><div class=page-body><article class=article><div class=article-container><a class=blog-back-link href=javascript:void(0) onclick=blogGoBack()><i class="fas fa-arrow-left"></i> Back to Blog</a></div><div class="article-container pt-3"><h1>Knative: A Deep Dive into K-Deployments across diverse Runtimes (part II)</h1><div class=article-metadata><span class=article-date>Oct 9, 2023</span></div></div><div class=article-container><div class=article-style><p>The Serverless computing paradigm has revolutionized the way applications are deployed.
+In a serverless architecture, developers can focus solely on writing code without the need to
+provision or manage servers.</p><p><a href=https://knative.dev/docs/concepts/#what-is-knative target=_blank rel=noopener>Knative</a> is such a Serverless-Framework, providing a set of essential building
+blocks (on top of Kubernetes) for developers to simplify the deployment and
+management of cloud-services and workloads. The user simply containerizes the function (<a href=https://en.wikipedia.org/wiki/Function_as_a_service target=_blank rel=noopener>FaaS</a>)
+to be deployed, managed in yaml-format as a Kubernetes-object predefined by
+Knative&rsquo;s <a href=https://knative.dev/docs/install/operator/configuring-serving-cr/ target=_blank rel=noopener>CRDs</a> (Knative.Service).</p><p>As every K8s deployment, execution of the workload takes place in the
+node selected by the <a href=https://kubernetes.io/docs/concepts/scheduling-eviction/kube-scheduler/ target=_blank rel=noopener>Scheduler</a> (core component responsible for making decisions about where to run containers or pods within a cluster of nodes).</p><p>At a lower level, execution of the workload inside the node is handled
+by a container-manager (<a href=https://github.com/docker target=_blank rel=noopener><em>Docker</em></a>, <a href=https://github.com/containerd/containerd target=_blank rel=noopener><em>containerd</em></a>) and the &ldquo;low-level&rdquo; runtimes
+(<a href=https://github.com/opencontainers/runc target=_blank rel=noopener><em>runc</em></a>, <a href=https://github.com/google/gvisor target=_blank rel=noopener><em>gVisor</em></a>, <a href=https://github.com/kata-containers/kata-containers target=_blank rel=noopener><em>Kata-containers</em></a>) that are pre-configured. But on the other hand, why use a &rsquo;non-traditional&rsquo; low-level runtime? What is the purpose of such an act?</p><p>Well, to answer this we need to fully understand certain aspects of
+containers:</p><blockquote><p><em><em><a href=https://cloud.google.com/learn/what-are-containers target=_blank rel=noopener>&ldquo;Containers</a> are packages of software that contain all of the necessary elements to run in any environment. In this way, containers virtualize the operating system and run anywhere from a private data center to the public cloud&rdquo; &mldr;</em></em></p></blockquote><p>Developers running and deploying their code in servers often led to &ldquo;it works on my machine&rdquo; type of problems in the past (e.g. misconfigured dependencies). Utilization of containerization technologies provides a consistent and isolated environment for applications, ensuring that software runs reliably across platforms.</p><p>But wait &mldr; isn&rsquo;t this why we used VMs in the first place?</p><p>One might make the case that this is reminiscent of the original
+rationale for employing virtual machines (VMs) prior to the advent
+of containerization technologies. Despite the fact that containers
+and virtual machines offer analogous resource isolation and
+allocation advantages (as explained <a href="https://www.docker.com/resources/what-container/#:~:text=Comparing%20Containers%20and%20Virtual%20Machines" target=_blank rel=noopener>here</a>), their primary
+distinguishing factor, from an architectural perspective, lies in
+the location of the abstraction layer, which can be seen in the graph below.</p><!-- >_Abstraction, in our technical context, doesn't mean simplifying things or leaving out details, but it means understanding things in a different way, from a different level of detail._ - Brian Kernighan --><figure id=figure-figure-1-containers-vs-vms-architecture><div class="d-flex justify-content-center"><div class=w-100><img src=/images/kn-diverse-runtime/vm-vs-container.png#center alt="Figure 1: Containers vs VMs Architecture" loading=lazy data-zoomable></div></div><figcaption>Figure 1: Containers vs VMs Architecture</figcaption></figure><p>Containers are <a href="https://www.docker.com/resources/what-container/#:~:text=an%20abstraction%20at%20the%20app%20layer" target=_blank rel=noopener>&ldquo;an abstraction at the app
+layer&rdquo;</a>. Several containers can operate on a single system, utilizing the same OS kernel and running as separate processes within the user space, effectively isolated from one another. On the other hand, the architecture diagram of VMs
+implies <a href="https://www.docker.com/resources/what-container/#:~:text=an%20abstraction%20of%20physical%20hardware" target=_blank rel=noopener>&ldquo;an abstraction of physical hardware&rdquo;</a>.
+The hypervisor enables the simultaneous operation of multiple virtual machines (VMs) on a single system. Each VM encompasses a complete instance of an operating system along with the requisite applications, binaries, and libraries.</p><p>While Containers offer the potential for workload isolation through the utilization of <a href=https://jvns.ca/blog/2016/10/10/what-even-is-a-container/ target=_blank rel=noopener>cgroups and namespaces</a>, the underlying host&rsquo;s operating system remains susceptible to risks. On the other hand VMs have their own kernel and do not directly interact with the host system, thus providing an additional
+layer of security between the Host and the workload.</p><p>What if we could get the best of both worlds &mldr;
+the security of VMs plus the &ldquo;lightweight&rdquo; nature of containers ?</p><figure id=figure-figure-2-micro-vms-architecture><div class="d-flex justify-content-center"><div class=w-100><img src=/images/kn-diverse-runtime/micro-vm.png#center alt="Figure 2: Micro-VM's Architecture" loading=lazy data-zoomable></div></div><figcaption>Figure 2: Micro-VM&rsquo;s Architecture</figcaption></figure><blockquote><p><a href="%28https://firecracker-microvm.github.io/#:~:text=microVMs%2C%20which%20provide%20enhanced%20security%20and%20workload%20isolation%20over%20traditional%20VMs%2C%20while%20enabling%20the%20speed%20and%20resource%20efficiency%20of%20containers.%29"><em>&ldquo;Micro-VMs</em></a> provide enhanced security and workload isolation over traditional VMs, while enabling the speed and resource efficiency of containers&rdquo;.</p></blockquote><p>Utilizing and configuring &rsquo;low-level&rsquo; runtimes like <em>Kata-containers</em> and <em>gVisor</em> empowers the generation of Micro-VMs from the container manager, along with the various tools using it, including Kubernetes and Knative.</p><p>In this article we explore <strong>how to enable the deployment of workloads sandboxed in Micro-VMs, across various runtimes via Knative</strong>.</p><h3 id=prerequisites-->Prerequisites :</h3><ul><li>Kubernetes Cluster >= v1.25</li></ul><blockquote><p><strong><em>NOTE:</em></strong> If you have only one node in your cluster, you need at least 6 CPUs, 6 GB of memory, and 30 GB of disk storage.
+If you have multiple nodes in your cluster, for each node you need at least 2 CPUs, 4 GB of memory, and 20 GB of disk storage.</p></blockquote><ul><li><a href=https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/ target=_blank rel=noopener>Knative</a></li><li><a href=https://github.com/containerd/containerd/blob/main/docs/getting-started.md#step-1-installing-containerd target=_blank rel=noopener>containerd</a></li></ul><p>More info on how we set-up our K8s cluster with Knative can be found <a href=/posts/knative-installation>here</a></p><h3 id=knative-configuration>Knative-Configuration</h3><p>To configure the placement of Knative Services on designated nodes and specify the runtime for execution, you can achieve this by editing the configuration as follows:</p><p><code>kubectl -n knative-serving edit cm config-features</code></p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>  kubernetes.podspec-affinity: enabled
+</span></span><span class=line><span class=cl>  kubernetes.podspec-runtimeclassname: enabled
+</span></span></code></pre></div><blockquote><p><strong><em>NOTE:</em></strong> Add the lines under the <code>data</code> section,
+not the <a href=https://github.com/knative/serving/issues/11388 target=_blank rel=noopener><code>_example</code></a></p></blockquote><h3 id=runc--deployment>Runc deployment</h3><p>We use a simple <code>helloworld</code> server as <code>Knative-Service</code> to deploy the containerized function:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>apiVersion: serving.knative.dev/v1
+</span></span><span class=line><span class=cl>kind: Service
+</span></span><span class=line><span class=cl>metadata:
+</span></span><span class=line><span class=cl>  name: helloworld
+</span></span><span class=line><span class=cl>  namespace: ktest
+</span></span><span class=line><span class=cl>spec:
+</span></span><span class=line><span class=cl>  template:
+</span></span><span class=line><span class=cl>    metadata: null
+</span></span><span class=line><span class=cl>    spec:
+</span></span><span class=line><span class=cl>      containerConcurrency: 10
+</span></span><span class=line><span class=cl>      containers:
+</span></span><span class=line><span class=cl>      - env:
+</span></span><span class=line><span class=cl>        - name: TARGET
+</span></span><span class=line><span class=cl>          value: Go Sample v1 
+</span></span><span class=line><span class=cl>        image: harbor.nbfc.io/kimage/hello-world@sha256:4554e30f8380ad74003fafe0f7136dc7511a3d437da2bfdc55fb4f913d641951
+</span></span></code></pre></div><blockquote><blockquote><p><strong><em>NOTE:</em></strong> To further configure the placement of the function in specific nodes on the k8s cluster,
+we could add an affinity section in the template spec of the container function. See the snippet below etc.</p></blockquote></blockquote><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>spec:
+</span></span><span class=line><span class=cl>  template:
+</span></span><span class=line><span class=cl>    metadata: null
+</span></span><span class=line><span class=cl>    spec:
+</span></span><span class=line><span class=cl>      affinity:
+</span></span><span class=line><span class=cl>        nodeAffinity:
+</span></span><span class=line><span class=cl>          requiredDuringSchedulingIgnoredDuringExecution:
+</span></span><span class=line><span class=cl>            nodeSelectorTerms:
+</span></span><span class=line><span class=cl>            - matchExpressions:
+</span></span><span class=line><span class=cl>              - key: kubernetes.io/hostname
+</span></span><span class=line><span class=cl>                operator: In
+</span></span><span class=line><span class=cl>                values:
+</span></span><span class=line><span class=cl>                - <span class=nv>$NODE_NAME</span>
+</span></span><span class=line><span class=cl>      containerConcurrency: <span class=m>10</span>
+</span></span><span class=line><span class=cl>      containers:
+</span></span><span class=line><span class=cl>      - env:
+</span></span><span class=line><span class=cl>        - name: TARGET
+</span></span><span class=line><span class=cl>          value: Go Sample v1 
+</span></span><span class=line><span class=cl>        image: harbor.nbfc.io/kimage/hello-world@sha256:4554e30f8380ad74003fafe0f7136dc7511a3d437da2bfdc55fb4f913d641951
+</span></span></code></pre></div><p>In order to test the deployment of the <code>helloworld-Knative-Service</code>, you can use the curl
+command. To do this, we need to retrieve IP of <a href=https://github.com/knative/serving/issues/10897#issuecomment-791025666 target=_blank rel=noopener><code>kourier-internal service</code></a>.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>$ kubectl apply -f ksvc-hello-world.yaml 
+</span></span><span class=line><span class=cl>Warning: Kubernetes default value is insecure, Knative may default this to secure in a future release: spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.allowPrivilegeEscalation, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.capabilities, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.runAsNonRoot, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.seccompProfile
+</span></span><span class=line><span class=cl>service.serving.knative.dev/helloworld created
+</span></span><span class=line><span class=cl>$ kubectl get ksvc -n ktest
+</span></span><span class=line><span class=cl>NAME         URL                                         LATESTCREATED      LATESTREADY        READY   REASON
+</span></span><span class=line><span class=cl>helloworld   http://helloworld.ktest.svc.cluster.local   helloworld-00001   helloworld-00001   True    
+</span></span><span class=line><span class=cl>$ kubectl get svc -A <span class=p>|</span> grep kourier-internal
+</span></span><span class=line><span class=cl>kourier-system     kourier-internal                  ClusterIP      10.98.240.177    &lt;none&gt;                                              80/TCP,443/TCP                                       2d2h
+</span></span><span class=line><span class=cl>ktest              helloworld                        ExternalName   &lt;none&gt;           kourier-internal.kourier-system.svc.cluster.local   80/TCP                                               61s
+</span></span><span class=line><span class=cl>$ curl -H <span class=s2>&#34;Host: helloworld.ktest.svc.cluster.local&#34;</span> http://10.98.240.177
+</span></span><span class=line><span class=cl>Hello ! The  IP  is : 10.80.157.91
+</span></span></code></pre></div><blockquote><p><strong><em>NOTE:</em></strong> By default the &ldquo;low-level&rdquo; runtime <code>containerd</code> utilizes is <em>runc</em> thus
+we don&rsquo;t need to specify a <code>RuntimeClass</code> on K8s or re-configure the containerd&rsquo;s configuration
+file on the deployment node</p></blockquote><h3 id=gvisor-deployment>gVisor Deployment</h3><p><a href=https://gvisor.dev/docs/ target=_blank rel=noopener><code>gVisor</code></a> is an open-source container runtime that enhances
+the security and isolation of containerized applications. To enable the deployment of
+workloads to <code>gVisor-runtime</code> first we need to install the gVisor-handler binaries and
+then define the <code>gvisor-RuntimeClass</code> in Kubernetes.</p><p>Thus to run pods with <code>gVisor-runtime</code> we need to
+<a href="https://gvisor.dev/docs/user_guide/install/#:~:text=%28%0A%20%20set%20%2De,local/bin%0A%29" target=_blank rel=noopener>install</a> <em>runsc</em> and <em>containerd-shim-runsc-v1</em> on deployment-node.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl><span class=o>(</span>
+</span></span><span class=line><span class=cl> <span class=nb>set</span> -e
+</span></span><span class=line><span class=cl> <span class=nv>ARCH</span><span class=o>=</span><span class=k>$(</span>uname -m<span class=k>)</span>
+</span></span><span class=line><span class=cl> <span class=nv>URL</span><span class=o>=</span>https://storage.googleapis.com/gvisor/releases/release/latest/<span class=si>${</span><span class=nv>ARCH</span><span class=si>}</span>
+</span></span><span class=line><span class=cl> wget <span class=si>${</span><span class=nv>URL</span><span class=si>}</span>/runsc <span class=si>${</span><span class=nv>URL</span><span class=si>}</span>/runsc.sha512 <span class=se>\
+</span></span></span><span class=line><span class=cl>   <span class=si>${</span><span class=nv>URL</span><span class=si>}</span>/containerd-shim-runsc-v1 <span class=si>${</span><span class=nv>URL</span><span class=si>}</span>/containerd-shim-runsc-v1.sha512
+</span></span><span class=line><span class=cl> sha512sum -c runsc.sha512 <span class=se>\
+</span></span></span><span class=line><span class=cl>   -c containerd-shim-runsc-v1.sha512
+</span></span><span class=line><span class=cl> rm -f *.sha512
+</span></span><span class=line><span class=cl> chmod a+rx runsc containerd-shim-runsc-v1
+</span></span><span class=line><span class=cl> sudo mv runsc containerd-shim-runsc-v1 /usr/local/bin
+</span></span><span class=line><span class=cl><span class=o>)</span>
+</span></span></code></pre></div><p>Then we add the following lines to the <code>containerd</code>&rsquo;s config(<em><code>/etc/containerd/config.toml</code></em>)</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>[plugins.&#34;io.containerd.grpc.v1.cri&#34;.containerd.runtimes.runsc]
+</span></span><span class=line><span class=cl>  runtime_type = &#34;io.containerd.runsc.v1&#34;
+</span></span></code></pre></div><blockquote><p><strong><em>NOTE:</em></strong> We modify the containerd of the <strong>node</strong>
+that will run the deployment.</p></blockquote><p>Then restart the <code>containerd</code> service and reload the systemd configuration</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-gdscript3 data-lang=gdscript3><span class=line><span class=cl><span class=n>sudo</span> <span class=n>systemctl</span> <span class=n>restart</span> <span class=n>containerd</span> 
+</span></span><span class=line><span class=cl><span class=n>sudo</span> <span class=n>systemctl</span> <span class=n>daemon</span><span class=o>-</span><span class=n>reload</span>
+</span></span></code></pre></div><p>Now let&rsquo;s create the <code>gVisor-RuntimeClass</code>:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>cat &lt;&lt;EOF | kubectl apply -f -
+</span></span><span class=line><span class=cl>apiVersion: node.k8s.io/v1
+</span></span><span class=line><span class=cl>kind: RuntimeClass
+</span></span><span class=line><span class=cl>metadata:
+</span></span><span class=line><span class=cl>  name: gvisor
+</span></span><span class=line><span class=cl>handler: runsc
+</span></span><span class=line><span class=cl>EOF
+</span></span></code></pre></div><blockquote><p><strong><em>NOTE:</em></strong> The <a href=https://kubernetes.io/docs/concepts/containers/runtime-class/ target=_blank rel=noopener><code>RuntimeClass</code></a>
+Kubernetes object is a resource that defines
+the container runtime to Pod&rsquo;s containers.</p></blockquote><p>By applying the following <code>Knative-Service</code> yaml, we deploy
+our function(a simple hello-world server) via the
+<code>gVisor</code> runtime.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>cat &lt;&lt;EOF | tee gvisor-ksvc-hello-world.yaml | kubectl apply -f -
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>apiVersion: serving.knative.dev/v1
+</span></span><span class=line><span class=cl>kind: Service
+</span></span><span class=line><span class=cl>metadata:
+</span></span><span class=line><span class=cl>  name: gvisor-helloworld-0
+</span></span><span class=line><span class=cl>  namespace: ktest
+</span></span><span class=line><span class=cl>spec:
+</span></span><span class=line><span class=cl>  template:
+</span></span><span class=line><span class=cl>    spec:
+</span></span><span class=line><span class=cl>      containerConcurrency: 10
+</span></span><span class=line><span class=cl>      containers:
+</span></span><span class=line><span class=cl>      - env:
+</span></span><span class=line><span class=cl>        - name: TARGET
+</span></span><span class=line><span class=cl>          value: Go Sample v1
+</span></span><span class=line><span class=cl>        image: harbor.nbfc.io/kimage/hello-world@sha256:4554e30f8380ad74003fafe0f7136dc7511a3d437da2bfdc55fb4f913d641951
+</span></span><span class=line><span class=cl>      runtimeClassName: gvisor
+</span></span><span class=line><span class=cl>EOF
+</span></span></code></pre></div><p>We can test the deployment in the same way we did with <code>runc</code> :</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>$ kubectl apply -f gvisor-ksvc-hello-world.yaml 
+</span></span><span class=line><span class=cl>Warning: Kubernetes default value is insecure, Knative may default this to secure in a future release: spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.allowPrivilegeEscalation, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.capabilities, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.runAsNonRoot, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.seccompProfile
+</span></span><span class=line><span class=cl>service.serving.knative.dev/kata-fc-helloworld-0 created
+</span></span><span class=line><span class=cl>$ kubectl get ksvc -n ktest 
+</span></span><span class=line><span class=cl>NAME                  URL                                                  LATESTCREATED               LATESTREADY                 READY   REASON
+</span></span><span class=line><span class=cl>gvisor-helloworld-0   http://gvisor-helloworld-0.ktest.svc.cluster.local   gvisor-helloworld-0-00001   gvisor-helloworld-0-00001   True    
+</span></span><span class=line><span class=cl>$ kubectl get svc -A <span class=p>|</span> grep kourier-internal 
+</span></span><span class=line><span class=cl>kourier-system     kourier-internal                    ClusterIP      10.98.240.177    &lt;none&gt;                                              80/TCP,443/TCP                                       2d4h
+</span></span><span class=line><span class=cl>ktest              gvisor-helloworld-0                 ExternalName   &lt;none&gt;           kourier-internal.kourier-system.svc.cluster.local   80/TCP                                               37s
+</span></span><span class=line><span class=cl>$ curl -H <span class=s2>&#34;Host: gvisor-helloworld-0.ktest.svc.cluster.local&#34;</span> http://10.98.240.177
+</span></span><span class=line><span class=cl>Hello ! The  IP  is : 10.80.157.94
+</span></span></code></pre></div><p>But how do we know the deployment actually runs via <code>gVisor</code> on the specified node ?
+In order to validate everything is set up correctly
+we retrieve logs from the handling-processes.</p><p><code>ps aux | grep gvisor | grep ktest</code></p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>$ ps aux <span class=p>|</span> grep gvisor <span class=p>|</span> grep ktest
+</span></span><span class=line><span class=cl>root      <span class=m>534472</span>  0.1  0.4 <span class=m>1261980</span> <span class=m>18488</span> ?       Ssl  14:21   0:00 runsc-gofer --log<span class=o>=</span>/run/containerd/io.containerd.runtime.v2.task/k8s.io/1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20/log.json --log-format<span class=o>=</span>json --panic-log<span class=o>=</span>/var/log/pods/ktest_gvisor-helloworld-0-00001-deployment-6896594586-5s4tv_625b38a0-8355-4d44-9d2a-843d898d2c2a/gvisor_panic.log --root<span class=o>=</span>/run/containerd/runsc/k8s.io --log-fd<span class=o>=</span><span class=m>3</span> gofer --bundle<span class=o>=</span>/run/containerd/io.containerd.runtime.v2.task/k8s.io/1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20 --io-fds<span class=o>=</span>6,7 --mounts-fd<span class=o>=</span><span class=m>5</span> --overlay-mediums<span class=o>=</span>0,0 --spec-fd<span class=o>=</span><span class=m>4</span> --sync-nvproxy-fd<span class=o>=</span>-1 --sync-userns-fd<span class=o>=</span>-1 --proc-mount-sync-fd<span class=o>=</span><span class=m>14</span> --apply-caps<span class=o>=</span><span class=nb>false</span> --setup-root<span class=o>=</span><span class=nb>false</span>
+</span></span><span class=line><span class=cl>root      <span class=m>534476</span>  2.0  0.8 <span class=m>2411120</span> <span class=m>35288</span> ?       Ssl  14:21   0:00 runsc-sandbox --root<span class=o>=</span>/run/containerd/runsc/k8s.io --log<span class=o>=</span>/run/containerd/io.containerd.runtime.v2.task/k8s.io/1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20/log.json --log-format<span class=o>=</span>json --panic-log<span class=o>=</span>/var/log/pods/ktest_gvisor-helloworld-0-00001-deployment-6896594586-5s4tv_625b38a0-8355-4d44-9d2a-843d898d2c2a/gvisor_panic.log --log-fd<span class=o>=</span><span class=m>3</span> --panic-log-fd<span class=o>=</span><span class=m>4</span> boot --apply-caps<span class=o>=</span><span class=nb>false</span> --bundle<span class=o>=</span>/run/containerd/io.containerd.runtime.v2.task/k8s.io/1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20 --controller-fd<span class=o>=</span><span class=m>10</span> --cpu-num<span class=o>=</span><span class=m>2</span> --io-fds<span class=o>=</span>5,6 --mounts-fd<span class=o>=</span><span class=m>7</span> --overlay-mediums<span class=o>=</span>0,0 --setup-root<span class=o>=</span><span class=nb>false</span> --spec-fd<span class=o>=</span><span class=m>11</span> --start-sync-fd<span class=o>=</span><span class=m>8</span> --stdio-fds<span class=o>=</span>12,13,14 --total-host-memory<span class=o>=</span><span class=m>4110331904</span> --total-memory<span class=o>=</span><span class=m>4110331904</span> --user-log-fd<span class=o>=</span><span class=m>9</span> --product-name<span class=o>=</span>Standard PC <span class=o>(</span>Q35 + ICH9, 2009<span class=o>)</span> --proc-mount-sync-fd<span class=o>=</span><span class=m>22</span> 1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20
+</span></span><span class=line><span class=cl>root      <span class=m>534526</span>  0.0  0.4 <span class=m>1261980</span> <span class=m>17800</span> ?       Sl   14:21   0:00 runsc --root<span class=o>=</span>/run/containerd/runsc/k8s.io --log<span class=o>=</span>/run/containerd/io.containerd.runtime.v2.task/k8s.io/1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20/log.json --log-format<span class=o>=</span>json --panic-log<span class=o>=</span>/var/log/pods/ktest_gvisor-helloworld-0-00001-deployment-6896594586-5s4tv_625b38a0-8355-4d44-9d2a-843d898d2c2a/gvisor_panic.log <span class=nb>wait</span> 1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20
+</span></span></code></pre></div><h3 id=kata-containers>Kata-containers</h3><p>Another option for enhancing the security and isolation of
+containerized applications is <a href=https://github.com/kata-containers/kata-containers target=_blank rel=noopener><code>Kata-containers</code></a>-containers. Utilizing virtualization mechanisms
+provides an additional layer of isolation, mitigating potential security
+vulnerabilities.</p><p>The virtual machines created to execute
+the workload may vary depending on the chosen hypervisor.</p><p>Such <a href=https://github.com/kata-containers/kata-containers/blob/main/docs/hypervisors.md#choose-a-hypervisor target=_blank rel=noopener>Hypervisors</a>
+can be : <code>QEMU</code>,<code>Firecracker</code>,<code>DragonBall</code>,<code>Cloud-hypervisor</code></p><p>In the following section we explore these options.</p><h3 id=kata-qemu>Kata-QEMU</h3><p>For enabling the <code>Kata</code>-runtime we need to
+install first <code>kata-shim</code>(containerd-shim-kata-v2) and <code>kata-runtime</code>.</p><p>Thus we follow this <a href=https://github.com/kata-containers/kata-containers/blob/main/docs/install/container-manager/containerd/containerd-install.md target=_blank rel=noopener>installation guide</a></p><div class=highlight><pre tabindex=0 class=chroma><code class=language-gdscript3 data-lang=gdscript3><span class=line><span class=cl><span class=n>wget</span> <span class=n>https</span><span class=p>:</span><span class=o>//</span><span class=n>github</span><span class=o>.</span><span class=n>com</span><span class=o>/</span><span class=n>kata</span><span class=o>-</span><span class=n>containers</span><span class=o>/</span><span class=n>kata</span><span class=o>-</span><span class=n>containers</span><span class=o>/</span><span class=n>releases</span><span class=o>/</span><span class=n>download</span><span class=o>/</span><span class=mf>3.2</span><span class=o>.</span><span class=mi>0</span><span class=o>-</span><span class=n>alpha4</span><span class=o>/</span><span class=n>kata</span><span class=o>-</span><span class=k>static</span><span class=o>-</span><span class=mf>3.2</span><span class=o>.</span><span class=mi>0</span><span class=o>-</span><span class=n>alpha4</span><span class=o>-</span><span class=n>amd64</span><span class=o>.</span><span class=n>tar</span><span class=o>.</span><span class=n>xz</span> 
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>tar</span> <span class=n>xvf</span> <span class=n>kata</span><span class=o>-</span><span class=k>static</span><span class=o>-</span><span class=mf>3.2</span><span class=o>.</span><span class=mi>0</span><span class=o>-</span><span class=n>alpha4</span><span class=o>-</span><span class=n>amd64</span><span class=o>.</span><span class=n>tar</span><span class=o>.</span><span class=n>xz</span> <span class=o>./</span>
+</span></span><span class=line><span class=cl><span class=n>sudo</span> <span class=n>cp</span> <span class=o>-</span><span class=n>r</span> <span class=n>opt</span><span class=o>/</span><span class=n>kata</span><span class=o>/</span> <span class=o>/</span><span class=n>opt</span><span class=o>/</span>
+</span></span><span class=line><span class=cl><span class=n>echo</span> <span class=s1>&#39;PATH=&#34;$PATH:/opt/kata/bin&#34;&#39;</span> <span class=o>&gt;&gt;</span> <span class=o>~/.</span><span class=n>profile</span>
+</span></span><span class=line><span class=cl><span class=n>source</span> <span class=o>.</span><span class=n>profile</span> 
+</span></span><span class=line><span class=cl><span class=n>echo</span> <span class=o>$</span><span class=n>PATH</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>kata</span><span class=o>-</span><span class=n>runtime</span> <span class=o>--</span><span class=n>version</span>
+</span></span></code></pre></div><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>$ kata-runtime --version
+</span></span><span class=line><span class=cl>kata-runtime  : 3.2.0-alpha3
+</span></span><span class=line><span class=cl>   commit   : 61a8eabf8e4c3a0ff807f7461b27a1a036ef816e
+</span></span><span class=line><span class=cl>   OCI specs: 1.0.2-dev
+</span></span></code></pre></div><p>Now we need to make <code>kata-runtime</code> use the <code>QEMU</code> hypervisor,
+following the <a href="https://blog.cloudkernels.net/posts/orin-vm-vaccel/#kata-containers-binary-installation:~:text=QEMU%3A,1" target=_blank rel=noopener>installation-guide</a>
+let&rsquo;s create a script indicating the usage of <code>QEMU</code> hypervisor from <code>kata-runtime</code>, in <code>/usr/local/bin/containerd-shim-kata-qemu-v2</code>
+add the following lines.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=nv>KATA_CONF_FILE</span><span class=o>=</span>/opt/kata/share/defaults/kata-containers/configuration-qemu.toml /opt/kata/bin/containerd-shim-kata-v2 <span class=nv>$@</span>
+</span></span></code></pre></div><p>Make it executable.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>sudo chmod +x /usr/local/bin/containerd-shim-kata-qemu-v2
+</span></span></code></pre></div><p>It&rsquo;s time to tell <code>containerd</code> about the <code>kata-qemu</code> container-runtime, so we define
+the runtime by adding these lines in <code>/etc/containerd/config.toml</code></p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>  [plugins.&#34;io.containerd.grpc.v1.cri&#34;.containerd.runtimes.kata-qemu]
+</span></span><span class=line><span class=cl>          privileged_without_host_devices = false
+</span></span><span class=line><span class=cl>          privileged_without_host_devices_all_devices_allowed = false
+</span></span><span class=line><span class=cl>          runtime_type = &#34;io.containerd.kata-qemu.v2&#34;
+</span></span><span class=line><span class=cl>          pod_annotations = [&#34;*&#34;]
+</span></span><span class=line><span class=cl>          container_annotations = [&#34;*&#34;]
+</span></span></code></pre></div><p>Restart the <code>containerd</code> service and reload the systemd
+configuration</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-gdscript3 data-lang=gdscript3><span class=line><span class=cl><span class=n>sudo</span> <span class=n>systemctl</span> <span class=n>restart</span> <span class=n>containerd</span><span class=o>.</span><span class=n>service</span>
+</span></span><span class=line><span class=cl><span class=n>sudo</span> <span class=n>systemctl</span> <span class=n>daemon</span><span class=o>-</span><span class=n>reload</span>
+</span></span></code></pre></div><p>To verify the containerd configuration, we execute a basic
+command within a container, specifying the kata-qemu runtime.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>sudo ctr run --runtime io.containerd.kata-qemu.v2 --rm docker.io/library/ubuntu:latest test uname -a
+</span></span><span class=line><span class=cl>## Linux localhost 6.1.38 #1 SMP Tue Jul 25 16:32:12 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
+</span></span></code></pre></div><p>Now we know containerd is configured properly is time to define
+the<code>Kata-QEMU RuntimeClass</code> in Kubernetes.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>cat &lt;&lt; EOF | kubectl apply -f -
+</span></span><span class=line><span class=cl>kind: RuntimeClass
+</span></span><span class=line><span class=cl>apiVersion: node.k8s.io/v1
+</span></span><span class=line><span class=cl>metadata:
+</span></span><span class=line><span class=cl>    name: kata-qemu
+</span></span><span class=line><span class=cl>handler: kata-qemu
+</span></span><span class=line><span class=cl>EOF
+</span></span></code></pre></div><p>Next we create another deployment of <code>helloworld-Knative-service</code>
+but this time the <code>RuntimeClass</code> points
+to the <code>kata-qemu</code> handler</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>cat &lt;&lt;EOF | tee kata-qemu-ksvc-hello-world.yaml | kubectl apply -f -
+</span></span><span class=line><span class=cl>apiVersion: serving.knative.dev/v1
+</span></span><span class=line><span class=cl>kind: Service
+</span></span><span class=line><span class=cl>metadata:
+</span></span><span class=line><span class=cl>  name: kata-qemu-helloworld-0
+</span></span><span class=line><span class=cl>  namespace: ktest
+</span></span><span class=line><span class=cl>spec:
+</span></span><span class=line><span class=cl>  template:
+</span></span><span class=line><span class=cl>    metadata: null
+</span></span><span class=line><span class=cl>    spec:
+</span></span><span class=line><span class=cl>      containerConcurrency: 10
+</span></span><span class=line><span class=cl>      containers:
+</span></span><span class=line><span class=cl>      - env:
+</span></span><span class=line><span class=cl>        - name: TARGET
+</span></span><span class=line><span class=cl>          value: Go Sample v1
+</span></span><span class=line><span class=cl>        image: harbor.nbfc.io/kimage/hello-world@sha256:4554e30f8380ad74003fafe0f7136dc7511a3d437da2bfdc55fb4f913d641951
+</span></span><span class=line><span class=cl>      runtimeClassName: kata-qemu
+</span></span><span class=line><span class=cl>EOF
+</span></span></code></pre></div><p>The following figure shows the deployment and response of the function:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>$ kubectl create ns ktest 
+</span></span><span class=line><span class=cl>namespace/ktest created
+</span></span><span class=line><span class=cl>$ kubectl apply -f kata-qemu-ksvc-hello-world.yaml 
+</span></span><span class=line><span class=cl>Warning: Kubernetes default value is insecure, Knative may default this to secure in a future release: spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.allowPrivilegeEscalation, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.capabilities, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.runAsNonRoot, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.seccompProfile
+</span></span><span class=line><span class=cl>service.serving.knative.dev/kata-qemu-helloworld-00 created
+</span></span><span class=line><span class=cl>$ kubectl get ksvc -n ktest 
+</span></span><span class=line><span class=cl>NAME                      URL                                                      LATESTCREATED                   LATESTREADY                     READY   REASON
+</span></span><span class=line><span class=cl>kata-qemu-helloworld-00   http://kata-qemu-helloworld-00.ktest.svc.cluster.local   kata-qemu-helloworld-00-00001   kata-qemu-helloworld-00-00001   True    
+</span></span><span class=line><span class=cl>$ kubectl get svc -A <span class=p>|</span> grep kourier-internal
+</span></span><span class=line><span class=cl>kourier-system     kourier-internal                        ClusterIP      10.98.240.177    &lt;none&gt;                                              80/TCP,443/TCP                                       2d4h
+</span></span><span class=line><span class=cl>ktest              kata-qemu-helloworld-00                 ExternalName   &lt;none&gt;           kourier-internal.kourier-system.svc.cluster.local   80/TCP                                               103s
+</span></span><span class=line><span class=cl>$ curl -H <span class=s2>&#34;Host: kata-qemu-helloworld-00.ktest.svc.cluster.local&#34;</span> http://10.98.240.177
+</span></span><span class=line><span class=cl>Hello ! The  IP  is : 10.80.157.99
+</span></span></code></pre></div><h2 id=kata-firecracker>Kata-Firecracker</h2><p>The same process is followed for utilization of
+<code>kata-runtime</code> with <a href=https://firecracker-microvm.github.io/ target=_blank rel=noopener><code>Firecracker</code></a> hypervisor configured.</p><p>One fundamental distinction in this context is the necessity to incorporate the <code>devmapper</code> <a href=https://dev.to/napicella/what-is-a-containerd-snapshotters-3eo2 target=_blank rel=noopener><code>snapshotter</code></a>
+to manage virtual block devices required by the Firecracker hypervisor.
+Make sure you <a href=/posts/kata-build-configure-fc/#devmapper-snapshotter>follow the instructions</a> to setup
+it correctly in <code>containerd</code>.</p><p>To check that <code>devmapper</code> is registered and running:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>sudo dmsetup ls
+</span></span><span class=line><span class=cl># containerd-pool	(253:0)
+</span></span><span class=line><span class=cl>sudo ctr plugins ls | grep devmapper
+</span></span><span class=line><span class=cl># io.containerd.snapshotter.v1    devmapper                linux/amd64    ok
+</span></span></code></pre></div><p>Seems like <code>devmapper</code> is configured properly !</p><p>Now we have configure the <code>containerd-pool</code>
+let&rsquo;s create a script indicating the usage of <code>Firecracker</code> configuration for <code>kata-runtime</code>,</p><p>Add the following lines in <code>/usr/local/bin/containerd-shim-kata-fc-v2</code> :</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=nv>KATA_CONF_FILE</span><span class=o>=</span>/opt/kata/share/defaults/kata-containers/configuration-fc.toml /opt/kata/bin/containerd-shim-kata-v2 <span class=nv>$@</span>
+</span></span></code></pre></div><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>sudo chmod +x /usr/local/bin/containerd-shim-fc-qemu-v2
+</span></span></code></pre></div><p>Then define the <code>kata-fc</code> runtime in containerd:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl> [plugins.&#34;io.containerd.grpc.v1.cri&#34;.containerd.runtimes.kata-fc]
+</span></span><span class=line><span class=cl>    privileged_without_host_devices = true
+</span></span><span class=line><span class=cl>    privileged_without_host_devices_all_devices_allowed = false
+</span></span><span class=line><span class=cl>    runtime_type = &#34;io.containerd.kata-fc.v2&#34;
+</span></span><span class=line><span class=cl>    snapshotter = &#34;devmapper&#34;
+</span></span><span class=line><span class=cl>    pod_annotations = [&#34;*&#34;]
+</span></span><span class=line><span class=cl>    container_annotations = [&#34;*&#34;]
+</span></span></code></pre></div><blockquote><p><strong><em>NOTE:</em></strong> We create the <code>containerd-pool</code> and modify the containerd-configuration of the <strong>node</strong> that will run the deployment.</p></blockquote><p>Restart the <code>containerd</code> service and reload the systemd
+configuration</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-gdscript3 data-lang=gdscript3><span class=line><span class=cl><span class=n>sudo</span> <span class=n>systemctl</span> <span class=n>restart</span> <span class=n>containerd</span><span class=o>.</span><span class=n>service</span>
+</span></span><span class=line><span class=cl><span class=n>sudo</span> <span class=n>systemctl</span> <span class=n>daemon</span><span class=o>-</span><span class=n>reload</span>
+</span></span></code></pre></div><p>To test the configuration of <code>kata-fc</code> in containerd, run a simple container with the specified runtime:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl> sudo ctr run --snapshotter devmapper --runtime io.containerd.run.kata-fc.v2 -t --rm docker.io/library/ubuntu:latest ubuntu-kata-fc-test uname -a
+</span></span><span class=line><span class=cl># Linux localhost 6.1.38 #1 SMP Tue Jul 25 16:32:12 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
+</span></span></code></pre></div><p>It appears that everything has been configured correctly!</p><p>We now need to define the <code>RuntimeClass</code>
+in Kubernetes to enable the utilization of the <code>kata-fc</code>
+runtime through containerd on the deployment nodes.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>cat &lt;&lt; EOF | kubectl apply -f -
+</span></span><span class=line><span class=cl>kind: RuntimeClass
+</span></span><span class=line><span class=cl>apiVersion: node.k8s.io/v1
+</span></span><span class=line><span class=cl>metadata:
+</span></span><span class=line><span class=cl>    name: kata-fc
+</span></span><span class=line><span class=cl>handler: kata-fc
+</span></span><span class=line><span class=cl>EOF
+</span></span></code></pre></div><p>Create the <code>Knative-Service</code> to be deployed with <code>kata-fc</code> <code>RuntimeClass</code></p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>cat &lt;&lt;EOF | tee kata-fc-ksvc-hello-world.yaml | kubectl apply -f -
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>apiVersion: serving.knative.dev/v1
+</span></span><span class=line><span class=cl>kind: Service
+</span></span><span class=line><span class=cl>metadata:
+</span></span><span class=line><span class=cl>  name: kata-fc-helloworld-0
+</span></span><span class=line><span class=cl>  namespace: ktest
+</span></span><span class=line><span class=cl>spec:
+</span></span><span class=line><span class=cl>  template:
+</span></span><span class=line><span class=cl>    spec:
+</span></span><span class=line><span class=cl>      containerConcurrency: 10
+</span></span><span class=line><span class=cl>      containers:
+</span></span><span class=line><span class=cl>      - env:
+</span></span><span class=line><span class=cl>        - name: TARGET
+</span></span><span class=line><span class=cl>          value: Go Sample v1
+</span></span><span class=line><span class=cl>        image: harbor.nbfc.io/kimage/hello-world@sha256:4554e30f8380ad74003fafe0f7136dc7511a3d437da2bfdc55fb4f913d641951
+</span></span><span class=line><span class=cl>      runtimeClassName: kata-fc
+</span></span><span class=line><span class=cl>EOF
+</span></span></code></pre></div><p>After a successful deployment we can <code>curl</code> the <code>Knative-Service</code> (through <code>kourier-internal</code> svc) and check its
+response.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>$ kubectl apply -f kata-fc-ksvc-hello-world.yaml 
+</span></span><span class=line><span class=cl>Warning: Kubernetes default value is insecure, Knative may default this to secure in a future release: spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.allowPrivilegeEscalation, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.capabilities, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.runAsNonRoot, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.seccompProfile
+</span></span><span class=line><span class=cl>service.serving.knative.dev/kata-fc-helloworld-00 created
+</span></span><span class=line><span class=cl>$ kubectl get ksvc -n ktest
+</span></span><span class=line><span class=cl>NAME                    URL                                                    LATESTCREATED                 LATESTREADY                   READY   REASON
+</span></span><span class=line><span class=cl>kata-fc-helloworld-00   http://kata-fc-helloworld-00.ktest.svc.cluster.local   kata-fc-helloworld-00-00001   kata-fc-helloworld-00-00001   True    
+</span></span><span class=line><span class=cl>$ kubectl get svc -A <span class=p>|</span> grep kourier-internal
+</span></span><span class=line><span class=cl>kourier-system     kourier-internal                      ClusterIP      10.98.240.177    &lt;none&gt;                                              80/TCP,443/TCP                                       2d5h
+</span></span><span class=line><span class=cl>ktest              kata-fc-helloworld-00                 ExternalName   &lt;none&gt;           kourier-internal.kourier-system.svc.cluster.local   80/TCP                                               31s
+</span></span><span class=line><span class=cl>$ curl -H <span class=s2>&#34;Host: kata-fc-helloworld-00.ktest.svc.cluster.local&#34;</span> http://10.98.240.177
+</span></span><span class=line><span class=cl>Hello ! The  IP  is : 10.80.157.100
+</span></span></code></pre></div><h2 id=kata-dragonball>Kata-Dragonball</h2><p>Another hypervisor option, enhancing the low-CPU utilization and low-memory overhead
+is <a href=https://github.com/openanolis/dragonball-sandbox target=_blank rel=noopener><code>Dragonball</code></a>. In the same manner
+we create a script pointing to the <code>dragonball-configuration</code> this time. In <code>/usr/local/bin/containerd-shim-kata-rs-v2</code>
+add the following lines:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=nv>KATA_CONF_FILE</span><span class=o>=</span>/opt/kata/share/defaults/kata-containers/configuration-dragonball.toml /opt/kata/runtime-rs/bin/containerd-shim-kata-v2 <span class=nv>$@</span>
+</span></span></code></pre></div><p>Make it executable.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>sudo chmod +x /usr/local/bin/containerd-shim-kata-rs-v2
+</span></span></code></pre></div><p>Add the following lines in containerd&rsquo;s config(<code>/etc/containerd/config.toml</code>) to
+enable the utilization of <code>Dragonball</code> hypervisor</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>[plugins.&#34;io.containerd.grpc.v1.cri&#34;.containerd.runtimes.kata-rs]
+</span></span><span class=line><span class=cl>  privileged_without_host_devices = true
+</span></span><span class=line><span class=cl>  privileged_without_host_devices_all_devices_allowed = true
+</span></span><span class=line><span class=cl>  runtime_type = &#34;io.containerd.kata-rs.v2&#34;
+</span></span><span class=line><span class=cl>  #snapshotter = &#34;devmapper&#34;
+</span></span><span class=line><span class=cl>  pod_annotations = [&#34;*&#34;]
+</span></span><span class=line><span class=cl>  container_annotations = [&#34;*&#34;]
+</span></span></code></pre></div><p>Then restart the <code>containerd</code> service and reload the systemd configuration</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-gdscript3 data-lang=gdscript3><span class=line><span class=cl><span class=n>sudo</span> <span class=n>systemctl</span> <span class=n>restart</span> <span class=n>containerd</span><span class=o>.</span><span class=n>service</span>
+</span></span><span class=line><span class=cl><span class=n>sudo</span> <span class=n>systemctl</span> <span class=n>daemon</span><span class=o>-</span><span class=n>reload</span>
+</span></span></code></pre></div><p>Now let&rsquo;s test everything is set up correctly :</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>sudo ctr run   --runtime io.containerd.kata-rs.v2  --rm  docker.io/library/ubuntu:latest test-rs uname -a
+</span></span><span class=line><span class=cl>## Linux localhost 6.1.38 #1 SMP Tue Jul 25 16:32:12 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
+</span></span></code></pre></div><p>Seems everything works as expected!</p><p>In order to make the <code>Dragonball-runtime</code> option available, we need to define a new <code>RuntimeClass</code>
+utilizing the kata-rs handler of the <code>containerd</code>s deployment-node. Thus execute
+the following:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>cat &lt;&lt; EOF | kubectl apply -f -
+</span></span><span class=line><span class=cl>kind: RuntimeClass
+</span></span><span class=line><span class=cl>apiVersion: node.k8s.io/v1
+</span></span><span class=line><span class=cl>metadata:
+</span></span><span class=line><span class=cl>    name: kata-rs
+</span></span><span class=line><span class=cl>handler: kata-rs
+</span></span><span class=line><span class=cl>EOF
+</span></span></code></pre></div><p>Apply the <code>helloworld-Knative-Service</code> with the <code>Dragonball</code> runtime</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>cat &lt;&lt;EOF | tee kata-rs-ksvc-hello-world.yaml | kubectl apply -f -
+</span></span><span class=line><span class=cl>apiVersion: serving.knative.dev/v1
+</span></span><span class=line><span class=cl>kind: Service
+</span></span><span class=line><span class=cl>metadata:
+</span></span><span class=line><span class=cl>  name: kata-rs-helloworld-0
+</span></span><span class=line><span class=cl>  namespace: ktest
+</span></span><span class=line><span class=cl>spec:
+</span></span><span class=line><span class=cl>  template:
+</span></span><span class=line><span class=cl>    spec:
+</span></span><span class=line><span class=cl>      containerConcurrency: 10
+</span></span><span class=line><span class=cl>      containers:
+</span></span><span class=line><span class=cl>      - env:
+</span></span><span class=line><span class=cl>        - name: TARGET
+</span></span><span class=line><span class=cl>          value: Go Sample v1
+</span></span><span class=line><span class=cl>        image: harbor.nbfc.io/kimage/hello-world@sha256:4554e30f8380ad74003fafe0f7136dc7511a3d437da2bfdc55fb4f913d641951
+</span></span><span class=line><span class=cl>      runtimeClassName: kata-rs
+</span></span><span class=line><span class=cl>EOF
+</span></span></code></pre></div><p>To test the FaaS-deployed service, execute the curl command as illustrated in the figure below:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>$ kubectl apply -f kata-rs-ksvc-hello-world.yaml 
+</span></span><span class=line><span class=cl>Warning: Kubernetes default value is insecure, Knative may default this to secure in a future release: spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.allowPrivilegeEscalation, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.capabilities, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.runAsNonRoot, spec.template.spec.containers<span class=o>[</span>0<span class=o>]</span>.securityContext.seccompProfile
+</span></span><span class=line><span class=cl><span class=nv>$service</span>.serving.knative.dev/kata-rs-helloworld-0 created
+</span></span><span class=line><span class=cl>$ kubectl get ksvc -n ktest 
+</span></span><span class=line><span class=cl>NAME                   URL                                                   LATESTCREATED                LATESTREADY                  READY   REASON
+</span></span><span class=line><span class=cl>kata-rs-helloworld-0   http://kata-rs-helloworld-0.ktest.svc.cluster.local   kata-rs-helloworld-0-00001   kata-rs-helloworld-0-00001   True    
+</span></span><span class=line><span class=cl>$ kubectl get svc -A <span class=p>|</span> grep kourier-internal
+</span></span><span class=line><span class=cl>kourier-system     kourier-internal                     ClusterIP      10.98.240.177    &lt;none&gt;                                              80/TCP,443/TCP                                       2d5h
+</span></span><span class=line><span class=cl>ktest              kata-rs-helloworld-0                 ExternalName   &lt;none&gt;           kourier-internal.kourier-system.svc.cluster.local   80/TCP                                               97s
+</span></span><span class=line><span class=cl>$ curl -H <span class=s2>&#34;Host: kata-rs-helloworld-0.ktest.svc.cluster.local&#34;</span> http://10.98.240.177
+</span></span><span class=line><span class=cl>Hello ! The  IP  is : 10.80.157.102
+</span></span></code></pre></div><p>That&rsquo;s all!</p></div><div class=article-tags><a class="badge badge-light" href=/tag/knative/>Knative</a>
+<a class="badge badge-light" href=/tag/container/>Container</a>
+<a class="badge badge-light" href=/tag/runtimes/>Runtimes</a>
+<a class="badge badge-light" href=/tag/kubernetes/>Kubernetes</a></div><div class=share-box><ul class=share><li><a href="https://twitter.com/intent/tweet?url=%2Fblog%2Fknative-diverse-deployments%2F&amp;text=Knative%3A++A+Deep+Dive+into+K-Deployments+across+diverse+Runtimes+%28part+II%29" target=_blank rel=noopener class=share-btn-twitter aria-label=twitter><i class="fab fa-twitter"></i></a></li><li><a href="https://www.facebook.com/sharer.php?u=%2Fblog%2Fknative-diverse-deployments%2F&amp;t=Knative%3A++A+Deep+Dive+into+K-Deployments+across+diverse+Runtimes+%28part+II%29" target=_blank rel=noopener class=share-btn-facebook aria-label=facebook><i class="fab fa-facebook"></i></a></li><li><a href="mailto:?subject=Knative%3A%20%20A%20Deep%20Dive%20into%20K-Deployments%20across%20diverse%20Runtimes%20%28part%20II%29&amp;body=%2Fblog%2Fknative-diverse-deployments%2F" target=_blank rel=noopener class=share-btn-email aria-label=envelope><i class="fas fa-envelope"></i></a></li><li><a href="https://www.linkedin.com/shareArticle?url=%2Fblog%2Fknative-diverse-deployments%2F&amp;title=Knative%3A++A+Deep+Dive+into+K-Deployments+across+diverse+Runtimes+%28part+II%29" target=_blank rel=noopener class=share-btn-linkedin aria-label=linkedin-in><i class="fab fa-linkedin-in"></i></a></li><li><a href="whatsapp://send?text=Knative%3A++A+Deep+Dive+into+K-Deployments+across+diverse+Runtimes+%28part+II%29%20%2Fblog%2Fknative-diverse-deployments%2F" target=_blank rel=noopener class=share-btn-whatsapp aria-label=whatsapp><i class="fab fa-whatsapp"></i></a></li><li><a href="https://service.weibo.com/share/share.php?url=%2Fblog%2Fknative-diverse-deployments%2F&amp;title=Knative%3A++A+Deep+Dive+into+K-Deployments+across+diverse+Runtimes+%28part+II%29" target=_blank rel=noopener class=share-btn-weibo aria-label=weibo><i class="fab fa-weibo"></i></a></li></ul></div></div></article><script>function blogGoBack(){document.referrer&&document.referrer.indexOf("/blog")!==-1?history.back():window.location.href="/blog/"}</script></div><div class=page-footer><div class=container><footer class=site-footer><p class="powered-by copyright-license-text">© 2026 Nubificus LTD. This work is licensed under <a href=https://creativecommons.org/licenses/by-nc-nd/4.0 rel="noopener noreferrer" target=_blank>CC BY NC ND 4.0</a></p><p class="powered-by footer-license-icons"><a href=https://creativecommons.org/licenses/by-nc-nd/4.0 rel="noopener noreferrer" target=_blank aria-label="Creative Commons"><i class="fab fa-creative-commons fa-2x" aria-hidden=true></i>
+<i class="fab fa-creative-commons-by fa-2x" aria-hidden=true></i>
+<i class="fab fa-creative-commons-nc fa-2x" aria-hidden=true></i>
+<i class="fab fa-creative-commons-nd fa-2x" aria-hidden=true></i></a></p><p class=powered-by>Published with <a href="https://hugoblox.com/?utm_campaign=poweredby" target=_blank rel=noopener>Hugo Blox Builder</a> — the free, <a href=https://github.com/HugoBlox/hugo-blox-builder target=_blank rel=noopener>open source</a> website builder that empowers creators.</p></footer></div></div><script src=/js/vendor-bundle.min.6782e3f6a4f06ea4766df038c45ecf40.js></script><script src=https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.min.js integrity crossorigin=anonymous></script><script id=page-data type=application/json>{"use_headroom":true}</script><script src=/js/wowchemy-headroom.b95a7e109243f29d04930ae8cb49a756.js type=module></script><script src=/en/js/wowchemy.min.ed487406ecbb80985462ba7a97b6f2d2.js></script><script src=/js/wowchemy-map.a26e9d2f7238ba5b868384f1c5bc6477.js type=module></script><div id=modal class="modal fade" role=dialog><div class=modal-dialog><div class=modal-content><div class=modal-header><h5 class=modal-title>Cite</h5><button type=button class=close data-dismiss=modal aria-label=Close>
+<span aria-hidden=true>&#215;</span></button></div><div class=modal-body><pre><code></code></pre></div><div class=modal-footer><a class="btn btn-outline-primary my-1 js-copy-cite" href=# target=_blank><i class="fas fa-copy"></i> Copy
+</a><a class="btn btn-outline-primary my-1 js-download-cite" href=# target=_blank><i class="fas fa-download"></i> Download</a><div id=modal-error></div></div></div></div></div><script src=/js/wowchemy-publication.9c0e895144aef5a693008b5c5d450147.js type=module></script></body></html>

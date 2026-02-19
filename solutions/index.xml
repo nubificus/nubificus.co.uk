@@ -1,0 +1,862 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Latest Projects | Nubificus</title><link>/solutions/</link><atom:link href="/solutions/index.xml" rel="self" type="application/rss+xml"/><description>Latest Projects</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Sat, 01 Jun 2030 13:00:00 +0000</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Latest Projects</title><link>/solutions/</link></image><item><title>edgeLink</title><link>/solutions/edgelink/</link><pubDate>Sat, 01 Jun 2030 13:00:00 +0000</pubDate><guid>/solutions/edgelink/</guid><description>&lt;style&gt;
+/* edgeLink theme: blue */
+:root {
+--el-primary: #1565c0;
+--el-light: #42a5f5;
+--el-gradient-start: #0d47a1;
+--el-gradient-mid: #1976d2;
+--el-gradient-end: #42a5f5;
+}
+body.dark {
+--el-primary: #64b5f6;
+--el-light: #90caf9;
+}
+.sol-badge.el { background: rgba(21,101,192,0.08); color: var(--el-primary); }
+body.dark .sol-badge.el { background: rgba(100,181,246,0.12); color: var(--el-light); }
+.sol-section-title.el { border-bottom: 2px solid rgba(21,101,192,0.15); }
+.sol-section-title.el i { color: var(--el-primary); }
+body.dark .sol-section-title.el { border-bottom-color: rgba(100,181,246,0.2); }
+body.dark .sol-section-title.el i { color: var(--el-light); }
+.sol-feature-card.el { background: linear-gradient(135deg, rgba(21,101,192,0.02) 0%, rgba(21,101,192,0.06) 100%); }
+.sol-feature-card.el::before { background: linear-gradient(180deg, var(--el-primary), var(--el-light)); }
+body.dark .sol-feature-card.el { background: linear-gradient(135deg, rgba(100,181,246,0.03) 0%, rgba(100,181,246,0.08) 100%); }
+.sol-feature-icon.el { color: var(--el-primary); }
+body.dark .sol-feature-icon.el { color: var(--el-light); }
+.sol-usecase-icon.el { color: var(--el-primary); }
+body.dark .sol-usecase-icon.el { color: var(--el-light); }
+.sol-cta.el { background: linear-gradient(135deg, var(--el-gradient-start) 0%, var(--el-gradient-mid) 50%, var(--el-gradient-end) 100%); }
+.sol-cta-btn.el { color: var(--el-primary); }
+.sol-cta-btn.el:hover { color: var(--el-gradient-start); }
+/* Architecture colors */
+.sol-arch-wrapper.el {
+background: linear-gradient(180deg, rgba(21,101,192,0.03) 0%, rgba(21,101,192,0.08) 100%);
+border: 1px solid rgba(21,101,192,0.1);
+}
+body.dark .sol-arch-wrapper.el {
+background: linear-gradient(180deg, rgba(100,181,246,0.02) 0%, rgba(100,181,246,0.07) 100%);
+border-color: rgba(100,181,246,0.12);
+}
+.sol-arch-badge.el { color: var(--el-primary); background: rgba(21,101,192,0.06); border-color: rgba(21,101,192,0.12); }
+body.dark .sol-arch-badge.el { color: var(--el-light); background: rgba(100,181,246,0.08); border-color: rgba(100,181,246,0.15); }
+.el .sol-tier-label { color: var(--el-primary); border-right-color: rgba(21,101,192,0.1); }
+body.dark .el .sol-tier-label { color: var(--el-light); border-right-color: rgba(100,181,246,0.1); }
+.el .sol-tier-node { border: 1.5px solid rgba(21,101,192,0.15); box-shadow: 0 2px 8px rgba(21,101,192,0.06); }
+.el .sol-tier-node:hover { box-shadow: 0 6px 20px rgba(21,101,192,0.14); }
+body.dark .el .sol-tier-node { border-color: rgba(100,181,246,0.2); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+body.dark .el .sol-tier-node:hover { box-shadow: 0 6px 20px rgba(100,181,246,0.12); }
+.sol-node-icon.el-cloud { background: rgba(21,101,192,0.1); color: #1565c0; }
+.sol-node-icon.el-edge { background: rgba(46,125,50,0.1); color: #2e7d32; }
+.sol-node-icon.el-device { background: rgba(230,81,0,0.1); color: #e65100; }
+body.dark .sol-node-icon.el-cloud { background: rgba(100,181,246,0.15); color: #90caf9; }
+body.dark .sol-node-icon.el-edge { background: rgba(129,199,132,0.15); color: #81c784; }
+body.dark .sol-node-icon.el-device { background: rgba(255,183,77,0.15); color: #ffb74d; }
+.el .sol-connector-tag-col { border-right-color: rgba(21,101,192,0.1); }
+body.dark .el .sol-connector-tag-col { border-right-color: rgba(100,181,246,0.1); }
+.el .sol-connector-pipe { background: linear-gradient(180deg, #1565c0, #42a5f5); }
+body.dark .el .sol-connector-pipe { background: linear-gradient(180deg, #64b5f6, #90caf9); }
+.el .sol-connector-dot { background: #42a5f5; }
+body.dark .el .sol-connector-dot { background: #90caf9; }
+.el .sol-connector-tag { color: #42a5f5; background: rgba(66,165,245,0.08); }
+body.dark .el .sol-connector-tag { color: #90caf9; background: rgba(144,202,249,0.1); }
+&lt;/style&gt;
+&lt;div class="sol-hero"&gt;
+&lt;p class="sol-hero-tagline"&gt;
+edgeLink develops integration layers that unify workload and device orchestration across
+multiple tiers of infrastructure — from cloud clusters to embedded IoT endpoints.
+&lt;/p&gt;
+&lt;div class="sol-hero-badges"&gt;
+&lt;span class="sol-badge el"&gt;&lt;i class="fas fa-shield-alt"&gt;&lt;/i&gt; Zero-Trust&lt;/span&gt;
+&lt;span class="sol-badge el"&gt;&lt;i class="fas fa-cloud"&gt;&lt;/i&gt; Cloud-Native&lt;/span&gt;
+&lt;span class="sol-badge el"&gt;&lt;i class="fas fa-microchip"&gt;&lt;/i&gt; Edge-First&lt;/span&gt;
+&lt;span class="sol-badge el"&gt;&lt;i class="fas fa-lock"&gt;&lt;/i&gt; Hardware-Rooted Identity&lt;/span&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h3 class="sol-section-title el"&gt;&lt;i class="fas fa-layer-group"&gt;&lt;/i&gt; Architecture Overview&lt;/h3&gt;
+&lt;div class="sol-arch-wrapper el"&gt;
+&lt;div class="sol-arch-badge el"&gt;&lt;i class="fas fa-project-diagram"&gt;&lt;/i&gt; edgeLink Continuum&lt;/div&gt;
+&lt;!-- Cloud Tier --&gt;
+&lt;div class="sol-tier"&gt;
+&lt;div class="sol-tier-label"&gt;Cloud&lt;/div&gt;
+&lt;div class="sol-tier-nodes"&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon el-cloud"&gt;&lt;i class="fas fa-cloud"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Cloud Control Plane&lt;/h5&gt;
+&lt;p&gt;GitOps &amp; policy management&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon el-cloud"&gt;&lt;i class="fas fa-dharmachakra"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;K8s Orchestration&lt;/h5&gt;
+&lt;p&gt;Workload scheduling &amp; scaling&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon el-cloud"&gt;&lt;i class="fas fa-chart-line"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Observability&lt;/h5&gt;
+&lt;p&gt;Monitoring &amp; fleet analytics&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;!-- Connector: Cloud → Edge --&gt;
+&lt;div class="sol-tier-connector"&gt;
+&lt;div class="sol-connector-tag-col"&gt;
+&lt;span class="sol-connector-tag"&gt;OTA &amp;&lt;br&gt;Telemetry&lt;/span&gt;
+&lt;/div&gt;
+&lt;div class="sol-connector-dots"&gt;
+&lt;div class="sol-connector-line"&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-pipe"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-pipe"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;!-- Edge Tier --&gt;
+&lt;div class="sol-tier"&gt;
+&lt;div class="sol-tier-label"&gt;Edge&lt;/div&gt;
+&lt;div class="sol-tier-nodes"&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon el-edge"&gt;&lt;i class="fas fa-server"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Edge Gateway&lt;/h5&gt;
+&lt;p&gt;Local orchestration &amp; caching&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon el-edge"&gt;&lt;i class="fas fa-shield-alt"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Zero-Trust Broker&lt;/h5&gt;
+&lt;p&gt;DICE/EAT attestation&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon el-edge"&gt;&lt;i class="fas fa-bolt"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;vAccel Runtime&lt;/h5&gt;
+&lt;p&gt;HW acceleration &amp; offload&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;!-- Connector: Edge → Devices --&gt;
+&lt;div class="sol-tier-connector"&gt;
+&lt;div class="sol-connector-tag-col"&gt;
+&lt;span class="sol-connector-tag"&gt;Secure&lt;br&gt;Channel&lt;/span&gt;
+&lt;/div&gt;
+&lt;div class="sol-connector-dots"&gt;
+&lt;div class="sol-connector-line"&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-pipe"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-pipe"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;!-- Device Tier --&gt;
+&lt;div class="sol-tier"&gt;
+&lt;div class="sol-tier-label"&gt;Device&lt;/div&gt;
+&lt;div class="sol-tier-nodes"&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon el-device"&gt;&lt;i class="fas fa-microchip"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;MCU / SoC&lt;/h5&gt;
+&lt;p&gt;Constrained endpoints&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon el-device"&gt;&lt;i class="fas fa-memory"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Embedded Linux&lt;/h5&gt;
+&lt;p&gt;Lightweight runtimes&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon el-device"&gt;&lt;i class="fas fa-satellite-dish"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Sensors &amp; Actuators&lt;/h5&gt;
+&lt;p&gt;Field data collection&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon el-device"&gt;&lt;i class="fas fa-robot"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Smart Devices&lt;/h5&gt;
+&lt;p&gt;AI-capable endpoints&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p class="sol-intro"&gt;
+Our work ensures alignment with Kubernetes and GitOps-based operational models, while extending
+orchestration semantics to devices that cannot run a full container orchestration stack.
+By leveraging zero-trust principles and cloud-native orchestration, edgeLink enables scalable,
+secure management of heterogeneous IoT devices at the edge — from provisioning to runtime
+monitoring and firmware updates.
+&lt;/p&gt;
+&lt;h3 class="sol-section-title el"&gt;&lt;i class="fas fa-bolt"&gt;&lt;/i&gt; Key Capabilities&lt;/h3&gt;
+&lt;div class="sol-features"&gt;
+&lt;div class="sol-feature-card el"&gt;
+&lt;div class="sol-feature-icon el"&gt;&lt;i class="fas fa-route"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Distributed Offloading&lt;/h4&gt;
+&lt;p&gt;Workload routing and compute offloading via vAccel, enabling hardware acceleration across distributed infrastructure.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card el"&gt;
+&lt;div class="sol-feature-icon el"&gt;&lt;i class="fas fa-file-code"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Declarative Configuration&lt;/h4&gt;
+&lt;p&gt;Policy-driven resource management with GitOps-aligned declarative configuration for consistent deployments.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card el"&gt;
+&lt;div class="sol-feature-icon el"&gt;&lt;i class="fas fa-fingerprint"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Hardware-Rooted Identity&lt;/h4&gt;
+&lt;p&gt;Secure device onboarding using DICE/EAT attestation, establishing hardware-rooted trust from first boot.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card el"&gt;
+&lt;div class="sol-feature-icon el"&gt;&lt;i class="fas fa-sync-alt"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Secure OTA Updates&lt;/h4&gt;
+&lt;p&gt;Continuous and cryptographically verified over-the-air updates for both firmware and application workloads.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card el"&gt;
+&lt;div class="sol-feature-icon el"&gt;&lt;i class="fas fa-box-open"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Reproducible Supply Chains&lt;/h4&gt;
+&lt;p&gt;End-to-end reproducible software supply chains for embedded and edge systems, ensuring build integrity.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card el"&gt;
+&lt;div class="sol-feature-icon el"&gt;&lt;i class="fas fa-users-cog"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Multi-Tenant Management&lt;/h4&gt;
+&lt;p&gt;Cloud-aligned device repurposing mechanisms with multi-tenant isolation for shared infrastructure.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h3 class="sol-section-title el"&gt;&lt;i class="fas fa-bullseye"&gt;&lt;/i&gt; Use Cases&lt;/h3&gt;
+&lt;div class="sol-usecases"&gt;
+&lt;div class="sol-usecase"&gt;
+&lt;div class="sol-usecase-icon el"&gt;&lt;i class="fas fa-industry"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;div&gt;
+&lt;h4&gt;Industrial IoT&lt;/h4&gt;
+&lt;p&gt;Manage and orchestrate thousands of industrial sensors and controllers across factory floors with zero-touch provisioning and continuous monitoring.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="sol-usecase"&gt;
+&lt;div class="sol-usecase-icon el"&gt;&lt;i class="fas fa-city"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;div&gt;
+&lt;h4&gt;Smart Infrastructure&lt;/h4&gt;
+&lt;p&gt;Deploy and maintain heterogeneous edge devices across smart buildings, campuses, and urban infrastructure with cloud-native workflows.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="sol-usecase"&gt;
+&lt;div class="sol-usecase-icon el"&gt;&lt;i class="fas fa-broadcast-tower"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;div&gt;
+&lt;h4&gt;Telco Edge&lt;/h4&gt;
+&lt;p&gt;Extend Kubernetes orchestration to far-edge telecom nodes, enabling consistent workload management from core to RAN.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="sol-usecase"&gt;
+&lt;div class="sol-usecase-icon el"&gt;&lt;i class="fas fa-tractor"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;div&gt;
+&lt;h4&gt;Precision Agriculture&lt;/h4&gt;
+&lt;p&gt;Securely onboard and manage fleets of agricultural sensors and actuators with firmware lifecycle management across remote locations.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="sol-cta el"&gt;
+&lt;h3&gt;Explore edgeLink&lt;/h3&gt;
+&lt;p&gt;Discover the full technical documentation, architecture guides, and getting started resources.&lt;/p&gt;
+&lt;a href="https://edgelink.nbfc.io/" target="_blank" rel="noopener" class="sol-cta-btn el"&gt;
+&lt;i class="fas fa-external-link-alt"&gt;&lt;/i&gt; Visit edgeLink Website
+&lt;/a&gt;
+&lt;/div&gt;</description></item><item><title>urunc</title><link>/solutions/urunc/</link><pubDate>Sat, 01 Jun 2030 13:00:00 +0000</pubDate><guid>/solutions/urunc/</guid><description>&lt;style&gt;
+/* urunc theme: #15616d teal + #ff7d00 orange from logo */
+:root {
+--ur-primary: #15616d;
+--ur-light: #ff7d00;
+--ur-gradient-start: #0e3f47;
+--ur-gradient-mid: #15616d;
+--ur-gradient-end: #ff7d00;
+}
+body.dark {
+--ur-primary: #3a9aa6;
+--ur-light: #ffa040;
+}
+.sol-badge.ur { background: rgba(21,97,109,0.08); color: var(--ur-primary); }
+body.dark .sol-badge.ur { background: rgba(58,154,166,0.12); color: var(--ur-light); }
+.sol-section-title.ur { border-bottom: 2px solid rgba(21,97,109,0.15); }
+.sol-section-title.ur i { color: var(--ur-primary); }
+body.dark .sol-section-title.ur { border-bottom-color: rgba(58,154,166,0.2); }
+body.dark .sol-section-title.ur i { color: var(--ur-light); }
+.sol-feature-card.ur { background: linear-gradient(135deg, rgba(21,97,109,0.02) 0%, rgba(21,97,109,0.06) 100%); }
+.sol-feature-card.ur::before { background: linear-gradient(180deg, var(--ur-primary), var(--ur-light)); }
+body.dark .sol-feature-card.ur { background: linear-gradient(135deg, rgba(58,154,166,0.03) 0%, rgba(58,154,166,0.08) 100%); }
+.sol-feature-icon.ur { color: var(--ur-primary); }
+body.dark .sol-feature-icon.ur { color: var(--ur-light); }
+.sol-usecase-icon.ur { color: var(--ur-primary); }
+body.dark .sol-usecase-icon.ur { color: var(--ur-light); }
+.sol-cta.ur { background: linear-gradient(135deg, var(--ur-gradient-start) 0%, var(--ur-gradient-mid) 60%, var(--ur-gradient-end) 100%); }
+.sol-cta-btn.ur { color: var(--ur-primary); }
+.sol-cta-btn.ur:hover { color: var(--ur-gradient-start); }
+/* Architecture colors */
+.sol-arch-wrapper.ur {
+background: linear-gradient(180deg, rgba(21,97,109,0.03) 0%, rgba(21,97,109,0.08) 100%);
+border: 1px solid rgba(21,97,109,0.1);
+}
+body.dark .sol-arch-wrapper.ur {
+background: linear-gradient(180deg, rgba(58,154,166,0.02) 0%, rgba(58,154,166,0.07) 100%);
+border-color: rgba(58,154,166,0.12);
+}
+.sol-arch-badge.ur { color: var(--ur-primary); background: rgba(21,97,109,0.06); border-color: rgba(21,97,109,0.12); }
+body.dark .sol-arch-badge.ur { color: var(--ur-light); background: rgba(255,125,0,0.08); border-color: rgba(255,125,0,0.15); }
+.ur .sol-tier-label { color: var(--ur-primary); border-right-color: rgba(21,97,109,0.1); }
+body.dark .ur .sol-tier-label { color: var(--ur-primary); border-right-color: rgba(58,154,166,0.1); }
+.ur .sol-tier-node { border: 1.5px solid rgba(21,97,109,0.15); box-shadow: 0 2px 8px rgba(21,97,109,0.06); }
+.ur .sol-tier-node:hover { box-shadow: 0 6px 20px rgba(21,97,109,0.14); }
+body.dark .ur .sol-tier-node { border-color: rgba(58,154,166,0.2); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+body.dark .ur .sol-tier-node:hover { box-shadow: 0 6px 20px rgba(58,154,166,0.12); }
+.sol-node-icon.ur-app { background: rgba(21,97,109,0.1); color: #15616d; }
+.sol-node-icon.ur-rt { background: rgba(255,125,0,0.1); color: #ff7d00; }
+.sol-node-icon.ur-vmm { background: rgba(21,97,109,0.08); color: #15616d; }
+body.dark .sol-node-icon.ur-app { background: rgba(58,154,166,0.15); color: #3a9aa6; }
+body.dark .sol-node-icon.ur-rt { background: rgba(255,160,64,0.15); color: #ffa040; }
+body.dark .sol-node-icon.ur-vmm { background: rgba(58,154,166,0.12); color: #3a9aa6; }
+.ur .sol-connector-tag-col { border-right-color: rgba(21,97,109,0.1); }
+body.dark .ur .sol-connector-tag-col { border-right-color: rgba(58,154,166,0.1); }
+.ur .sol-connector-pipe { background: linear-gradient(180deg, #15616d, #ff7d00); }
+body.dark .ur .sol-connector-pipe { background: linear-gradient(180deg, #3a9aa6, #ffa040); }
+.ur .sol-connector-dot { background: #ff7d00; }
+body.dark .ur .sol-connector-dot { background: #ffa040; }
+.ur .sol-connector-tag { color: #15616d; background: rgba(21,97,109,0.08); }
+body.dark .ur .sol-connector-tag { color: #3a9aa6; background: rgba(58,154,166,0.1); }
+/* Compat table theme */
+.sol-compat-table.ur thead th {
+background: rgba(21,97,109,0.06);
+color: var(--ur-primary);
+border-bottom-color: var(--ur-primary);
+}
+body.dark .sol-compat-table.ur thead th {
+background: rgba(58,154,166,0.08);
+color: var(--ur-light);
+border-bottom-color: var(--ur-light);
+}
+&lt;/style&gt;
+&lt;div class="sol-hero"&gt;
+&lt;p class="sol-hero-tagline"&gt;
+urunc bridges the gap between traditional unikernels and containerized environments,
+bringing ultra-lightweight, immutable execution to cloud-native workflows.
+&lt;/p&gt;
+&lt;div class="sol-hero-badges"&gt;
+&lt;span class="sol-badge ur"&gt;&lt;i class="fas fa-box"&gt;&lt;/i&gt; OCI-Compatible&lt;/span&gt;
+&lt;span class="sol-badge ur"&gt;&lt;i class="fas fa-dharmachakra"&gt;&lt;/i&gt; CRI Support&lt;/span&gt;
+&lt;span class="sol-badge ur"&gt;&lt;i class="fas fa-feather-alt"&gt;&lt;/i&gt; Lightweight&lt;/span&gt;
+&lt;span class="sol-badge ur"&gt;&lt;i class="fas fa-shield-alt"&gt;&lt;/i&gt; VM-Isolated&lt;/span&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h3 class="sol-section-title ur"&gt;&lt;i class="fas fa-layer-group"&gt;&lt;/i&gt; Architecture Overview&lt;/h3&gt;
+&lt;div class="sol-arch-wrapper ur"&gt;
+&lt;div class="sol-arch-badge ur"&gt;&lt;i class="fas fa-project-diagram"&gt;&lt;/i&gt; urunc Stack&lt;/div&gt;
+&lt;!-- Application Layer --&gt;
+&lt;div class="sol-tier"&gt;
+&lt;div class="sol-tier-label"&gt;App&lt;/div&gt;
+&lt;div class="sol-tier-nodes"&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon ur-app"&gt;&lt;i class="fas fa-cube"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;OCI Image&lt;/h5&gt;
+&lt;p&gt;Unikernel packaged as container&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon ur-app"&gt;&lt;i class="fas fa-terminal"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;bunny CLI&lt;/h5&gt;
+&lt;p&gt;Build &amp; package tooling&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon ur-app"&gt;&lt;i class="fas fa-boxes"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Container Registry&lt;/h5&gt;
+&lt;p&gt;Standard OCI distribution&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;!-- Connector --&gt;
+&lt;div class="sol-tier-connector"&gt;
+&lt;div class="sol-connector-tag-col"&gt;
+&lt;span class="sol-connector-tag"&gt;OCI&lt;br&gt;Spec&lt;/span&gt;
+&lt;/div&gt;
+&lt;div class="sol-connector-dots"&gt;
+&lt;div class="sol-connector-line"&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-pipe"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-pipe"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;!-- Runtime Layer --&gt;
+&lt;div class="sol-tier"&gt;
+&lt;div class="sol-tier-label"&gt;Runtime&lt;/div&gt;
+&lt;div class="sol-tier-nodes"&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon ur-rt"&gt;&lt;i class="fas fa-cog"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;urunc Runtime&lt;/h5&gt;
+&lt;p&gt;CRI-compatible unikernel launcher&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon ur-rt"&gt;&lt;i class="fas fa-plug"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;containerd Shim&lt;/h5&gt;
+&lt;p&gt;Container runtime integration&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon ur-rt"&gt;&lt;i class="fas fa-dharmachakra"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Kubernetes CRI&lt;/h5&gt;
+&lt;p&gt;K8s pod scheduling&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;!-- Connector --&gt;
+&lt;div class="sol-tier-connector"&gt;
+&lt;div class="sol-connector-tag-col"&gt;
+&lt;span class="sol-connector-tag"&gt;VMM&lt;br&gt;API&lt;/span&gt;
+&lt;/div&gt;
+&lt;div class="sol-connector-dots"&gt;
+&lt;div class="sol-connector-line"&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-pipe"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-pipe"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;!-- VMM / Sandbox Layer --&gt;
+&lt;div class="sol-tier"&gt;
+&lt;div class="sol-tier-label"&gt;VMM&lt;/div&gt;
+&lt;div class="sol-tier-nodes"&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon ur-vmm"&gt;&lt;i class="fas fa-fire"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Firecracker&lt;/h5&gt;
+&lt;p&gt;Lightweight microVM&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon ur-vmm"&gt;&lt;i class="fas fa-desktop"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;QEMU&lt;/h5&gt;
+&lt;p&gt;Full-featured VMM&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon ur-vmm"&gt;&lt;i class="fas fa-bolt"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Solo5 (hvt/spt)&lt;/h5&gt;
+&lt;p&gt;Minimal sandbox monitor&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p class="sol-intro"&gt;
+Rather than spawning simple processes, urunc uses Virtual Machine Monitors or sandbox monitors
+to launch unikernels, maintaining strong isolation with minimal overhead. Its un-opinionated design
+enables straightforward integration of new unikernel frameworks without porting overhead, while
+developers and administrators use familiar container workflows to package, deliver, deploy, and
+manage unikernels.
+&lt;/p&gt;
+&lt;h3 class="sol-section-title ur"&gt;&lt;i class="fas fa-bolt"&gt;&lt;/i&gt; Key Capabilities&lt;/h3&gt;
+&lt;div class="sol-features"&gt;
+&lt;div class="sol-feature-card ur"&gt;
+&lt;div class="sol-feature-icon ur"&gt;&lt;i class="fas fa-box"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;OCI Compatibility&lt;/h4&gt;
+&lt;p&gt;Unikernels are packaged inside standard OCI-compatible images, enabling use of existing container registries and tooling.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card ur"&gt;
+&lt;div class="sol-feature-icon ur"&gt;&lt;i class="fas fa-dharmachakra"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;CRI Integration&lt;/h4&gt;
+&lt;p&gt;Full compatibility with Kubernetes Container Runtime Interface for seamless pod scheduling and orchestration.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card ur"&gt;
+&lt;div class="sol-feature-icon ur"&gt;&lt;i class="fas fa-shield-alt"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;VM-Level Isolation&lt;/h4&gt;
+&lt;p&gt;Strong security boundaries via lightweight VM monitors, minimizing the attack surface with single-application kernels.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card ur"&gt;
+&lt;div class="sol-feature-icon ur"&gt;&lt;i class="fas fa-feather-alt"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Minimal Overhead&lt;/h4&gt;
+&lt;p&gt;Ultra-lightweight runtimes with deterministic performance, suitable for real-time and resource-constrained edge environments.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card ur"&gt;
+&lt;div class="sol-feature-icon ur"&gt;&lt;i class="fas fa-puzzle-piece"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Multi-Framework Support&lt;/h4&gt;
+&lt;p&gt;Un-opinionated design supports Rumprun, Unikraft, MirageOS, Mewz, and Linux guests without porting overhead.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card ur"&gt;
+&lt;div class="sol-feature-icon ur"&gt;&lt;i class="fas fa-rocket"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Fast Instantiation&lt;/h4&gt;
+&lt;p&gt;Millisecond-level boot times enable serverless and event-driven workloads with near-instant cold starts.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h3 class="sol-section-title ur"&gt;&lt;i class="fas fa-table"&gt;&lt;/i&gt; Supported Platforms&lt;/h3&gt;
+&lt;table class="sol-compat-table ur"&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Unikernel&lt;/th&gt;
+&lt;th&gt;Monitor&lt;/th&gt;
+&lt;th&gt;Architecture&lt;/th&gt;
+&lt;th&gt;Storage&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Rumprun&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;Solo5-hvt, Solo5-spt&lt;/td&gt;
+&lt;td&gt;x86, aarch64&lt;/td&gt;
+&lt;td&gt;Block / Devmapper&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Unikraft&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;QEMU, Firecracker&lt;/td&gt;
+&lt;td&gt;x86&lt;/td&gt;
+&lt;td&gt;Initrd, 9pfs&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;MirageOS&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;QEMU, Solo5-hvt, Solo5-spt&lt;/td&gt;
+&lt;td&gt;x86, aarch64&lt;/td&gt;
+&lt;td&gt;Block / Devmapper&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Mewz&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;QEMU&lt;/td&gt;
+&lt;td&gt;x86&lt;/td&gt;
+&lt;td&gt;In-memory&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Linux&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;QEMU, Firecracker&lt;/td&gt;
+&lt;td&gt;x86, aarch64&lt;/td&gt;
+&lt;td&gt;Initrd, Block, 9pfs, Virtiofs&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 class="sol-section-title ur"&gt;&lt;i class="fas fa-bullseye"&gt;&lt;/i&gt; Use Cases&lt;/h3&gt;
+&lt;div class="sol-usecases"&gt;
+&lt;div class="sol-usecase"&gt;
+&lt;div class="sol-usecase-icon ur"&gt;&lt;i class="fas fa-cubes"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;div&gt;
+&lt;h4&gt;Microservices&lt;/h4&gt;
+&lt;p&gt;Lightweight single-application OS reduces overhead in microservice architectures, offering stronger isolation than traditional containers.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="sol-usecase"&gt;
+&lt;div class="sol-usecase-icon ur"&gt;&lt;i class="fas fa-bolt"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;div&gt;
+&lt;h4&gt;Serverless / FaaS&lt;/h4&gt;
+&lt;p&gt;Millisecond boot times and minimal footprint make unikernels ideal for event-driven, short-lived function execution.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="sol-usecase"&gt;
+&lt;div class="sol-usecase-icon ur"&gt;&lt;i class="fas fa-microchip"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;div&gt;
+&lt;h4&gt;Edge Computing&lt;/h4&gt;
+&lt;p&gt;Resource-constrained environments benefit from unikernel efficiency, enabling cloud-native execution on devices with limited memory and compute.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="sol-usecase"&gt;
+&lt;div class="sol-usecase-icon ur"&gt;&lt;i class="fas fa-lock"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;div&gt;
+&lt;h4&gt;Sensitive Environments&lt;/h4&gt;
+&lt;p&gt;VM-based isolation with a minimized attack surface provides strong security guarantees for workloads handling sensitive data.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="sol-cta ur"&gt;
+&lt;h3&gt;Explore urunc&lt;/h3&gt;
+&lt;p&gt;Get started with tutorials, Kubernetes integration guides, and performance benchmarks.&lt;/p&gt;
+&lt;a href="https://urunc.io/" target="_blank" rel="noopener" class="sol-cta-btn ur"&gt;
+&lt;i class="fas fa-external-link-alt"&gt;&lt;/i&gt; Visit urunc Website
+&lt;/a&gt;
+&lt;/div&gt;</description></item><item><title>vAccel</title><link>/solutions/vaccel/</link><pubDate>Sat, 01 Jun 2030 13:00:00 +0000</pubDate><guid>/solutions/vaccel/</guid><description>&lt;style&gt;
+/* vAccel theme: magenta/purple from logo (#841a6b, #5e0d4f) + orange accent (#ef6c33) */
+:root {
+--va-primary: #841a6b;
+--va-light: #a84d91;
+--va-accent: #ef6c33;
+--va-gradient-start: #5e0d4f;
+--va-gradient-mid: #841a6b;
+--va-gradient-end: #ef6c33;
+}
+body.dark {
+--va-primary: #c77db5;
+--va-light: #e0a8d3;
+--va-accent: #f4a373;
+}
+.sol-badge.va { background: rgba(132,26,107,0.08); color: var(--va-primary); }
+body.dark .sol-badge.va { background: rgba(199,125,181,0.12); color: var(--va-light); }
+.sol-section-title.va { border-bottom: 2px solid rgba(132,26,107,0.15); }
+.sol-section-title.va i { color: var(--va-primary); }
+body.dark .sol-section-title.va { border-bottom-color: rgba(199,125,181,0.2); }
+body.dark .sol-section-title.va i { color: var(--va-light); }
+.sol-feature-card.va { background: linear-gradient(135deg, rgba(132,26,107,0.02) 0%, rgba(132,26,107,0.06) 100%); }
+.sol-feature-card.va::before { background: linear-gradient(180deg, var(--va-primary), var(--va-accent)); }
+body.dark .sol-feature-card.va { background: linear-gradient(135deg, rgba(199,125,181,0.03) 0%, rgba(199,125,181,0.08) 100%); }
+.sol-feature-icon.va { color: var(--va-primary); }
+body.dark .sol-feature-icon.va { color: var(--va-light); }
+.sol-usecase-icon.va { color: var(--va-primary); }
+body.dark .sol-usecase-icon.va { color: var(--va-light); }
+.sol-cta.va { background: linear-gradient(135deg, var(--va-gradient-start) 0%, var(--va-gradient-mid) 50%, var(--va-gradient-end) 100%); }
+.sol-cta-btn.va { color: var(--va-primary); }
+.sol-cta-btn.va:hover { color: var(--va-gradient-start); }
+/* Architecture colors */
+.sol-arch-wrapper.va {
+background: linear-gradient(180deg, rgba(132,26,107,0.03) 0%, rgba(132,26,107,0.08) 100%);
+border: 1px solid rgba(132,26,107,0.1);
+}
+body.dark .sol-arch-wrapper.va {
+background: linear-gradient(180deg, rgba(199,125,181,0.02) 0%, rgba(199,125,181,0.07) 100%);
+border-color: rgba(199,125,181,0.12);
+}
+.sol-arch-badge.va { color: var(--va-primary); background: rgba(132,26,107,0.06); border-color: rgba(132,26,107,0.12); }
+body.dark .sol-arch-badge.va { color: var(--va-light); background: rgba(199,125,181,0.08); border-color: rgba(199,125,181,0.15); }
+.va .sol-tier-label { color: var(--va-primary); border-right-color: rgba(132,26,107,0.1); }
+body.dark .va .sol-tier-label { color: var(--va-light); border-right-color: rgba(199,125,181,0.1); }
+.va .sol-tier-node { border: 1.5px solid rgba(132,26,107,0.15); box-shadow: 0 2px 8px rgba(132,26,107,0.06); }
+.va .sol-tier-node:hover { box-shadow: 0 6px 20px rgba(132,26,107,0.14); }
+body.dark .va .sol-tier-node { border-color: rgba(199,125,181,0.2); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+body.dark .va .sol-tier-node:hover { box-shadow: 0 6px 20px rgba(199,125,181,0.12); }
+.sol-node-icon.va-app { background: rgba(132,26,107,0.1); color: #841a6b; }
+.sol-node-icon.va-fw { background: rgba(239,108,51,0.1); color: #ef6c33; }
+.sol-node-icon.va-hw { background: rgba(94,13,79,0.1); color: #5e0d4f; }
+body.dark .sol-node-icon.va-app { background: rgba(199,125,181,0.15); color: #e0a8d3; }
+body.dark .sol-node-icon.va-fw { background: rgba(244,163,115,0.15); color: #f4a373; }
+body.dark .sol-node-icon.va-hw { background: rgba(168,77,145,0.15); color: #c77db5; }
+.va .sol-connector-tag-col { border-right-color: rgba(132,26,107,0.1); }
+body.dark .va .sol-connector-tag-col { border-right-color: rgba(199,125,181,0.1); }
+.va .sol-connector-pipe { background: linear-gradient(180deg, #841a6b, #ef6c33); }
+body.dark .va .sol-connector-pipe { background: linear-gradient(180deg, #c77db5, #f4a373); }
+.va .sol-connector-dot { background: #a84d91; }
+body.dark .va .sol-connector-dot { background: #e0a8d3; }
+.va .sol-connector-tag { color: #a84d91; background: rgba(168,77,145,0.08); }
+body.dark .va .sol-connector-tag { color: #e0a8d3; background: rgba(224,168,211,0.1); }
+/* Plugin table theme */
+.sol-compat-table.va thead th {
+background: rgba(132,26,107,0.06);
+color: var(--va-primary);
+border-bottom-color: var(--va-primary);
+}
+body.dark .sol-compat-table.va thead th {
+background: rgba(199,125,181,0.08);
+color: var(--va-light);
+border-bottom-color: var(--va-light);
+}
+&lt;/style&gt;
+&lt;div class="sol-hero"&gt;
+&lt;p class="sol-hero-tagline"&gt;
+vAccel is a lightweight, modular framework that exposes hardware acceleration functionality
+to workloads in virtualized or otherwise isolated environments — write once, accelerate anywhere.
+&lt;/p&gt;
+&lt;div class="sol-hero-badges"&gt;
+&lt;span class="sol-badge va"&gt;&lt;i class="fas fa-microchip"&gt;&lt;/i&gt; Hardware-Agnostic&lt;/span&gt;
+&lt;span class="sol-badge va"&gt;&lt;i class="fas fa-plug"&gt;&lt;/i&gt; Plugin Architecture&lt;/span&gt;
+&lt;span class="sol-badge va"&gt;&lt;i class="fas fa-feather-alt"&gt;&lt;/i&gt; Lightweight&lt;/span&gt;
+&lt;span class="sol-badge va"&gt;&lt;i class="fas fa-code"&gt;&lt;/i&gt; Multi-Language&lt;/span&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h3 class="sol-section-title va"&gt;&lt;i class="fas fa-layer-group"&gt;&lt;/i&gt; Architecture Overview&lt;/h3&gt;
+&lt;div class="sol-arch-wrapper va"&gt;
+&lt;div class="sol-arch-badge va"&gt;&lt;i class="fas fa-project-diagram"&gt;&lt;/i&gt; vAccel Framework&lt;/div&gt;
+&lt;!-- Application Layer --&gt;
+&lt;div class="sol-tier"&gt;
+&lt;div class="sol-tier-label"&gt;App&lt;/div&gt;
+&lt;div class="sol-tier-nodes"&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon va-app"&gt;&lt;i class="fas fa-code"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Application Code&lt;/h5&gt;
+&lt;p&gt;User workload (C, Python, Go, Rust)&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon va-app"&gt;&lt;i class="fas fa-book"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;vAccel API&lt;/h5&gt;
+&lt;p&gt;Unified operations interface&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon va-app"&gt;&lt;i class="fas fa-brain"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;ML / Compute Ops&lt;/h5&gt;
+&lt;p&gt;TF, Torch, image, BLAS, exec&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;!-- Connector --&gt;
+&lt;div class="sol-tier-connector"&gt;
+&lt;div class="sol-connector-tag-col"&gt;
+&lt;span class="sol-connector-tag"&gt;Unified&lt;br&gt;API&lt;/span&gt;
+&lt;/div&gt;
+&lt;div class="sol-connector-dots"&gt;
+&lt;div class="sol-connector-line"&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-pipe"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-pipe"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;!-- Plugin / Transport Layer --&gt;
+&lt;div class="sol-tier"&gt;
+&lt;div class="sol-tier-label"&gt;Plugin&lt;/div&gt;
+&lt;div class="sol-tier-nodes"&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon va-fw"&gt;&lt;i class="fas fa-puzzle-piece"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Accel Plugins&lt;/h5&gt;
+&lt;p&gt;TensorFlow, Torch, TVM&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon va-fw"&gt;&lt;i class="fas fa-exchange-alt"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Transport Plugins&lt;/h5&gt;
+&lt;p&gt;RPC, VirtIO for remote exec&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon va-fw"&gt;&lt;i class="fas fa-wrench"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Utility Plugins&lt;/h5&gt;
+&lt;p&gt;Exec, MBench, NoOp&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;!-- Connector --&gt;
+&lt;div class="sol-tier-connector"&gt;
+&lt;div class="sol-connector-tag-col"&gt;
+&lt;span class="sol-connector-tag"&gt;Driver&lt;br&gt;Layer&lt;/span&gt;
+&lt;/div&gt;
+&lt;div class="sol-connector-dots"&gt;
+&lt;div class="sol-connector-line"&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-pipe"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-pipe"&gt;&lt;/span&gt;
+&lt;span class="sol-connector-dot"&gt;&lt;/span&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;!-- Hardware Layer --&gt;
+&lt;div class="sol-tier"&gt;
+&lt;div class="sol-tier-label"&gt;HW&lt;/div&gt;
+&lt;div class="sol-tier-nodes"&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon va-hw"&gt;&lt;i class="fas fa-microchip"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;GPUs&lt;/h5&gt;
+&lt;p&gt;NVIDIA, AMD, Intel&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon va-hw"&gt;&lt;i class="fas fa-brain"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;TPUs / NPUs&lt;/h5&gt;
+&lt;p&gt;Neural accelerators&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon va-hw"&gt;&lt;i class="fas fa-th"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;FPGAs&lt;/h5&gt;
+&lt;p&gt;Custom fabric acceleration&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-tier-node"&gt;
+&lt;div class="sol-node-icon va-hw"&gt;&lt;i class="fas fa-server"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h5&gt;Remote Backends&lt;/h5&gt;
+&lt;p&gt;Network-attached accelerators&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p class="sol-intro"&gt;
+vAccel provides a unified abstraction layer that allows applications to offload compute-intensive
+operations — such as image processing, machine-learning inference, and cryptographic functions —
+to a wide range of accelerators without requiring platform-specific code. Built to integrate seamlessly
+with existing runtimes, vAccel supports local and remote acceleration backends, offering a consistent
+API across GPUs, FPGAs, NPUs, and custom devices. Its design emphasises portability, minimal overhead,
+and interoperability with containerised and unikernel-based workloads.
+&lt;/p&gt;
+&lt;h3 class="sol-section-title va"&gt;&lt;i class="fas fa-bolt"&gt;&lt;/i&gt; Key Capabilities&lt;/h3&gt;
+&lt;div class="sol-features"&gt;
+&lt;div class="sol-feature-card va"&gt;
+&lt;div class="sol-feature-icon va"&gt;&lt;i class="fas fa-random"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Hardware Agnostic&lt;/h4&gt;
+&lt;p&gt;Write accelerated code once and deploy on any backend — GPUs, TPUs, NPUs, or FPGAs — without vendor lock-in or driver-level integration.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card va"&gt;
+&lt;div class="sol-feature-icon va"&gt;&lt;i class="fas fa-puzzle-piece"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Plugin Architecture&lt;/h4&gt;
+&lt;p&gt;Modular plugin system supporting acceleration (TensorFlow, PyTorch, TVM), transport (RPC, VirtIO), and utility backends.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card va"&gt;
+&lt;div class="sol-feature-icon va"&gt;&lt;i class="fas fa-cloud"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Remote Acceleration&lt;/h4&gt;
+&lt;p&gt;Transparent remote execution via RPC and VirtIO transport plugins, enabling acceleration from VMs and constrained environments.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card va"&gt;
+&lt;div class="sol-feature-icon va"&gt;&lt;i class="fas fa-code"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Multi-Language Bindings&lt;/h4&gt;
+&lt;p&gt;Native bindings for C, Python, Go, and Rust, with a unified operations API across all supported languages.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card va"&gt;
+&lt;div class="sol-feature-icon va"&gt;&lt;i class="fas fa-feather-alt"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Minimal Overhead&lt;/h4&gt;
+&lt;p&gt;Lightweight framework with negligible performance penalty, designed for highly constrained serverless and edge environments.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="sol-feature-card va"&gt;
+&lt;div class="sol-feature-icon va"&gt;&lt;i class="fas fa-cubes"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;h4&gt;Runtime Integration&lt;/h4&gt;
+&lt;p&gt;Seamless interoperability with containers, unikernels (via urunc), and Kubernetes for cloud-native accelerated workloads.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h3 class="sol-section-title va"&gt;&lt;i class="fas fa-table"&gt;&lt;/i&gt; Plugin Ecosystem&lt;/h3&gt;
+&lt;table class="sol-compat-table va"&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Category&lt;/th&gt;
+&lt;th&gt;Plugin&lt;/th&gt;
+&lt;th&gt;Operations&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Acceleration&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;TensorFlow&lt;/td&gt;
+&lt;td&gt;Image classification, object detection, model inference&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Acceleration&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;PyTorch&lt;/td&gt;
+&lt;td&gt;Tensor ops, model inference, jit forward&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Acceleration&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;TVM&lt;/td&gt;
+&lt;td&gt;Compiled model execution, cross-platform inference&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Transport&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;RPC&lt;/td&gt;
+&lt;td&gt;Network-based remote acceleration dispatch&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Transport&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;VirtIO&lt;/td&gt;
+&lt;td&gt;VM-to-host hardware passthrough&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Utility&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;Exec, MBench, NoOp&lt;/td&gt;
+&lt;td&gt;Generic exec, benchmarking, testing&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 class="sol-section-title va"&gt;&lt;i class="fas fa-bullseye"&gt;&lt;/i&gt; Use Cases&lt;/h3&gt;
+&lt;div class="sol-usecases"&gt;
+&lt;div class="sol-usecase"&gt;
+&lt;div class="sol-usecase-icon va"&gt;&lt;i class="fas fa-brain"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;div&gt;
+&lt;h4&gt;ML Inference at the Edge&lt;/h4&gt;
+&lt;p&gt;Run TensorFlow and PyTorch models on edge devices with transparent offloading to available accelerators, no code changes needed.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="sol-usecase"&gt;
+&lt;div class="sol-usecase-icon va"&gt;&lt;i class="fas fa-cloud"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;div&gt;
+&lt;h4&gt;Serverless Acceleration&lt;/h4&gt;
+&lt;p&gt;Enable hardware acceleration in serverless functions and lightweight VMs without requiring direct driver access or GPU passthrough.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="sol-usecase"&gt;
+&lt;div class="sol-usecase-icon va"&gt;&lt;i class="fas fa-image"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;div&gt;
+&lt;h4&gt;Image &amp; Video Processing&lt;/h4&gt;
+&lt;p&gt;Offload compute-intensive image classification, object detection, and video analytics to heterogeneous accelerators at scale.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="sol-usecase"&gt;
+&lt;div class="sol-usecase-icon va"&gt;&lt;i class="fas fa-dharmachakra"&gt;&lt;/i&gt;&lt;/div&gt;
+&lt;div&gt;
+&lt;h4&gt;Kubernetes GPU Sharing&lt;/h4&gt;
+&lt;p&gt;Deploy accelerated workloads as standard K8s pods with vAccel managing hardware multiplexing across tenants.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="sol-cta va"&gt;
+&lt;h3&gt;Explore vAccel&lt;/h3&gt;
+&lt;p&gt;Dive into the documentation, API reference, tutorials, and plugin development guides.&lt;/p&gt;
+&lt;a href="https://docs.vaccel.org/" target="_blank" rel="noopener" class="sol-cta-btn va"&gt;
+&lt;i class="fas fa-external-link-alt"&gt;&lt;/i&gt; Visit vAccel Docs
+&lt;/a&gt;
+&lt;/div&gt;</description></item></channel></rss>

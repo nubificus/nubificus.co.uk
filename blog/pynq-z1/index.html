@@ -1,0 +1,312 @@
+<!doctype html><!-- This site was created with Hugo Blox. https://hugoblox.com --><!-- Last Published: February 19, 2026 --><html lang=en-us><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=generator content="Hugo Blox Builder 5.9.7"><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link rel=preload as=style href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Roboto+Mono&family=Roboto:wght@400;700&display=swap"><link rel=stylesheet href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Roboto+Mono&family=Roboto:wght@400;700&display=swap" media=print onload='this.media="all"'><link rel=stylesheet href=/css/vendor-bundle.min.26c458e6907dc03073573976b7f4044e.css media=print onload='this.media="all"'><link rel=stylesheet href=https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1.9.4/css/academicons.min.css integrity="sha512-IW0nhlW5MgNydsXJO40En2EoCkTTjZhI3yuODrZIc8cQ4h1XcF53PsqDHa09NqnkXuIe0Oiyyj171BqZFwISBw==" crossorigin=anonymous media=print onload='this.media="all"'><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.min.css integrity crossorigin=anonymous media=print onload='this.media="all"'><link rel=stylesheet href=/css/wowchemy.0a92100ca9cf271dc93dd61885c3d747.css><link rel=stylesheet href=/css/libs/chroma/github-light.min.css title=hl-light media=print onload='this.media="all"'><link rel=stylesheet href=/css/libs/chroma/dracula.min.css title=hl-dark media=print onload='this.media="all"' disabled><meta name=author content="Charalampos Mainas"><meta name=description content="The PYNQ-Z1 board is the hardware platform for the PYNQ
+open-source framework. It features a
+Zynq-7000
+(XC7Z020-1CLG400C) All Programmable System-On-Chip (APSoC), integrating a
+feature-rich dual-core Cortex-A9 based processing system (PS) and Xilinx
+programmable logic (PL) in a single device. Figure 1 shows an image of the
+PYNQ-Z1 development board by Digilent."><link rel=alternate hreflang=en-us href=/blog/pynq-z1/><link rel=canonical href=/blog/pynq-z1/><link rel=manifest href=/manifest.webmanifest><link rel=icon type=image/png href=/media/icon_hu_76f04f0ed4ada794.png><link rel=apple-touch-icon type=image/png href=/media/icon_hu_bbf9ba2454448482.png><meta name=theme-color content="#1565c0"><meta property="twitter:card" content="summary"><meta property="twitter:site" content="@GetResearchDev"><meta property="twitter:creator" content="@GetResearchDev"><meta property="twitter:image" content="/media/logo_hu_866fdf07312224c.png"><meta property="og:type" content="website"><meta property="og:site_name" content="Nubificus"><meta property="og:url" content="/blog/pynq-z1/"><meta property="og:title" content="PYNQ-Z1 bringup | Nubificus"><meta property="og:description" content="The PYNQ-Z1 board is the hardware platform for the PYNQ
+open-source framework. It features a
+Zynq-7000
+(XC7Z020-1CLG400C) All Programmable System-On-Chip (APSoC), integrating a
+feature-rich dual-core Cortex-A9 based processing system (PS) and Xilinx
+programmable logic (PL) in a single device. Figure 1 shows an image of the
+PYNQ-Z1 development board by Digilent."><meta property="og:image" content="/media/logo_hu_866fdf07312224c.png"><meta property="og:locale" content="en-us"><meta property="article:published_time" content="2023-01-05T14:14:04+01:00"><meta property="article:modified_time" content="2023-01-05T14:14:04+01:00"><script src=https://cdn.jsdelivr.net/gh/osano/cookieconsent@3.1.1/build/cookieconsent.min.js integrity="sha512-yXXqOFjdjHNH1GND+1EO0jbvvebABpzGKD66djnUfiKlYME5HGMUJHoCaeE4D5PTG2YsSJf6dwqyUUvQvS0vaA==" crossorigin=anonymous></script><link rel=stylesheet href=https://cdn.jsdelivr.net/gh/osano/cookieconsent@3.1.1/build/cookieconsent.min.css integrity="sha512-LQ97camar/lOliT/MqjcQs5kWgy6Qz/cCRzzRzUCfv0fotsCTC9ZHXaPQmJV8Xu/PVALfJZ7BDezl5lW3/qBxg==" crossorigin=anonymous><script>window.addEventListener("load",function(){window.cookieconsent.initialise({palette:{popup:{background:"#1565c0",text:"rgb(255, 255, 255)"},button:{background:"rgb(255, 255, 255)",text:"#1565c0"}},theme:"classic",content:{message:"This website uses cookies to ensure you get the best experience on our website.",dismiss:"Got it!",link:"Learn more",href:"https://www.cookiesandyou.com"}})})</script><title>PYNQ-Z1 bringup | Nubificus</title></head><body id=top data-spy=scroll data-offset=70 data-target=#TableOfContents class=page-wrapper data-wc-page-id=c94e7f477ca730158e52d6744d72edb2><script src=/js/wowchemy-init.min.9e4214442a7711d35691acd58f6f6361.js></script><div class="page-header header--fixed"><style>.navbar-logo{height:50px;display:flex;align-items:center}.navbar-logo img{max-height:45px;width:auto;display:block}.navbar-logo .logo-dark{display:none}body.colorscheme-dark .navbar-logo .logo-light,body.dark .navbar-logo .logo-light{display:none}body.colorscheme-dark .navbar-logo .logo-dark,body.dark .navbar-logo .logo-dark{display:block}.navbar-logo.logo-nubis,.navbar-logo.logo-nubificus{display:none}</style><script>document.addEventListener("DOMContentLoaded",function(){var e=window.location.hostname,t=e==="nubis-pc.eu"||e==="www.nubis-pc.eu",n=t?"logo-nubis":"logo-nubificus";document.querySelectorAll(".navbar-logo."+n).forEach(function(e){e.style.display="flex"}),document.querySelectorAll("[data-brand]").forEach(function(e){var n=e.getAttribute("data-brand");t?e.textContent=n==="primary"?"Nubis":"Nubificus":e.textContent=n==="primary"?"Nubificus":"Nubis"})})</script><header><nav class="navbar navbar-expand-lg navbar-light compensate-for-scrollbar" id=navbar-main><div class=container-xl><div class="d-none d-lg-inline-flex"><a class=navbar-brand href=/><div class="navbar-logo logo-nubificus"><img class=logo-light src=/media/logo-nubificus_hu_7be4fa6b19286a64.png alt=Nubificus>
+<img class=logo-dark src=/media/logo-nubificus-dark_hu_bd80a6d6121ee2ff.png alt=Nubificus></div><div class="navbar-logo logo-nubis"><img class=logo-light src=/media/logo-nubis.png alt="Nubis PC">
+<img class=logo-dark src=/media/logo-nubis-dark.png alt="Nubis PC"></div></a></div><button type=button class=navbar-toggler data-toggle=collapse data-target=#navbar-content aria-controls=navbar-content aria-expanded=false aria-label="Toggle navigation">
+<span><i class="fas fa-bars"></i></span></button><div class="navbar-brand-mobile-wrapper d-inline-flex d-lg-none"><a class=navbar-brand href=/><div class="navbar-logo logo-nubificus"><img class=logo-light src=/media/logo-nubificus_hu_7be4fa6b19286a64.png alt=Nubificus>
+<img class=logo-dark src=/media/logo-nubificus-dark_hu_bd80a6d6121ee2ff.png alt=Nubificus></div><div class="navbar-logo logo-nubis"><img class=logo-light src=/media/logo-nubis.png alt="Nubis PC">
+<img class=logo-dark src=/media/logo-nubis-dark.png alt="Nubis PC"></div></a></div><div class="navbar-collapse main-menu-item collapse justify-content-end" id=navbar-content><ul class="navbar-nav d-md-inline-flex"><li class=nav-item><a class=nav-link href=/><span>Home</span></a></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>Research</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/projects/><span>Projects</span></a>
+<a class=dropdown-item href=/publication><span>Publications</span></a></div></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>Solutions</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/solutions/edgelink/><span>edgeLink</span></a>
+<a class=dropdown-item href=/solutions/urunc/><span>urunc</span></a>
+<a class=dropdown-item href=/solutions/vaccel/><span>vAccel</span></a></div></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>Feed</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/post><span>News</span></a>
+<a class=dropdown-item href=/event><span>Events</span></a></div></li><li class=nav-item><a class="nav-link active" href=/blog><span>Blog</span></a></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>About</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/people><span>People</span></a>
+<a class=dropdown-item href=/contact><span>Contact</span></a></div></li></ul></div><ul class="nav-icons navbar-nav flex-row ml-auto d-flex pl-md-2"><li class="nav-item dropdown theme-dropdown"><a href=# class=nav-link data-toggle=dropdown aria-haspopup=true aria-label="Display preferences"><i class="fas fa-moon" aria-hidden=true></i></a><div class=dropdown-menu><a href=# class="dropdown-item js-set-theme-light"><span>Light</span>
+</a><a href=# class="dropdown-item js-set-theme-dark"><span>Dark</span>
+</a><a href=# class="dropdown-item js-set-theme-auto"><span>Automatic</span></a></div></li></ul></div></nav></header><script>document.addEventListener("DOMContentLoaded",function(){var e=document.querySelectorAll(".navbar-nav .nav-item.dropdown");e.forEach(function(t){t.addEventListener("mouseenter",function(){e.forEach(function(e){if(e!==t){e.classList.remove("show");var n=e.querySelector(".dropdown-menu");n&&n.classList.remove("show")}}),t.classList.add("show");var n=t.querySelector(".dropdown-menu");n&&n.classList.add("show")}),t.addEventListener("mouseleave",function(){t.classList.remove("show");var e=t.querySelector(".dropdown-menu");e&&e.classList.remove("show")})})})</script></div><div class=page-body><article class=article><div class=article-container><a class=blog-back-link href=javascript:void(0) onclick=blogGoBack()><i class="fas fa-arrow-left"></i> Back to Blog</a></div><div class="article-container pt-3"><h1>PYNQ-Z1 bringup</h1><div class=article-metadata><span class=article-date>Jan 5, 2023</span></div></div><div class=article-container><div class=article-style><p>The PYNQ-Z1 board is the hardware platform for the <a href=https://pynq.io target=_blank rel=noopener>PYNQ</a>
+open-source framework. It features a
+<a href=https://www.xilinx.com/products/silicon-devices/soc/zynq-7000.html target=_blank rel=noopener>Zynq-7000</a>
+(XC7Z020-1CLG400C) All Programmable System-On-Chip (APSoC), integrating a
+feature-rich dual-core Cortex-A9 based processing system (PS) and Xilinx
+programmable logic (PL) in a single device. Figure 1 shows an image of the
+PYNQ-Z1 development board by Digilent.</p><figure id=figure-figure-1-the-pynq-z1-board><div class="d-flex justify-content-center"><div class=w-100><img src=/images/pynq/pynq-z1.png#center alt="Figure 1: The PYNQ-Z1 board" loading=lazy data-zoomable width=80%></div></div><figcaption>Figure 1: The PYNQ-Z1 board</figcaption></figure><p>Digging into the hardware architecture of this board is out of scope of this
+text, so if you are interested in more details, have a look at the <a href=https://docs.xilinx.com/v/u/en-US/ug585-Zynq-7000-TRM target=_blank rel=noopener>Zynq
+Technical Reference
+manual</a>.</p><p>We will go through a brief description of the software components needed to
+bring up the board We describe the process to install a linux distribution and
+verify that the board can execute a simple example.</p><h2 id=software-components>Software components</h2><p>Bringing up the PYNQ-Z1 board is fairly straight-forward:</p><ul><li><strong>Option 1</strong>: use the vendor-provided SD card image for PYNQ-Z1
+<a href=https://bit.ly/pynqz1_v3_0_1 target=_blank rel=noopener>v3.0.1</a> from the <a href=http://www.pynq.io/board target=_blank rel=noopener>official
+website</a>.</li><li><strong>Option 2</strong>: use a custom linux distribution; build u-boot, the linux
+kernel/modules and a generic rootfs of the preferred linux distro, using the
+tools you are most familiar with.</li></ul><p>We will go with <strong>Option 2</strong>, following the
+<a href=https://github.com/ikwzm/FPGA-SoC-Linux target=_blank rel=noopener>guide</a> provided by <a href=https://github.com/ikwzm target=_blank rel=noopener>Ichiro
+Kawazome</a>.</p><h3 id=install-a-linux-distribution-on-the-pynq-z1-board>Install a linux distribution on the PYNQ-Z1 board</h3><p>First, we will create a target directory that will host the contents of the SD
+card image: the early boot files, the linux kernel and drivers, and the
+user-space utilities.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>mkdir -p target
+</span></span><span class=line><span class=cl>mkdir -p target/boot
+</span></span></code></pre></div><ul><li>Step 1: Build <code>u-boot</code>.</li><li>Step 2: Build the Linux kernel</li><li>Step 3: Build the rootfs (Debian 11)</li><li>Step 4: Build Drivers and Services</li></ul><h4 id=step-1-build-u-boot>Step 1: Build u-boot</h4><p>Get the patches/scripts:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>git clone --depth<span class=o>=</span><span class=m>1</span> -b v2016.03-1 https://github.com/ikwzm/FPGA-SoC-U-Boot-PYNQ-Z1.git
+</span></span></code></pre></div><p>We need to build u-boot-spl.sfp and u-boot.img. The steps are outlined below:</p><ul><li>Download U-boot Source</li></ul><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>git clone git://git.denx.de/u-boot.git u-boot-2016.03-zynq-pynq-z1
+</span></span></code></pre></div><p>Pick the supported version:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl><span class=nb>cd</span> u-boot-2016.03-zynq-pynq-z1
+</span></span><span class=line><span class=cl>git checkout -b u-boot-2016.03-zynq-pynq-z1 refs/tags/v2016.03
+</span></span></code></pre></div><p>Apply a number of patches, specific to PYNQ-Z1:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>patch -p0 &lt; ../files/u-boot-2016.03-zynq-pynq-z1.diff
+</span></span><span class=line><span class=cl>git add --update
+</span></span><span class=line><span class=cl>git add arch/arm/dts/zynq-pynqz1.dts
+</span></span><span class=line><span class=cl>git add board/xilinx/zynq/pynqz1_hw_platform/*
+</span></span><span class=line><span class=cl>git add configs/zynq_pynqz1_defconfig
+</span></span><span class=line><span class=cl>git add include/configs/zynq_pynqz1.h
+</span></span><span class=line><span class=cl>git commit -m <span class=s2>&#34;patch for zynq-pynq-z1&#34;</span>
+</span></span><span class=line><span class=cl>git tag -a v2016.03-zynq-pynq-z1-1 -m <span class=s2>&#34;Release v2016.03-1 for PYNQ-Z1&#34;</span>
+</span></span></code></pre></div><p><a href=/images/pynq/0001-fix-build-with-OpenSSL-1.1.x.patch>Patch</a> for the breaking
+changes of OpenSSL v1.1.x:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>wget https://blog.cloudkernels.net/pynq/0001-fix-build-with-OpenSSL-1.1.x.patch
+</span></span><span class=line><span class=cl>git am 0001-fix-build-with-OpenSSL-1.1.x.patch
+</span></span></code></pre></div><p>Setup for Build:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl><span class=nb>cd</span> u-boot-2016.03-zynq-pynq-z1
+</span></span><span class=line><span class=cl><span class=nb>export</span> <span class=nv>ARCH</span><span class=o>=</span>arm
+</span></span><span class=line><span class=cl><span class=nb>export</span> <span class=nv>CROSS_COMPILE</span><span class=o>=</span>arm-linux-gnueabihf-
+</span></span><span class=line><span class=cl>make zynq_pynqz1_defconfig
+</span></span></code></pre></div><p>Build u-boot & extract binaries:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>make
+</span></span><span class=line><span class=cl><span class=c1># Copy u-boot.img, u-boot.elf and u-boot-spl.sfp to root directory</span>
+</span></span><span class=line><span class=cl>cp spl/boot.bin ../boot.bin
+</span></span><span class=line><span class=cl>cp u-boot.img ../u-boot.img
+</span></span><span class=line><span class=cl>cp u-boot ../u-boot.elf
+</span></span><span class=line><span class=cl><span class=nb>cd</span> ..
+</span></span></code></pre></div><p>Copy boot.bin and u-boot.img to <code>target/boot/</code>:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>shell$ cp boot.bin   ../target/zynq-pynqz1/boot/
+</span></span><span class=line><span class=cl>shell$ cp u-boot.img ../target/zynq-pynqz1/boot/
+</span></span></code></pre></div><h4 id=step-2-build-the-linux-kernel>Step 2: Build the Linux Kernel</h4><p>Let&rsquo;s go back to our working director (<code>cd ../</code>) and get the repo sources (we
+will need some PYNQ-Z1 specific patches):</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>wget https://github.com/ikwzm/FPGA-SoC-Linux/archive/refs/tags/v2.1.1.tar.gz
+</span></span><span class=line><span class=cl>tar -zxvf v2.1.1.tar.gz
+</span></span><span class=line><span class=cl><span class=nb>cd</span> FPGA-SoC-Linux-2.1.1
+</span></span></code></pre></div><p>Get the kernel sources (v5.10.109):</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>git clone --depth <span class=m>1</span> -b v5.10.109 git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git linux-5.10.109-armv7-fpga
+</span></span><span class=line><span class=cl><span class=nb>cd</span> linux-5.10.109-armv7-fpga
+</span></span><span class=line><span class=cl>git checkout -b linux-5.10.109-armv7-fpga refs/tags/v5.10.109
+</span></span></code></pre></div><p>Patch for armv7:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>patch -p1 &lt; ../files/linux-5.10.109-armv7-fpga.diff
+</span></span><span class=line><span class=cl>git add --update
+</span></span><span class=line><span class=cl>git add arch/arm/configs/armv7_fpga_defconfig
+</span></span><span class=line><span class=cl>git add arch/arm/boot/dts/zynq-pynqz1.dts
+</span></span><span class=line><span class=cl>git commit -m <span class=s2>&#34;patch for armv7-fpga&#34;</span>
+</span></span></code></pre></div><p>Patch for usb chipidea driver:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>patch -p1 &lt; ../files/linux-5.10.109-armv7-fpga-patch-usb-chipidea.diff
+</span></span><span class=line><span class=cl>git add --update
+</span></span><span class=line><span class=cl>git commit -m <span class=s2>&#34;patch for usb chipidea driver for issue #3&#34;</span>
+</span></span></code></pre></div><p>Patch for build debian package script:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>patch -p1 &lt; ../files/linux-5.10.109-armv7-fpga-patch-builddeb.diff
+</span></span><span class=line><span class=cl>git add --update
+</span></span><span class=line><span class=cl>git commit -m <span class=s2>&#34;patch for scripts/package/builddeb to add tools/include and postinst script to header package&#34;</span>
+</span></span></code></pre></div><p>Create tag and .version:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>git tag -a v5.10.109-armv7-fpga -m <span class=s2>&#34;release v5.10.109-armv7-fpga&#34;</span>
+</span></span><span class=line><span class=cl><span class=nb>echo</span> <span class=m>1</span> &gt; .version
+</span></span></code></pre></div><p>Setup for Build:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl><span class=nb>cd</span> linux-5.10.109-armv7-fpga
+</span></span><span class=line><span class=cl><span class=nb>export</span> <span class=nv>ARCH</span><span class=o>=</span>arm
+</span></span><span class=line><span class=cl><span class=nb>export</span> <span class=nv>CROSS_COMPILE</span><span class=o>=</span>arm-linux-gnueabihf-
+</span></span><span class=line><span class=cl>make armv7_fpga_defconfig
+</span></span></code></pre></div><p>Build Linux Kernel and device tree:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl><span class=nb>export</span> <span class=nv>DTC_FLAGS</span><span class=o>=</span>--symbols
+</span></span><span class=line><span class=cl>make deb-pkg
+</span></span><span class=line><span class=cl>make zynq-zybo.dtb
+</span></span><span class=line><span class=cl>make zynq-zybo-z7.dtb
+</span></span><span class=line><span class=cl>make zynq-pynqz1.dtb
+</span></span><span class=line><span class=cl>make socfpga_cyclone5_de0_nano_soc.dtb
+</span></span></code></pre></div><p>Copy zImage to vmlinuz-5.10.109-armv7-fpga:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>cp arch/arm/boot/zImage ../vmlinuz-5.10.109-armv7-fpga
+</span></span></code></pre></div><p>Copy devicetree to target/boot/:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>cp arch/arm/boot/dts/zynq-pynqz1.dtb ../target/zynq-pynqz1/boot/devicetree-5.10.109-zynq-pynqz1.dtb
+</span></span><span class=line><span class=cl>./scripts/dtc/dtc -I dtb -O dts -o ../target//boot/devicetree-5.10.109-zynq-pynqz1.dts arch/arm/boot/dts/zynq-pynqz1.dtb
+</span></span></code></pre></div><h4 id=step-3-build-the-rootfs-debian-11>Step 3: Build the rootfs (Debian 11)</h4><p>We go back to our sources directory (<code>cd ../</code>) and setup a couple of host-side utilities:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>apt-get install qemu-user-static debootstrap binfmt-support
+</span></span><span class=line><span class=cl><span class=nb>export</span> <span class=nv>targetdir</span><span class=o>=</span>debian11-rootfs
+</span></span><span class=line><span class=cl><span class=nb>export</span> <span class=nv>distro</span><span class=o>=</span>bullseye
+</span></span></code></pre></div><p>Build Debian RootFS first-step in $targetdir(=debian11-rootfs):</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>mkdir <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>
+</span></span><span class=line><span class=cl>sudo chown root <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>
+</span></span><span class=line><span class=cl>sudo debootstrap --arch<span class=o>=</span>armhf --foreign <span class=nv>$distro</span> <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>
+</span></span><span class=line><span class=cl>sudo cp /usr/bin/qemu-arm-static <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>/usr/bin
+</span></span><span class=line><span class=cl>sudo cp /etc/resolv.conf <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>/etc
+</span></span><span class=line><span class=cl>sudo cp scripts/build-debian11-rootfs-with-qemu.sh <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>
+</span></span><span class=line><span class=cl>sudo cp linux-image-5.10.109-armv7-fpga_5.10.109-armv7-fpga-1_armhf.deb <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>
+</span></span></code></pre></div><p>Build Debian RootFS second-step with QEMU:</p><p>Change Root to debian11-rootfs:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>sudo chroot <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>
+</span></span></code></pre></div><p>Run Second Stage (in the <code>chroot</code>):</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl><span class=nv>distro</span><span class=o>=</span>bullseye
+</span></span><span class=line><span class=cl><span class=nb>export</span> <span class=nv>LANG</span><span class=o>=</span>C
+</span></span><span class=line><span class=cl>/debootstrap/debootstrap --second-stage
+</span></span></code></pre></div><p>Setup APT:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>cat <span class=s>&lt;&lt;EOT &gt; /etc/apt/sources.list
+</span></span></span><span class=line><span class=cl><span class=s>deb     http://ftp.jp.debian.org/debian  bullseye           main contrib non-free
+</span></span></span><span class=line><span class=cl><span class=s>deb-src http://ftp.jp.debian.org/debian  bullseye           main contrib non-free
+</span></span></span><span class=line><span class=cl><span class=s>deb     http://ftp.jp.debian.org/debian  bullseye-updates   main contrib non-free
+</span></span></span><span class=line><span class=cl><span class=s>deb-src http://ftp.jp.debian.org/debian  bullseye-updates   main contrib non-free
+</span></span></span><span class=line><span class=cl><span class=s>deb     http://security.debian.org       bullseye-security  main contrib non-free
+</span></span></span><span class=line><span class=cl><span class=s>deb-src http://security.debian.org       bullseye-security  main contrib non-free
+</span></span></span><span class=line><span class=cl><span class=s>EOT</span>
+</span></span></code></pre></div><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>cat <span class=s>&lt;&lt;EOT &gt; /etc/apt/apt.conf.d/71-no-recommends
+</span></span></span><span class=line><span class=cl><span class=s>APT::Install-Recommends &#34;0&#34;;
+</span></span></span><span class=line><span class=cl><span class=s>APT::Install-Suggests   &#34;0&#34;;
+</span></span></span><span class=line><span class=cl><span class=s>EOT</span>
+</span></span></code></pre></div><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>apt-get update -y
+</span></span><span class=line><span class=cl>apt-get upgrade -y
+</span></span></code></pre></div><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl><span class=c1># Install applications:</span>
+</span></span><span class=line><span class=cl>apt-get install -y locales dialog
+</span></span><span class=line><span class=cl>dpkg-reconfigure locales
+</span></span><span class=line><span class=cl>apt-get install -y net-tools openssh-server ntpdate resolvconf sudo less hwinfo ntp tcsh zsh file
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Setup hostname</span>
+</span></span><span class=line><span class=cl><span class=nb>echo</span> debian-fpga &gt; /etc/hostname
+</span></span><span class=line><span class=cl><span class=c1># Setup root password</span>
+</span></span><span class=line><span class=cl>passwd
+</span></span><span class=line><span class=cl><span class=c1># This time, we set the &#34;admin&#34; at the root&#39; password.</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># To be able to login as root from Zynq serial port.</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>cat <span class=s>&lt;&lt;EOT &gt;&gt; /etc/securetty
+</span></span></span><span class=line><span class=cl><span class=s># Seral Port for Xilinx Zynq
+</span></span></span><span class=line><span class=cl><span class=s>ttyPS0
+</span></span></span><span class=line><span class=cl><span class=s>EOT</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Add a new guest user</span>
+</span></span><span class=line><span class=cl>adduser fpga
+</span></span><span class=line><span class=cl><span class=c1># This time, we set the &#34;fpga&#34; at the fpga&#39;password.</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nb>echo</span> <span class=s2>&#34;fpga ALL=(ALL:ALL) ALL&#34;</span> &gt; /etc/sudoers.d/fpga
+</span></span><span class=line><span class=cl><span class=c1># Setup sshd config</span>
+</span></span><span class=line><span class=cl>sed -i -e <span class=s1>&#39;s/#PasswordAuthentication/PasswordAuthentication/g&#39;</span> /etc/ssh/sshd_config
+</span></span><span class=line><span class=cl><span class=c1># Setup Time Zone</span>
+</span></span><span class=line><span class=cl><span class=nb>echo</span> <span class=s2>&#34;Etc/UTC&#34;</span> &gt; /etc/timezone
+</span></span><span class=line><span class=cl>dpkg-reconfigure -f noninteractive tzdata
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Setup fstab</span>
+</span></span><span class=line><span class=cl>cat <span class=s>&lt;&lt;EOT &gt; /etc/fstab
+</span></span></span><span class=line><span class=cl><span class=s>/dev/mmcblk0p1	/mnt/boot	auto		defaults	0	0
+</span></span></span><span class=line><span class=cl><span class=s>none		/config		configfs	defaults	0	0
+</span></span></span><span class=line><span class=cl><span class=s>EOT</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Setup Network</span>
+</span></span><span class=line><span class=cl>apt-get install -y ifupdown
+</span></span><span class=line><span class=cl>cat <span class=s>&lt;&lt;EOT &gt; /etc/network/interfaces.d/eth0
+</span></span></span><span class=line><span class=cl><span class=s>allow-hotplug eth0
+</span></span></span><span class=line><span class=cl><span class=s>iface eth0 inet dhcp
+</span></span></span><span class=line><span class=cl><span class=s>EOT</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Setup /lib/firmware</span>
+</span></span><span class=line><span class=cl>mkdir /lib/firmware
+</span></span><span class=line><span class=cl><span class=c1># Install Wireless tools and firmware</span>
+</span></span><span class=line><span class=cl>apt-get install -y wireless-tools
+</span></span><span class=line><span class=cl>apt-get install -y wpasupplicant
+</span></span><span class=line><span class=cl>apt-get install -y firmware-realtek
+</span></span><span class=line><span class=cl>apt-get install -y firmware-ralink
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Install Development applications</span>
+</span></span><span class=line><span class=cl>apt-get install -y build-essential
+</span></span><span class=line><span class=cl>apt-get install -y git git-lfs
+</span></span><span class=line><span class=cl>apt-get install -y u-boot-tools device-tree-compiler
+</span></span><span class=line><span class=cl>apt-get install -y libssl-dev
+</span></span><span class=line><span class=cl>apt-get install -y socat
+</span></span><span class=line><span class=cl>apt-get install -y ruby rake ruby-msgpack ruby-serialport 
+</span></span><span class=line><span class=cl>apt-get install -y python3 python3-dev python3-setuptools python3-wheel python3-pip python3-numpy
+</span></span><span class=line><span class=cl>pip3 install msgpack-rpc-python
+</span></span><span class=line><span class=cl>apt-get install -y flex bison pkg-config
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Install Other applications</span>
+</span></span><span class=line><span class=cl>apt-get install -y samba
+</span></span><span class=line><span class=cl>apt-get install -y avahi-daemon
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Install Linux Modules</span>
+</span></span><span class=line><span class=cl>mkdir /mnt/boot
+</span></span><span class=line><span class=cl>dpkg -i linux-image-5.10.109-armv7-fpga_5.10.109-armv7-fpga-1_armhf.deb
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Clean Cache</span>
+</span></span><span class=line><span class=cl>apt-get clean
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Create Debian Package List</span>
+</span></span><span class=line><span class=cl>dpkg -l &gt; dpkg-list.txt
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Finish</span>
+</span></span><span class=line><span class=cl><span class=nb>exit</span>
+</span></span></code></pre></div><p>Now, we are not in the chroot. Let&rsquo;s cleanup:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>sudo rm -f  <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>/usr/bin/qemu-arm-static
+</span></span><span class=line><span class=cl>sudo rm -f  <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>/build-debian11-rootfs-with-qemu.sh
+</span></span><span class=line><span class=cl>sudo rm -f  <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>/linux-image-5.10.109-armv7-fpga_5.10.109-armv7-fpga-1_armhf.deb
+</span></span><span class=line><span class=cl>sudo mv     <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>/dpkg-list.txt files/debian11-dpkg-list.txt
+</span></span></code></pre></div><p>We can build a tgz with the above files:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl><span class=c1># Build debian11-rootfs-vanilla.tgz</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> <span class=nv>$PWD</span>/<span class=nv>$targetdir</span>
+</span></span><span class=line><span class=cl>sudo tar cfz ../debian11-rootfs-vanilla.tgz *
+</span></span><span class=line><span class=cl><span class=nb>cd</span> ..
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># Build debian11-rootfs-vanilla.tgz.files</span>
+</span></span><span class=line><span class=cl>mkdir debian11-rootfs-vanilla.tgz.files
+</span></span><span class=line><span class=cl><span class=nb>cd</span>    debian11-rootfs-vanilla.tgz.files
+</span></span><span class=line><span class=cl>split -d --bytes<span class=o>=</span>40M ../debian11-rootfs-vanilla.tgz
+</span></span><span class=line><span class=cl><span class=nb>cd</span> ..
+</span></span></code></pre></div><h2 id=putting-it-all-together>Putting it all together</h2><p>Now that we have a working linux distro on the board, let&rsquo;s login and build a
+simple example. We will use <a href=https://github.com/ikwzm target=_blank rel=noopener>Ichiro</a>&rsquo;s
+<a href=https://github.com/ikwzm/FPGA-SoC-Linux-Example-1-PYNQ-Z1 target=_blank rel=noopener>example</a>.</p><h3 id=get-the-code>Get the code</h3><p>First, let&rsquo;s get the code:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>git clone FPGA-SoC-Linux-Example-1-PYNQ-Z1
+</span></span><span class=line><span class=cl><span class=nb>cd</span> FPGA-SoC-Linux-Example-1-PYNQ-Z1
+</span></span></code></pre></div><h3 id=install-to-fpga>Install to FPGA</h3><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>sudo rake install
+</span></span><span class=line><span class=cl>dmesg
+</span></span></code></pre></div><p>The output should be something like the following:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-console data-lang=console><span class=line><span class=cl><span class=gp>#</span> sudo rake install
+</span></span><span class=line><span class=cl><span class=go>dtbocfg.rb --install uio_irq_sample --dts uio_irq_sample.dts
+</span></span></span><span class=line><span class=cl><span class=go>&lt;stdin&gt;:22.13-27.20: Warning (unit_address_vs_reg): /fragment@1/__overlay__/pump-uio: node has a reg or ranges property, but no unit name
+</span></span></span><span class=line><span class=cl><span class=go>&lt;stdin&gt;:9.13-41.4: Warning (avoid_unnecessary_addr_size): /fragment@1: unnecessary #address-cells/#size-cells without &#34;ranges&#34; or child &#34;reg&#34; property
+</span></span></span><span class=line><span class=cl><span class=gp>#</span> dmesg
+</span></span><span class=line><span class=cl><span class=go>[..]
+</span></span></span><span class=line><span class=cl><span class=go>[1767436.795386] fpga_manager fpga0: writing pump_axi4.bin to Xilinx Zynq FPGA Manager
+</span></span></span><span class=line><span class=cl><span class=go>[1767436.966789] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /amba/fpga-region0/firmware-name
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.047568] fclkcfg amba:fclk0: driver version : 1.7.2
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.054395] fclkcfg amba:fclk0: device name    : amba:fclk0
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.060294] fclkcfg amba:fclk0: clock  name    : fclk0
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.066766] fclkcfg amba:fclk0: clock  rate    : 100000000
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.072665] fclkcfg amba:fclk0: clock  enabled : 1
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.077652] fclkcfg amba:fclk0: driver installed.
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.093380] u-dma-buf udmabuf4: driver version = 3.2.5
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.098701] u-dma-buf udmabuf4: major number   = 243
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.107763] u-dma-buf udmabuf4: minor number   = 0
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.113390] u-dma-buf udmabuf4: phys address   = 0x1f100000
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.119151] u-dma-buf udmabuf4: buffer size    = 1048576
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.128990] u-dma-buf amba:pump-udmabuf4: driver installed.
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.147643] u-dma-buf udmabuf5: driver version = 3.2.5
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.153475] u-dma-buf udmabuf5: major number   = 243
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.158803] u-dma-buf udmabuf5: minor number   = 1
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.164453] u-dma-buf udmabuf5: phys address   = 0x1f200000
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.170388] u-dma-buf udmabuf5: buffer size    = 1048576
+</span></span></span><span class=line><span class=cl><span class=go>[1767437.175881] u-dma-buf amba:pump-udmabuf5: driver installed.
+</span></span></span></code></pre></div><h3 id=run-the-samples>Run the samples</h3><div class=highlight><pre tabindex=0 class=chroma><code class=language-console data-lang=console><span class=line><span class=cl><span class=gp>#</span> ./sample1
+</span></span><span class=line><span class=cl><span class=go>time = 0.006068 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006053 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006064 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006040 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006060 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006052 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006061 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006077 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006019 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006048 sec
+</span></span></span></code></pre></div><div class=highlight><pre tabindex=0 class=chroma><code class=language-console data-lang=console><span class=line><span class=cl><span class=gp>#</span> ./sample2
+</span></span><span class=line><span class=cl><span class=go>time = 0.006066 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006052 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006050 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006068 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006165 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006120 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006079 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006088 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006101 sec
+</span></span></span><span class=line><span class=cl><span class=go>time = 0.006090 sec
+</span></span></span></code></pre></div><div class=highlight><pre tabindex=0 class=chroma><code class=language-console data-lang=console><span class=line><span class=cl><span class=gp>#</span> python3 ./sample.py 
+</span></span><span class=line><span class=cl><span class=go>elapsed_time:6.238[msec]
+</span></span></span><span class=line><span class=cl><span class=go>elapsed_time:6.284[msec]
+</span></span></span><span class=line><span class=cl><span class=go>elapsed_time:6.229[msec]
+</span></span></span><span class=line><span class=cl><span class=go>elapsed_time:6.24[msec]
+</span></span></span><span class=line><span class=cl><span class=go>elapsed_time:6.195[msec]
+</span></span></span><span class=line><span class=cl><span class=go>elapsed_time:6.279[msec]
+</span></span></span><span class=line><span class=cl><span class=go>elapsed_time:6.223[msec]
+</span></span></span><span class=line><span class=cl><span class=go>elapsed_time:6.2[msec]
+</span></span></span><span class=line><span class=cl><span class=go>elapsed_time:6.216[msec]
+</span></span></span><span class=line><span class=cl><span class=go>average_time:6.234[msec]
+</span></span></span><span class=line><span class=cl><span class=go>thougput    :168.21[MByte/sec]
+</span></span></span><span class=line><span class=cl><span class=go>udmabuf4 == udmabuf5 : OK
+</span></span></span></code></pre></div><p><strong>Note</strong>
+You might find useful to browse through the <a href=https://github.com/ikwzm/udmabuf target=_blank rel=noopener>udmabuf
+repo</a>. The samples above use <code>udmabuf4</code> &
+<code>udmabuf5</code>, but more elaborate examples could make use of other
+source/destination buffers (eg <code>udmabuf0</code> or <code>udmabuf1</code>). To enable these,
+remember to remove the module and re-load it, specifying the relevant buffers:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-sh data-lang=sh><span class=line><span class=cl>rmmod u_dma_buf
+</span></span><span class=line><span class=cl>modprobe u_dma_buf <span class=nv>udmabuf0</span><span class=o>=</span>$<span class=o>[</span> <span class=m>2</span> * <span class=m>1048576</span> <span class=o>]</span> <span class=nv>udmabuf1</span><span class=o>=</span>$<span class=o>[</span> 2* 1048576<span class=o>]</span> <span class=nv>udmabuf2</span><span class=o>=</span>$<span class=o>[</span> <span class=m>2</span> * <span class=m>1048576</span> <span class=o>]</span>  <span class=nv>udmabuf3</span><span class=o>=</span>$<span class=o>[</span> <span class=m>2</span> * <span class=m>1048576</span> <span class=o>]</span>
+</span></span></code></pre></div><h2 id=simple-vector-operation-examples>Simple Vector operation examples</h2><p>To demonstrate the added value of running on the FPGA fabric, we use simple
+vector operation examples, such as vector add, matrix-to-matrix multiplication
+etc.</p><p>The code can be found at <a href=https://github.com/nubificus/pynq_fpga_samples target=_blank rel=noopener>github</a>.</p><h2 id=future-steps>Future steps</h2><p>Give us a shout at <a href=mailto:team@cloudkernels.net>team@cloudkernels.net</a> if you liked it! The plan is to use
+this board to expose acceleration functionality over the network with
+<a href=https://vaccel.org target=_blank rel=noopener>vAccel</a>. Stay tuned for the next post where we describe
+how we did it!</p></div><div class=article-tags><a class="badge badge-light" href=/tag/pynq-z1/>PYNQ-Z1</a>
+<a class="badge badge-light" href=/tag/fpga/>FPGA</a>
+<a class="badge badge-light" href=/tag/linux/>Linux</a>
+<a class="badge badge-light" href=/tag/zynq-7000/>Zynq-7000</a></div><div class=share-box><ul class=share><li><a href="https://twitter.com/intent/tweet?url=%2Fblog%2Fpynq-z1%2F&amp;text=PYNQ-Z1+bringup" target=_blank rel=noopener class=share-btn-twitter aria-label=twitter><i class="fab fa-twitter"></i></a></li><li><a href="https://www.facebook.com/sharer.php?u=%2Fblog%2Fpynq-z1%2F&amp;t=PYNQ-Z1+bringup" target=_blank rel=noopener class=share-btn-facebook aria-label=facebook><i class="fab fa-facebook"></i></a></li><li><a href="mailto:?subject=PYNQ-Z1%20bringup&amp;body=%2Fblog%2Fpynq-z1%2F" target=_blank rel=noopener class=share-btn-email aria-label=envelope><i class="fas fa-envelope"></i></a></li><li><a href="https://www.linkedin.com/shareArticle?url=%2Fblog%2Fpynq-z1%2F&amp;title=PYNQ-Z1+bringup" target=_blank rel=noopener class=share-btn-linkedin aria-label=linkedin-in><i class="fab fa-linkedin-in"></i></a></li><li><a href="whatsapp://send?text=PYNQ-Z1+bringup%20%2Fblog%2Fpynq-z1%2F" target=_blank rel=noopener class=share-btn-whatsapp aria-label=whatsapp><i class="fab fa-whatsapp"></i></a></li><li><a href="https://service.weibo.com/share/share.php?url=%2Fblog%2Fpynq-z1%2F&amp;title=PYNQ-Z1+bringup" target=_blank rel=noopener class=share-btn-weibo aria-label=weibo><i class="fab fa-weibo"></i></a></li></ul></div></div></article><script>function blogGoBack(){document.referrer&&document.referrer.indexOf("/blog")!==-1?history.back():window.location.href="/blog/"}</script></div><div class=page-footer><div class=container><footer class=site-footer><p class="powered-by copyright-license-text">© 2026 Nubificus LTD. This work is licensed under <a href=https://creativecommons.org/licenses/by-nc-nd/4.0 rel="noopener noreferrer" target=_blank>CC BY NC ND 4.0</a></p><p class="powered-by footer-license-icons"><a href=https://creativecommons.org/licenses/by-nc-nd/4.0 rel="noopener noreferrer" target=_blank aria-label="Creative Commons"><i class="fab fa-creative-commons fa-2x" aria-hidden=true></i>
+<i class="fab fa-creative-commons-by fa-2x" aria-hidden=true></i>
+<i class="fab fa-creative-commons-nc fa-2x" aria-hidden=true></i>
+<i class="fab fa-creative-commons-nd fa-2x" aria-hidden=true></i></a></p><p class=powered-by>Published with <a href="https://hugoblox.com/?utm_campaign=poweredby" target=_blank rel=noopener>Hugo Blox Builder</a> — the free, <a href=https://github.com/HugoBlox/hugo-blox-builder target=_blank rel=noopener>open source</a> website builder that empowers creators.</p></footer></div></div><script src=/js/vendor-bundle.min.6782e3f6a4f06ea4766df038c45ecf40.js></script><script src=https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.min.js integrity crossorigin=anonymous></script><script id=page-data type=application/json>{"use_headroom":true}</script><script src=/js/wowchemy-headroom.b95a7e109243f29d04930ae8cb49a756.js type=module></script><script src=/en/js/wowchemy.min.ed487406ecbb80985462ba7a97b6f2d2.js></script><script src=/js/wowchemy-map.a26e9d2f7238ba5b868384f1c5bc6477.js type=module></script><div id=modal class="modal fade" role=dialog><div class=modal-dialog><div class=modal-content><div class=modal-header><h5 class=modal-title>Cite</h5><button type=button class=close data-dismiss=modal aria-label=Close>
+<span aria-hidden=true>&#215;</span></button></div><div class=modal-body><pre><code></code></pre></div><div class=modal-footer><a class="btn btn-outline-primary my-1 js-copy-cite" href=# target=_blank><i class="fas fa-copy"></i> Copy
+</a><a class="btn btn-outline-primary my-1 js-download-cite" href=# target=_blank><i class="fas fa-download"></i> Download</a><div id=modal-error></div></div></div></div></div><script src=/js/wowchemy-publication.9c0e895144aef5a693008b5c5d450147.js type=module></script></body></html>

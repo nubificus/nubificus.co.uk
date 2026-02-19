@@ -1,0 +1,586 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>QEMU | Nubificus</title><link>/tag/qemu/</link><atom:link href="/tag/qemu/index.xml" rel="self" type="application/rss+xml"/><description>QEMU</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Mon, 28 Mar 2022 10:18:06 +0000</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>QEMU</title><link>/tag/qemu/</link></image><item><title>Kata Containers: Build and configure QEMU</title><link>/blog/kata-build-configure-qemu/</link><pubDate>Mon, 28 Mar 2022 10:18:06 +0000</pubDate><guid>/blog/kata-build-configure-qemu/</guid><description>&lt;p&gt;Picking up from where we left in our &lt;a href="/posts/kata-build-source"&gt;previous
+post&lt;/a&gt;, we will now
+install QEMU and configure Kata Containers to use QEMU as their hypervisor.&lt;/p&gt;
+&lt;h3 id="build-qemu"&gt;Build QEMU&lt;/h3&gt;
+&lt;p&gt;First, we need to build &lt;code&gt;qemu-system&lt;/code&gt; for the CPU architecture of our host machine. Kata Containers provide scripts to manage the build of QEMU both for
+x86 and arm64 hosts. We will be using them to make sure that our QEMU installation is suitable for usage with Kata Containers.&lt;/p&gt;
+&lt;h4 id="build-qemu-for-x86"&gt;Build QEMU for x86&lt;/h4&gt;
+&lt;p&gt;We need to get the correct version of QEMU from the versions file:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;GOPATH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;go env GOPATH&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;GO111MODULE&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;off
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;source&lt;/span&gt; &lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;GOPATH&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;/src/github.com/kata-containers/kata-containers/tools/packaging/scripts/lib.sh
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;qemu_version&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;get_from_kata_deps &lt;span class="s2"&gt;&amp;#34;assets.hypervisor.qemu.version&amp;#34;&lt;/span&gt;&lt;span class="k"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Next, we need to get the QEMU source from the matching branch:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;go get -d github.com/qemu/qemu
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; &lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;GOPATH&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;/src/github.com/qemu/qemu
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git checkout &lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;qemu_version&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;your_qemu_directory&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;GOPATH&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;/src/github.com/qemu/qemu
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We need to see which version of QEMU we will be building.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;echo&lt;/span&gt; &lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;qemu_version&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# v6.2.0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now we will use the scripts provided to apply the necessary patches to QEMU. Make sure to change the commands below to match the version of QEMU that you are targeting.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;packaging_dir&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;&lt;/span&gt;&lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;GOPATH&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;&lt;span class="s2"&gt;/src/github.com/kata-containers/kata-containers/tools/packaging&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;$packaging_dir&lt;/span&gt;/scripts/apply_patches.sh &lt;span class="nv"&gt;$packaging_dir&lt;/span&gt;/qemu/patches/6.2.x/
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Once the patches are successfully applied, we need to install some apt packages that are required to build &lt;code&gt;qemu-system&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo apt install ninja-build pkg-config &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; libglib2.0-dev &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; libpixman-1-dev &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; libseccomp-dev &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; libcap-ng-dev &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; librados-dev &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; libpmem-dev &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; librbd-dev &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; libgcrypt-dev
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now, we can finally build QEMU:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; &lt;span class="nv"&gt;$your_qemu_directory&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;$packaging_dir&lt;/span&gt;/scripts/configure-hypervisor.sh kata-qemu &amp;gt; kata.cfg
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;eval&lt;/span&gt; ./configure &lt;span class="s2"&gt;&amp;#34;&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;cat kata.cfg&lt;span class="k"&gt;)&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make -j &lt;span class="k"&gt;$(&lt;/span&gt;nproc&lt;span class="k"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo -E make install
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;If you followed the instructions in our previous post and you have set the &lt;code&gt;PREFIX&lt;/code&gt; variable to &lt;code&gt;/opt/kata&lt;/code&gt; the &lt;code&gt;qemu-system-x86_64&lt;/code&gt; binary will be stored under the &lt;code&gt;/opt/kata/bin/&lt;/code&gt; directory, &lt;code&gt;tools/virtiofsd/virtiofsd&lt;/code&gt; under the &lt;code&gt;/opt/kata/libexec/kata-qemu&lt;/code&gt; directory and all the other files will be stored under the &lt;code&gt;/opt/kata/share/kata-qemu&lt;/code&gt; directory.&lt;/p&gt;
+&lt;p&gt;We can also install &lt;code&gt;virtiofsd&lt;/code&gt; and &lt;code&gt;qemu-system-x86_64&lt;/code&gt; under the default location using the &lt;code&gt;install_qemu.sh&lt;/code&gt; script.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;go get -d github.com/kata-containers/tests
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;script -fec &lt;span class="s1"&gt;&amp;#39;sudo -E ${GOPATH}/src/github.com/kata-containers/tests/.ci/install_qemu.sh&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id="build-qemu-for-aarch64"&gt;Build QEMU for aarch64&lt;/h4&gt;
+&lt;p&gt;Install requirements:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo apt-get install -y build-essential pkg-config &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; libglib2.0-dev libpixman-1-dev &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; libaio-dev libseccomp-dev &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; libcap-ng-dev librados-dev &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; librbd-dev libzstd-dev
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Set required environment variables&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;PATH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$PATH&lt;/span&gt;:&lt;span class="k"&gt;$(&lt;/span&gt;go env GOPATH&lt;span class="k"&gt;)&lt;/span&gt;/bin &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;GOPATH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;go env GOPATH&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;GO111MODULE&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;off
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Build QEMU using the &lt;code&gt;install_qemu.sh&lt;/code&gt; script:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo rm -rf &lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;GOPATH&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;/src/github.com/qemu/qemu &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; go get -d github.com/kata-containers/tests &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; script -fec &lt;span class="s1"&gt;&amp;#39;sudo -E ${GOPATH}/src/github.com/kata-containers/tests/.ci/install_qemu.sh&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="configure-kata-containers"&gt;Configure Kata Containers&lt;/h3&gt;
+&lt;p&gt;Next, we need to install the Kata Containers configuration file. We will use this file to configure Kata Containers to use the initrd image we built in our previous post. You could also use a rootfs image, if you prefer.
+We will also enable guest &lt;code&gt;seccomp&lt;/code&gt;.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo mkdir -p /opt/kata/configs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo install -o root -g root -m &lt;span class="m"&gt;0640&lt;/span&gt; /opt/kata/share/defaults/kata-containers/configuration.toml /opt/kata/configs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# comment out the image entry&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo sed -i &lt;span class="s1"&gt;&amp;#39;s/^\(image =.*\)/# \1/g&amp;#39;&lt;/span&gt; /opt/kata/configs/configuration.toml
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# enable seccomp&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo sed -i &lt;span class="s1"&gt;&amp;#39;/^disable_guest_seccomp/ s/true/false/&amp;#39;&lt;/span&gt; /opt/kata/configs/configuration.toml
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Make sure that &lt;code&gt;/opt/kata/configs/configuration.toml&lt;/code&gt; has a initrd entry pointing to the initrd we created:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="m"&gt;17&lt;/span&gt; &lt;span class="p"&gt;|&lt;/span&gt; &lt;span class="c1"&gt;#image = &amp;#34;/opt/kata/share/kata-containers/kata-containers-image.img&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="m"&gt;18&lt;/span&gt; │ &lt;span class="nv"&gt;initrd&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;/opt/kata/share/kata-containers/kata-containers-initrd.img&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="configure-containerd"&gt;Configure containerd&lt;/h3&gt;
+&lt;p&gt;You need to edit the containerd config file (usually &lt;code&gt;/etc/containerd/config.toml&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;First we need to remove &lt;code&gt;cri&lt;/code&gt; from the disabled plugins list:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;#disabled_plugins = [&amp;#34;cri&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;disabled_plugins = []
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We also need to add the relevant handler for the kata runtime:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[plugins]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; [plugins.cri]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; [plugins.cri.containerd]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; [plugins.cri.containerd.runtimes]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; [plugins.cri.containerd.runtimes.kata]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtime_type = &amp;#34;io.containerd.kata.v2&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices = true
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; [plugins.cri.containerd.runtimes.kata.options]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ConfigPath = &amp;#34;/opt/kata/configs/configuration.toml&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Once the changes are saved, restart containerd: &lt;code&gt;sudo systemctl restart containerd&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;To verify our installation is successful, we can launch an Ubuntu test container:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo ctr images pull docker.io/library/ubuntu:latest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo ctr run --runtime io.containerd.run.kata.v2 -t --rm docker.io/library/ubuntu:latest ubuntu-kata-test uname -a
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Linux e678ab3c6fc3 5.15.26 #2 SMP Sat Mar 19 21:02:56 UTC 2022 aarch64 aarch64 aarch64 GNU/Linux&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;Note 1 for aarch64&lt;/strong&gt;:&lt;/p&gt;
+&lt;p&gt;We noticed that, in some instances, trying to launch a container produced the following error:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# sudo ctr images pull docker.io/library/busybox:latest&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# ctr run --runtime io.containerd.run.kata.v2 -t --rm docker.io/library/busybox:latest hello1 sh&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ctr: failed to create shim: failed to launch qemu: &lt;span class="nb"&gt;exit&lt;/span&gt; status 1, error messages from qemu log: qemu-system-aarch64: warning: For GICv2 max-cpus must be equal to smp-cpus
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;qemu-system-aarch64: warning: Overriding specified max-cpus&lt;span class="o"&gt;(&lt;/span&gt;4&lt;span class="o"&gt;)&lt;/span&gt; with smp-cpus&lt;span class="o"&gt;(&lt;/span&gt;1&lt;span class="o"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;qemu-system-aarch64: warning: global kvm-pit.lost_tick_policy has invalid class name
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Restoring &lt;span class="m"&gt;1&lt;/span&gt; CPU interfaces, kernel only has &lt;span class="m"&gt;4&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;: unknown
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;A workaround for that problem was to set the &lt;code&gt;default_vcpus = 8&lt;/code&gt; in &lt;code&gt;/opt/kata/configs/configuration.toml&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Note 2 for aarch64&lt;/strong&gt;:&lt;/p&gt;
+&lt;p&gt;We tried running on an older kernel, on an NVIDIA Jetson AGX Xavier and on an
+NVIDIA Jetson Nano, versions 4.9.253-tegra-virt (getting KVM to work on these
+boards is also quite a challenge, more details on a subsequent post). Apart
+from the GIC issue above, we saw that virtio-fs is not backported, nor is there
+support for the nvdimm stuff, so the following changes to the config file are
+needed:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-patch" data-lang="patch"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gd"&gt;--- configuration-qemu-stock.toml 2022-03-24 20:55:47.010284096 +0000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+++ configuration-qemu.toml 2022-03-24 21:34:39.725554126 +0000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gu"&gt;@@ -103,7 +103,7 @@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # vCPUs supported by the SB/VM. In general, we recommend that you do not edit this variable,
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # unless you know what are you doing.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # NOTICE: on arm platform with gicv2 interrupt controller, set it to 8.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gd"&gt;-default_maxvcpus = 0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+default_maxvcpus = 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # Bridges can be used to hot plug devices.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # Limitations:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gu"&gt;@@ -151,7 +151,7 @@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # - virtio-fs (default)
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # - virtio-9p
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # - virtio-fs-nydus
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gd"&gt;-shared_fs = &amp;#34;virtio-fs&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+shared_fs = &amp;#34;virtio-9p&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # Path to vhost-user-fs daemon.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; virtio_fs_daemon = &amp;#34;/opt/kata/libexec/kata-qemu/virtiofsd&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gu"&gt;@@ -292,7 +292,7 @@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # nvdimm is not supported when `confidential_guest = true`.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; #
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # Default is false
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gd"&gt;-#disable_image_nvdimm = true
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+disable_image_nvdimm = true
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # VFIO devices are hotplugged on a bridge by default.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # Enable hotplugging on root bus. This may be required for devices with
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Interestingly enough, &lt;code&gt;default_vcpus&lt;/code&gt; must be equal to &lt;code&gt;default_maxvcpus&lt;/code&gt; on
+such platforms.&lt;/p&gt;</description></item><item><title>Build Kata Containers from source on x86 and arm64</title><link>/blog/kata-build-source/</link><pubDate>Thu, 24 Mar 2022 10:18:06 +0000</pubDate><guid>/blog/kata-build-source/</guid><description>&lt;p&gt;&lt;a href="https://katacontainers.io" target="_blank" rel="noopener"&gt;Kata Containers&lt;/a&gt; enable containers to be seamlessly
+executed in Virtual Machines. Kata Containers are as light and fast as
+containers and integrate with the container management layers, while also
+delivering the security advantages of VMs. Kata Containers is the result of
+merging two existing open source projects: Intel Clear Containers and Hyper
+runV.&lt;/p&gt;
+&lt;p&gt;Kata Containers consist of several components. For amd64 machines,
+&lt;a href="https://github.com/kata-containers/kata-containers/releases" target="_blank" rel="noopener"&gt;binaries&lt;/a&gt; are
+provided through the
+&lt;a href="https://github.com/kata-containers/kata-containers/blob/main/docs/Release-Process.md" target="_blank" rel="noopener"&gt;formal&lt;/a&gt;
+release process. However, for arm64, binary files are not available (&lt;a href="https://github.com/kata-containers/kata-containers/issues/2639" target="_blank" rel="noopener"&gt;just
+yet&lt;/a&gt;).&lt;/p&gt;
+&lt;p&gt;In this post, we will be going through the steps to build kata containers from
+source, both for amd64 and arm64 architectures. In
+&lt;a href="https://cloudkernels.github.io/posts/kata-build-configure-qemu/" target="_blank" rel="noopener"&gt;follow-up&lt;/a&gt;
+&lt;a href="https://cloudkernels.github.io/posts/kata-build-configure-fc/" target="_blank" rel="noopener"&gt;posts&lt;/a&gt;, we go
+through the steps to build and configure &lt;a href="https://github.com/qemu/qemu" target="_blank" rel="noopener"&gt;QEMU&lt;/a&gt;
+and &lt;a href="https://github.com/firecracker-microvm/firecracker" target="_blank" rel="noopener"&gt;AWS Firecracker&lt;/a&gt; as
+VMMs for Kata Containers.&lt;/p&gt;
+&lt;h3 id="install-requirements"&gt;Install requirements&lt;/h3&gt;
+&lt;p&gt;To build Kata Containers we need to install Rust v1.58.1, Go v1.16.10, Docker and some apt/snap packages. The specific versions may change,
+so make sure to check the &lt;a href="https://github.com/kata-containers/kata-containers/blob/main/versions.yaml" target="_blank" rel="noopener"&gt;versions database&lt;/a&gt;.&lt;/p&gt;
+&lt;h4 id="aptsnap-packages"&gt;Apt/Snap Packages:&lt;/h4&gt;
+&lt;p&gt;We need to install &lt;code&gt;gcc&lt;/code&gt;, &lt;code&gt;make&lt;/code&gt; and &lt;code&gt;yq v3&lt;/code&gt;. &lt;code&gt;containerd&lt;/code&gt; and &lt;code&gt;runc&lt;/code&gt; are installed by the Docker install script, in the following steps.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo apt update &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; sudo apt upgrade -y
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo apt install gcc make snapd -y
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo snap install yq --channel&lt;span class="o"&gt;=&lt;/span&gt;v3/stable
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id="rust-version-1581"&gt;Rust (version 1.58.1):&lt;/h4&gt;
+&lt;p&gt;We will use &lt;code&gt;rustup&lt;/code&gt; to install and set Rust 1.58.1 as our default toolchain:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;down_dir&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;mktemp -d&lt;span class="k"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;pushd&lt;/span&gt; &lt;span class="nv"&gt;$down_dir&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget -q https://images.rust-lang.org/rustup/dist/&lt;span class="k"&gt;$(&lt;/span&gt;uname -p&lt;span class="k"&gt;)&lt;/span&gt;-unknown-linux-gnu/rustup-init
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo chmod +x rustup-init
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;./rustup-init -q -y --default-toolchain 1.58.1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;source&lt;/span&gt; &lt;span class="nv"&gt;$HOME&lt;/span&gt;/.cargo/env
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;popd&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;rm -rf &lt;span class="nv"&gt;$down_dir&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id="go-version-11610"&gt;Go (version 1.16.10)&lt;/h4&gt;
+&lt;p&gt;We will download the appropriate Go binaries and add them to the &lt;code&gt;PATH&lt;/code&gt; environment variable:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;down_dir&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;mktemp -d&lt;span class="k"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;pushd&lt;/span&gt; &lt;span class="nv"&gt;$down_dir&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget -q https://go.dev/dl/go1.16.10.linux-&lt;span class="k"&gt;$(&lt;/span&gt;dpkg --print-architecture&lt;span class="k"&gt;)&lt;/span&gt;.tar.gz
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo mkdir -p /usr/local/go1.16
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo tar -C /usr/local/go1.16 -xzf go1.16.10.linux-&lt;span class="k"&gt;$(&lt;/span&gt;dpkg --print-architecture&lt;span class="k"&gt;)&lt;/span&gt;.tar.gz
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;echo&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;export PATH=$PATH:/usr/local/go1.16/go/bin&amp;#39;&lt;/span&gt; &amp;gt;&amp;gt; &lt;span class="nv"&gt;$HOME&lt;/span&gt;/.profile
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;source&lt;/span&gt; &lt;span class="nv"&gt;$HOME&lt;/span&gt;/.profile
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;popd&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;rm -rf &lt;span class="nv"&gt;$down_dir&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id="docker"&gt;Docker&lt;/h4&gt;
+&lt;p&gt;We will install Docker using the provided convenience script:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo apt-get remove docker docker-engine docker.io containerd runc -y &amp;gt; /dev/null 2&amp;gt;&lt;span class="p"&gt;&amp;amp;&lt;/span&gt;&lt;span class="m"&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo rm -rf /var/lib/docker/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;down_dir&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;mktemp -d&lt;span class="k"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;pushd&lt;/span&gt; &lt;span class="nv"&gt;$down_dir&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;curl -fsSL https://get.docker.com -o get-docker.sh
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo sh get-docker.sh
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Optionally add user to docker group to run docker without sudo&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# sudo usermod -aG docker $USER&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;popd&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;rm -rf &lt;span class="nv"&gt;$down_dir&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="build-kata-components"&gt;Build Kata components&lt;/h3&gt;
+&lt;h4 id="build-kata-runtime"&gt;Build kata-runtime&lt;/h4&gt;
+&lt;p&gt;First, we need to set the correct Go environment variables:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;PATH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$PATH&lt;/span&gt;:&lt;span class="k"&gt;$(&lt;/span&gt;go env GOPATH&lt;span class="k"&gt;)&lt;/span&gt;/bin &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;GOPATH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;go env GOPATH&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;GO111MODULE&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;off
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We will use &lt;code&gt;go get&lt;/code&gt; to download kata-containers source code:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;go get -d -u github.com/kata-containers/kata-containers
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We are now ready to build the &lt;code&gt;kata-runtime&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;pushd&lt;/span&gt; &lt;span class="nv"&gt;$GOPATH&lt;/span&gt;/src/github.com/kata-containers/kata-containers/src/runtime
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;GO111MODULE&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;on
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;PREFIX&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;/opt/kata
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;popd&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;To install the binaries to a specific path (say &lt;code&gt;/opt/kata&lt;/code&gt;) we need to specify
+the &lt;code&gt;PREFIX&lt;/code&gt; environment variable prior to installing:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;pushd&lt;/span&gt; &lt;span class="nv"&gt;$GOPATH&lt;/span&gt;/src/github.com/kata-containers/kata-containers/src/runtime
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;PREFIX&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;/opt/kata
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo -E &lt;span class="nv"&gt;PATH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$PATH&lt;/span&gt; -E &lt;span class="nv"&gt;PREFIX&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$PREFIX&lt;/span&gt; make install
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;popd&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Kata binaries are now installed in &lt;code&gt;/opt/kata/bin&lt;/code&gt; and configs are installed in
+&lt;code&gt;/opt/kata/share/defaults/kata-containers/&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;It is recommended you add a symbolic link to /opt/kata/bin/kata-runtime and
+/opt/kata/bin/containerd-shim-kata-v2 in order for containerd to reach these
+binaries from the default system &lt;code&gt;PATH&lt;/code&gt;.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo ln -s /opt/kata/bin/kata-runtime /usr/local/bin
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo ln -s /opt/kata/bin/containerd-shim-kata-v2 /usr/local/bin
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id="create-a-rootfs--initrd-image"&gt;Create a rootfs &amp;amp; initrd image&lt;/h4&gt;
+&lt;p&gt;We can use either a rootfs or initrd image to launch Kata Containers with Qemu.
+However, AWS Firecracker does not work with initrd images, so we will be using a
+rootfs image for Kata with Firecracker. If you do not want to use QEMU or QEMU
+with initrd, you can skip building the initrd image.&lt;/p&gt;
+&lt;p&gt;Create the rootfs base image:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;ROOTFS_DIR&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;GOPATH&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;/src/github.com/kata-containers/kata-containers/tools/osbuilder/rootfs-builder/rootfs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; &lt;span class="nv"&gt;$GOPATH&lt;/span&gt;/src/github.com/kata-containers/kata-containers/tools/osbuilder/rootfs-builder
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# you may change the distro (in this case we used ubuntu). to get supported distros list, run ./rootfs.sh -l&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;script -fec &lt;span class="s1"&gt;&amp;#39;sudo -E GOPATH=$GOPATH AGENT_INIT=yes USE_DOCKER=true ./rootfs.sh ubuntu&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;Note for arm64&lt;/strong&gt;:&lt;/p&gt;
+&lt;p&gt;We noticed that in some instances the kata-agent compilation failed.
+A possible workaround was to remove the USE_DOCKER variable. This requires &lt;code&gt;qemu-img&lt;/code&gt; command to be available on your system.
+You can install it with &lt;code&gt;sudo apt install -y qemu-utils&lt;/code&gt;.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;ROOTFS_DIR&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;&lt;/span&gt;&lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;GOPATH&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;&lt;span class="s2"&gt;/src/github.com/kata-containers/kata-containers/tools/osbuilder/rootfs-builder/rootfs&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo rm -rf &lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;ROOTFS_DIR&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; &lt;span class="nv"&gt;$GOPATH&lt;/span&gt;/src/github.com/kata-containers/kata-containers/tools/osbuilder/rootfs-builder
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;script -fec &lt;span class="s1"&gt;&amp;#39;sudo -E GOPATH=$GOPATH AGENT_INIT=yes ./rootfs.sh ubuntu&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Build a kata rootfs image:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; &lt;span class="nv"&gt;$GOPATH&lt;/span&gt;/src/github.com/kata-containers/kata-containers/tools/osbuilder/image-builder &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; script -fec &lt;span class="s1"&gt;&amp;#39;sudo -E USE_DOCKER=true -E AGENT_INIT=yes ./image_builder.sh ${ROOTFS_DIR}&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Install the kata rootfs image:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;PREFIX&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;/opt/kata
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;commit&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;git log --format&lt;span class="o"&gt;=&lt;/span&gt;%h -1 HEAD&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;date&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;date +%Y-%m-%d-%T.%N%z&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;image&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;kata-containers-&lt;/span&gt;&lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;date&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;&lt;span class="s2"&gt;-&lt;/span&gt;&lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;commit&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; sudo install -o root -g root -m &lt;span class="m"&gt;0640&lt;/span&gt; -D kata-containers.img &lt;span class="s2"&gt;&amp;#34;&lt;/span&gt;&lt;span class="nv"&gt;$PREFIX&lt;/span&gt;&lt;span class="s2"&gt;/share/kata-containers/&lt;/span&gt;&lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;image&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; &lt;span class="nv"&gt;$PREFIX&lt;/span&gt;/share/kata-containers &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; sudo ln -sf &lt;span class="s2"&gt;&amp;#34;&lt;/span&gt;&lt;span class="nv"&gt;$image&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;&lt;/span&gt; kata-containers.img&lt;span class="o"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;(OPTIONAL) Next we will build an initrd image:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; &lt;span class="nv"&gt;$GOPATH&lt;/span&gt;/src/github.com/kata-containers/kata-containers/tools/osbuilder/initrd-builder
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;script -fec &lt;span class="s1"&gt;&amp;#39;sudo -E AGENT_INIT=yes USE_DOCKER=true ./initrd_builder.sh ${ROOTFS_DIR}&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;(OPTIONAL) Once the image is built, we install it:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;PREFIX&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;/opt/kata
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;commit&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;git log --format&lt;span class="o"&gt;=&lt;/span&gt;%h -1 HEAD&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;date&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;date +%Y-%m-%d-%T.%N%z&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;image&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;kata-containers-initrd-&lt;/span&gt;&lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;date&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;&lt;span class="s2"&gt;-&lt;/span&gt;&lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;commit&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; sudo install -o root -g root -m &lt;span class="m"&gt;0640&lt;/span&gt; -D kata-containers-initrd.img &lt;span class="s2"&gt;&amp;#34;&lt;/span&gt;&lt;span class="nv"&gt;$PREFIX&lt;/span&gt;&lt;span class="s2"&gt;/share/kata-containers/&lt;/span&gt;&lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;image&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; &lt;span class="nv"&gt;$PREFIX&lt;/span&gt;/share/kata-containers &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; sudo ln -sf &lt;span class="s2"&gt;&amp;#34;&lt;/span&gt;&lt;span class="nv"&gt;$image&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;&lt;/span&gt; kata-containers-initrd.img&lt;span class="o"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id="build-kata-containers-kernel"&gt;Build Kata Containers kernel&lt;/h4&gt;
+&lt;p&gt;First, we need some additional packages to build the kernel:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo apt install -y libelf-dev bison flex
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Setup the kernel source code:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; &lt;span class="nv"&gt;$GOPATH&lt;/span&gt;/src/github.com/kata-containers/kata-containers/tools/packaging/kernel
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;./build-kernel.sh -d setup
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Build the kernel:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;./build-kernel.sh -d build
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Install the kernel in the default path for Kata:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;PREFIX&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;/opt/kata
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo -E &lt;span class="nv"&gt;PATH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$PATH&lt;/span&gt; -E &lt;span class="nv"&gt;PREFIX&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$PREFIX&lt;/span&gt; ./build-kernel.sh -d install
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;Note&lt;/strong&gt;:&lt;/p&gt;
+&lt;p&gt;We noticed that in some instances the installation or build process failed with the following error: &lt;code&gt;ERROR: path to kernel does not exist, use build-kernel.sh setup&lt;/code&gt;. We mitigated this problem by specifying the version:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;./build-kernel.sh -d -v 5.15.26 build
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;PREFIX&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;/opt/kata
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo -E &lt;span class="nv"&gt;PATH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$PATH&lt;/span&gt; -E &lt;span class="nv"&gt;PREFIX&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$PREFIX&lt;/span&gt; ./build-kernel.sh -d -v 5.15.26 install
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="next-steps"&gt;Next steps&lt;/h3&gt;
+&lt;p&gt;At this point we have successfully built all the Kata components. All the binaries we built are stored under the &lt;code&gt;/opt/kata/bin&lt;/code&gt; dir:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ ls -l /opt/kata/bin/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;total &lt;span class="m"&gt;142296&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rwxr-xr-x &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;50919312&lt;/span&gt; Mar &lt;span class="m"&gt;25&lt;/span&gt; 15:32 containerd-shim-kata-v2
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rwxr-xr-x &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;16691&lt;/span&gt; Mar &lt;span class="m"&gt;25&lt;/span&gt; 15:32 kata-collect-data.sh
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rwxr-xr-x &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;42093616&lt;/span&gt; Mar &lt;span class="m"&gt;25&lt;/span&gt; 15:32 kata-monitor
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rwxr-xr-x &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;52673784&lt;/span&gt; Mar &lt;span class="m"&gt;25&lt;/span&gt; 15:32 kata-runtime
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The rootfs image, the initrd image and the kernel are stored under the &lt;code&gt;/opt/kata/share/defaults/kata-containers&lt;/code&gt; dir:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ ls -l /opt/kata/share/kata-containers/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;total &lt;span class="m"&gt;221972&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rw-r--r-- &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;72480&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:51 config-5.15.26
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rw-r----- &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;134217728&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:41 kata-containers-2022-03-25-15:41:55.534872004+0200-486322a0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;lrwxrwxrwx &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;59&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:41 kata-containers.img -&amp;gt; kata-containers-2022-03-25-15:41:55.534872004+0200-486322a0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rw-r----- &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;27627256&lt;/span&gt; Μαρ &lt;span class="m"&gt;24&lt;/span&gt; 14:43 kata-containers-initrd-2022-03-24-14:43:59.501993241+0200-853dd98b
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rw-r----- &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;27626874&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:42 kata-containers-initrd-2022-03-25-15:42:28.034074480+0200-486322a0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;lrwxrwxrwx &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;66&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:42 kata-containers-initrd.img -&amp;gt; kata-containers-initrd-2022-03-25-15:42:28.034074480+0200-486322a0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rw-r--r-- &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;38736168&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:51 vmlinux-5.15.26-90
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;lrwxrwxrwx &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;18&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:51 vmlinux.container -&amp;gt; vmlinux-5.15.26-90
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rw-r--r-- &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;5795664&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:51 vmlinuz-5.15.26-90
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;lrwxrwxrwx &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;18&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:51 vmlinuz.container -&amp;gt; vmlinuz-5.15.26-90
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The configuration files are stored under the &lt;code&gt;/opt/kata/share/defaults/kata-containers&lt;/code&gt; dir:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ls -l /opt/kata/share/defaults/kata-containers
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;total &lt;span class="m"&gt;72&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rw-r--r-- &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;9717&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:32 configuration-acrn.toml
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rw-r--r-- &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;13535&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:32 configuration-clh.toml
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rw-r--r-- &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;15364&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:32 configuration-fc.toml
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-rw-r--r-- &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;25701&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:32 configuration-qemu.toml
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;lrwxrwxrwx &lt;span class="m"&gt;1&lt;/span&gt; root root &lt;span class="m"&gt;23&lt;/span&gt; Μαρ &lt;span class="m"&gt;25&lt;/span&gt; 15:32 configuration.toml -&amp;gt; configuration-qemu.toml
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now, we need to install a hypervisor (eg QEMU or Firecracker) and configure
+Kata Containers and containerd accordingly. In our upcoming posts we will go
+through the process of building and configuring both
+&lt;a href="/posts/kata-build-configure-qemu/"&gt;QEMU&lt;/a&gt; and
+&lt;a href="/posts/kata-build-configure-fc/"&gt;AWS
+Firecracker&lt;/a&gt; for
+x86 and arm64 hosts. Happy hacking!&lt;/p&gt;</description></item><item><title>Hardware acceleration in the Age of Functions</title><link>/blog/vaccel/</link><pubDate>Mon, 01 Jun 2020 20:29:17 +0000</pubDate><guid>/blog/vaccel/</guid><description>&lt;p&gt;The debate on how to deploy applications, monoliths or micro services, is in
+full swing. Part of this discussion relates to how the new paradigm
+incorporates support for accessing accelerators, e.g. GPUs, FPGAs. That kind
+of support has been made available to traditional programming models the last
+couple of decades and its tooling has evolved to be stable and standardized.&lt;/p&gt;
+&lt;p&gt;On the other hand, what does it mean for a serverless setup to access an
+accelerator? Should the function invoked to classify an image, for instance,
+link against the whole acceleration runtime and program the hardware device
+itself? It seems quite counter-intuitive to create such bloated functions.&lt;/p&gt;
+&lt;p&gt;Things get more complicated when we consider the low-level layers of the
+service architecture. How does the system itself get access to the
+acceleration hardware? Docker allows exposing a GPU device inside a container
+for some time now, so serverless systems based on top of it can expose GPU
+devices to running functions. Virtual Machine-based setups rely on the
+monitor, e.g. QEMU or &lt;a href="https://firecracker-microvm.github.io/" target="_blank" rel="noopener"&gt;Firecracker&lt;/a&gt;, to expose acceleration devices to the
+guest.&lt;/p&gt;
+&lt;p&gt;There are several techniques used to expose a device from the host to a guest
+VM. Passthrough mode exposes the hardware accelerator as is inside the guest.
+This mode provides native performance using the accelerator from inside the VM,
+however it does cause issues with sharing the device across multiple VMs. API
+remoting, e.g. &lt;a href="http://rcuda.net/" target="_blank" rel="noopener"&gt;rCUDA&lt;/a&gt;, is another option, where requests are being
+forwarded to the accelerator device over the network. Finally, there is the
+option of paravirtual interfaces where the monitor exposes a generic device to
+the guest, with a very simple API. Applications in the guest send requests to
+the paravirtual device which are then passed to the hypervisor and dispatched
+by the latter to an accelerator device on the host.&lt;/p&gt;
+&lt;p&gt;VirtIO drivers are an example of such paravirtualized frameworks. VirtIO
+exposes simple front-end device drivers to the guest, rather than emulating
+complex devices and offloads the complexity of interacting with the hardware
+to the back-end that lives in the Virtual Machine Monitor (VMM).&lt;/p&gt;
+&lt;h3 id="virtio-crypto"&gt;virtio-crypto&lt;/h3&gt;
+&lt;p&gt;One of the devices described in the VirtIO spec is the &lt;a href="https://github.com/gongleiarei/virtio" target="_blank" rel="noopener"&gt;virtio-crypto&lt;/a&gt;
+&lt;a href="https://github.com/gongleiarei/virtio-crypto-linux-driver" target="_blank" rel="noopener"&gt;device&lt;/a&gt;. The guest chooses the cryptographic operation to perform and
+passes a pointer to the data that will be manipulated. The actual operation is
+offloaded through the VMM to the host crypto acceleration device.&lt;/p&gt;
+&lt;p&gt;A VM is able to use a crypto device by using a combination of
+&lt;em&gt;cryptodev&lt;/em&gt; and &lt;em&gt;virtio-crypto&lt;/em&gt;. Requests for encryption /
+decryption originating from the VM, get forwarded to the backend, get injected
+to the &lt;em&gt;cryptodev&lt;/em&gt; device and end up being handled by the host Linux
+kernel. Figure 1 presents an overview of the &lt;em&gt;virtio-crypto&lt;/em&gt;
+architecture.&lt;/p&gt;
+&lt;figure id="figure-figure-1-virtio-crypto-architecture-overview"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/vaccel/virtio-crypto.png#center" alt="Figure 1: VirtIO-crypto architecture overview" loading="lazy" data-zoomable width="60%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 1: VirtIO-crypto architecture overview
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;In the context of micro-services (FaaS/Serverless) cryptographic operations are
+quite common, presented to the user as language/library abstractions.
+Integrating an off-loading mechanism of these CPU-intensive operations seems
+like an interesting optimization. To showcase the potential of paravirtual
+accelerated devices, we implemented a &lt;em&gt;virtio-crypto&lt;/em&gt; backend driver
+for AWS Firecracker. Since &lt;em&gt;virtio-crypto&lt;/em&gt;&amp;rsquo;s frontend is already present
+in the Linux kernel, all we had to do is implement the corresponding back-end
+in the Firecracker code base. This effort was relatively straight-forward since
+Firecracker already provides a number of VirtIO devices, e.g. net and block,
+which means that all the machinery for communication with the guest was in
+place.&lt;/p&gt;
+&lt;p&gt;Figure 2 shows the performance our &lt;em&gt;virtio-crypto&lt;/em&gt; driver achieves (light
+bars) compared to running the computation in the guest kernel using the
+&lt;em&gt;cryptodev-linux&lt;/em&gt; driver (dark bars), when running the AES-CBC cipher.
+Unfortunately, we have not been able to get our hands on a crypto acceleration
+device, so &lt;em&gt;virtio-crypto&lt;/em&gt; is using the same &lt;em&gt;cryptodev-linux&lt;/em&gt;
+device in the host (the CPU). This means that we do not actually accelerate the
+operation, but our experiment is quite useful to see the VirtIO overhead of
+offloading the operation to the host. As expected, the larger the block size of
+the blob we are encrypting, the better we are able to hide the cost of moving
+data from the userland of the guest to the kernel of the host.&lt;/p&gt;
+&lt;figure id="figure-figure-2-host-and-guest-throughput-for-aes-cbc-128-vs-chunk-size"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/vaccel/aes_results.png#center" alt="Figure 2: Host and Guest Throughput for AES-CBC-128 vs chunk size" loading="lazy" data-zoomable width="80%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 2: Host and Guest Throughput for AES-CBC-128 vs chunk size
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;This is encouraging; once there is a hardware accelerator for computation,
+acceleration capabilities are automatically exposed inside a Firecracker VM in
+a secure way with reasonably low overhead. Which inevitably leads us to the
+thought, &lt;em&gt;why only crypto?&lt;/em&gt; The &lt;em&gt;virtio-crypto&lt;/em&gt; example showcases a
+simple interface through which we can achieve hardware acceleration, so why not
+generalize this to other types of acceleration?&lt;/p&gt;
+&lt;p&gt;This gave us the idea to define a simple, hardware-agnostic API to accelerate
+any operation, as long as the host supports it. We believe that an API at this
+granularity is the right abstraction for serverless frameworks, since it moves
+the complexity of accelerating operations from the guest to the host.&lt;/p&gt;
+&lt;h3 id="vaccel"&gt;vAccel&lt;/h3&gt;
+&lt;p&gt;Let us consider a simple use-case: matrix multiplication. It is a common
+operation, used in numerous applications, in HPC, Machine Learning, and Big
+Data. In the generic case, the user running the application on a VM would
+have to either have access to the GPU hardware and enjoy hardware acceleration,
+or perform the operation on the CPU, wasting time and CPU cycles.&lt;/p&gt;
+&lt;p&gt;Instead of passing through the GPU hardware, we choose a different
+path: we introduce vAccel, a simple paravirtual framework that forwards
+operation requests to the monitor, which, in turn, uses native calls to an
+acceleration framework, taking advantage of the hardware capabilities of the
+host.&lt;/p&gt;
+&lt;p&gt;The vAccel framework allows workloads that execute on Virtual Machines to
+offload compute-intensive functions to backends provided by the hypervisor. To
+achieve this, the system presents a number of host-side accelerator functions
+to the guest kernel, which are backed by hardware accelerators (FPGAs, GPUs,
+specialized crypto engines etc.).&lt;/p&gt;
+&lt;p&gt;vAccel consists of three main parts: the frontend driver, the backend driver
+and the runtime. An overview of the system architecture is shown in Figure 3.&lt;/p&gt;
+&lt;figure id="figure-figure-3-vaccel-architecture-overview"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/vaccel/vaccel.png#center" alt="Figure 3: vAccel architecture overview" loading="lazy" data-zoomable width="70%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 3: vAccel architecture overview
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;Frontend and Backend drivers implement the transport layer. We base our
+implementation on VirtIO, and follow the generic VirtIO spec, using a single
+queue for control and data exchange.&lt;/p&gt;
+&lt;p&gt;The runtime includes two components: a &lt;em&gt;host library&lt;/em&gt; that handles
+offload requests, and a &lt;em&gt;guest library&lt;/em&gt; that intercepts the actual
+offload-able user calls and creates those requests.&lt;/p&gt;
+&lt;p&gt;The basic API is given below:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-C" data-lang="C"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="k"&gt;typedef&lt;/span&gt; &lt;span class="kt"&gt;uint8_t&lt;/span&gt; &lt;span class="kt"&gt;vaccel_op_t&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="cm"&gt;/* Get available accelerate-able operations from the backend */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="kt"&gt;int&lt;/span&gt; &lt;span class="nf"&gt;vaccel_get_operations&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;uint8_t&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;available_operations&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="cm"&gt;/* Start a new session */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="kt"&gt;vaccel_session_t&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="nf"&gt;create_vaccel_session&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="cm"&gt;/* Invoke an acceleration operation */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="kt"&gt;int&lt;/span&gt; &lt;span class="nf"&gt;do_operation&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;vaccel_session_t&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;handle&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;vaccel_op_t&lt;/span&gt; &lt;span class="n"&gt;operation&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;void&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;input&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;void&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;output&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="cm"&gt;/* End a running session */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="kt"&gt;int&lt;/span&gt; &lt;span class="nf"&gt;destory_vaccel_session&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;vaccel_session_t&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;handle&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;To study the potential overhead of such an approach on a common function, we
+deploy a generic QEMU/KVM VM on an x86 host, using an FPGA card as the
+accelerator (&lt;a href="http://www.netlib.org/lapack/explore-html/db/dc9/group__single__blas__level3_gafe51bacb54592ff5de056acabd83c260.html" target="_blank" rel="noopener"&gt;SGEMM&lt;/a&gt;, implemented with OpenCL). We run the stencil on the host to
+obtain a baseline, and then we execute the same benchmark on the vAccel-enabled
+guest and capture the results.&lt;/p&gt;
+&lt;figure id="figure-figure-4-sgemm-host--guest-results-vs-matrix-size"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/vaccel/sgemm.png#center" alt="Figure 4: SGEMM Host / Guest results vs matrix size" loading="lazy" data-zoomable width="80%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 4: SGEMM Host / Guest results vs matrix size
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;Figure 4 presents the performance of SGEMM on a single core VM (light bars)
+against the respective run on the host (dark bars) for various matrix sizes.
+On the Y axis we plot the MFlops achieved by the SGEMM stencil, while on the X
+axis we lay the size of the matrices tested. For large matrix sizes (&amp;gt;
+128x128), the overhead perceived by the user is minimal, ranging from 16% to
+even &amp;lt;3%.&lt;/p&gt;
+&lt;h3 id="inference-at-the-edge"&gt;Inference at the edge&lt;/h3&gt;
+&lt;p&gt;Let us now consider a more complicated scenario: image classification. From the
+user perspective it is a simple operation: (i) provide an image as input, (ii)
+define which model will be used to classify the image, (iii) wait for the
+result. However, the system internals are a bit more complicated: the image has
+to be preprocessed, fed to a pre-trained classification model, and mapped to a
+given set of labels. This abstraction is already provided by common frameworks
+such as Tensorflow, Caffe etc. However, these frameworks perform optimally with
+direct access to hardware accelerators. Figure 5 presents the path to the
+hardware accelerator from the VM&amp;rsquo;s userspace.&lt;/p&gt;
+&lt;figure id="figure-figure-5-inference-use-case"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/vaccel/ml_legacy.png#center" alt="Figure 5: Inference use-case" loading="lazy" data-zoomable width="80%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 5: Inference use-case
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;We use vAccel to expose accelerated inference capabilities to a guest VM.
+Specifically, we expose one basic function, image classification. The guest
+simply issues a request with the image to be classified and the model to be
+used for inference. The backend forwards this request to vAccel-runtime, which,
+in turn, calls wrapper functions on top of the Tensorflow runtime to classify
+the image. The result is copied back to the guest synchronously. Figure 6
+presents the vAccel-enabled path.&lt;/p&gt;
+&lt;figure id="figure-figure-6-inference-use-case-with-vaccel"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/vaccel/ml_vaccel.png#center" alt="Figure 6: Inference use-case with vAccel" loading="lazy" data-zoomable width="80%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 6: Inference use-case with vAccel
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;Figure 7 plots the total execution time of an image classification operation
+for various image sizes deployed on a generic QEMU/KVM VM on an &lt;a href="https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-nano/" target="_blank" rel="noopener"&gt;NVIDIA Jetson
+Nano&lt;/a&gt;. Dark bars indicate the time required to complete the operation on
+the host, whereas light bars show the respective time spent on the guest.
+Clearly, the overhead is minimal: the average overhead across all cases is 1%.&lt;/p&gt;
+&lt;figure id="figure-figure-7-image-classification-with-vaccel"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/vaccel/ml_results.png#center" alt="Figure 7: Image classification with vAccel" loading="lazy" data-zoomable width="80%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 7: Image classification with vAccel
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;As execution moves to the Edge, following the Serverless paradigm, efficiency
+is key to provide low power consumption, while at the same time increase the
+quality and the diversity of services offered to the end user. Offloading
+computation to specialized units is one of the most important aspects to
+balance trade-offs related to resource utilization and energy-efficiency and
+to minimize request-response latency.&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;vAccel is being developed jointly by the &lt;a href="http://research.cslab.ece.ntua.gr" target="_blank" rel="noopener"&gt;Computing Systems Laboratory&lt;/a&gt; of
+the &lt;a href="https://www.ntua.gr" target="_blank" rel="noopener"&gt;National Technical University of Athens&lt;/a&gt; and &lt;a href="https://nubificus.co.uk" target="_blank" rel="noopener"&gt;Nubificus LTD&lt;/a&gt;.
+vAccel is open-source and WiP; we plan to provide an RFC for the frontend
+driver to be upstreamed, as well as respective RFCs for the backends (QEMU,
+Firecracker etc.).&lt;/em&gt;&lt;/p&gt;</description></item><item><title>Playing with a Raspberry Pi 4 64-bit</title><link>/blog/rpi4-64bit-virt/</link><pubDate>Wed, 10 Jul 2019 14:41:44 +0200</pubDate><guid>/blog/rpi4-64bit-virt/</guid><description>&lt;p&gt;Lightweight virtualization is a natural fit for low power devices and, so,
+seeing that the extremely popular Raspberry Pi line got an upgrade, we were
+very keen on trying the newly released Raspberry Pi 4 model B.&lt;/p&gt;
+&lt;p&gt;Getting the board up and running with a 64bit kernel (and a 64bit userland)
+proved to be kind of a challenge, given that currently there is a number of
+&lt;a href="https://github.com/raspberrypi/linux/commit/cdb78ce891f6c6367a69c0a46b5779a58164bd4b#diff-634f284364ba43ef69912111615b08ef" target="_blank" rel="noopener"&gt;limitations&lt;/a&gt; (SD card not fully working for &amp;gt; 1GB RAM, coherent memory
+allocations etc.).
+With the help of some &lt;a href="https://andrei.gherzan.ro/linux/raspbian-rpi-64/" target="_blank" rel="noopener"&gt;very&lt;/a&gt; useful &lt;a href="https://andrei.gherzan.ro/linux/raspbian-rpi4-64/" target="_blank" rel="noopener"&gt;posts&lt;/a&gt; we were able to successfully
+boot a 64bit kernel with KVM support. Please note we also had to enable KVM &amp;amp;
+VIRTIO options in the kernel config to support QEMU/KVM &amp;amp; solo5-hvt instances.&lt;/p&gt;
+&lt;p&gt;For now, we can safely boot it with 1GB of RAM and play with our various
+configurations.&lt;/p&gt;
+&lt;p&gt;What&amp;rsquo;s interesting about the RPI4, as far as virtualization is concerned, is
+that it now comes with ARM&amp;rsquo;s standard GIC (Generic Interrupt Controller). Thus,
+unlike previous RPI generations that were wired with custom interrupt handling,
+virtualization is supported natively without any patching needed for interrupt
+emulation (and the overhead that this can incur&amp;hellip;).&lt;/p&gt;
+&lt;p&gt;To get a first taste of the performance of different virtualization options we
+ran a simple set of benchmarks for common use-case scenarios: a simple
+key-value store (REDIS), and a popular web server (NGINX). We used the stock
+tool for redis (redis-benchmark) and the apache-benchmark (ab), both running on
+the host OS.&lt;/p&gt;
+&lt;p&gt;The figures below show measurements from the following configurations: native
+(bare-metal execution on the linux host), nabla (or solo5-spt, runnc with SPT
+backend), solo5-hvt (runnc with HVT backend), and QEMU/KVM (generic linux
+guest, running Debian Buster with vhost enabled).&lt;/p&gt;
+&lt;p&gt;First we ran the full redis-benchmark test on a RPi3 &amp;amp; a RPi4, for the various
+configurations above. Results for the linux guest are shown below:&lt;/p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/redis-linux-guest.png" alt="" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;p&gt;Clearly, apart from the A72 vs A53 upgrade, the GIC addition boosted the
+guests&amp;rsquo; performance significantly.&lt;/p&gt;
+&lt;p&gt;To dig into the virtualization internals we tried running a rumprun unikernel
+on top of solo5-hvt &amp;amp; solo5-spt (nabla). To facilitate deployment we used a
+&lt;a href="https://github.com/cloudkernels/runnc/tree/hvt%2Bvolumes" target="_blank" rel="noopener"&gt;modified&lt;/a&gt; version of &lt;a href="https://github.com/nabla-containers/runnc" target="_blank" rel="noopener"&gt;runnc&lt;/a&gt; that includes a solo5-hvt backend and the
+ability to &amp;ldquo;mount&amp;rdquo; host fs files/directories in the container.&lt;/p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/redis-unikernel-containers.png" alt="" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;p&gt;The performance is much better than in the Linux guest. To further investigate the overhead of running virtualized workloads on such SoCs, we examined the SET case. The figure below shows results from native, nabla, solo5-hvt and qemu/KVM cases.&lt;/p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/redis-set.png" alt="" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;p&gt;&lt;a href="https://nabla-containers.github.io/" target="_blank" rel="noopener"&gt;Nabla containers&lt;/a&gt; exhibit the lowest overhead of all cases (~20%): this is
+expected as there is no virtualization involved, just seccomp filtering. The
+source of the overhead is the minimal I/O interface that solo5-spt offers.
+Solo5-hvt exhibits significant overhead (~40%), mainly due to the unoptimized
+I/O interface. In addition to that, trapping into user-space to handle I/O
+requests could possible be the main source of overhead. Qemu/KVM runs at 41% of
+the boards capabilities, albeit the use of the vhost mechanism which removes
+unnecessary traps to user-space for I/O handling.&lt;/p&gt;
+&lt;p&gt;Finally, we plot the apache-benchmark results we got from an NGINX web server,
+running on a linux guest and a solo5-hvt unikernel.&lt;/p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/nginx-ab.png" alt="" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;p&gt;We had fun playing with a RPi4 and its systems support! Clearly there is a need
+to study the systems stack and optimize the various missing pieces to be able
+to reduce or even eliminate the overheads for simple, lightweight workload
+execution.&lt;/p&gt;
+&lt;p&gt;Evaluating virtualization options in the diverse low power SoC ecosystem is a
+non-trivial task; the popularity and the evolvement of such systems makes them
+very interesting to explore, especially when it comes to identifying the
+bottlenecks and providing optimizations that help the community design and
+implement energy-efficient, low-footprint, and high-performance solutions.&lt;/p&gt;
+&lt;p&gt;If you would like to try it out on your RPi 4, check out our custom-made &lt;a href="https://cloudkernels.net/rpi4-64-bit-kvm-docker.img.xz" target="_blank" rel="noopener"&gt;RPi4
+image&lt;/a&gt; (sha1sum: 1b96a6be5256182eaceb5894fb993c8ffce8c2a2), based on &lt;a href="http://cdimage.ubuntu.com/ubuntu/releases/18.04.2/release/ubuntu-18.04.2-preinstalled-server-arm64&amp;#43;raspi3.img.xz" target="_blank" rel="noopener"&gt;ubuntu
+18.04.2&lt;/a&gt;, with KVM, docker &amp;amp; nabla container runtimes pre-installed!&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;UPDATE&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;Actually, links to the older builds were removed, so here&amp;rsquo;s the updated links for the stock &lt;a href="http://cdimage.ubuntu.com/ubuntu/releases/18.04.3/release/ubuntu-18.04.3-preinstalled-server-arm64&amp;#43;raspi3.img.xz" target="_blank" rel="noopener"&gt;18.04.3 image&lt;/a&gt;, and our KVM-enabled ubuntu &lt;a href="https://cloudkernels.net/ubuntu-18.04.3-preinstalled-server-arm64&amp;#43;raspi4&amp;#43;kvm.img.xz" target="_blank" rel="noopener"&gt;18.04.3 image&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Also, many people have reached out to us about the username and password for
+our custom image. The issue is that we assumed people would have a TTL2USB
+cable to play with, so the username is root, without any password. That (of
+course) doesn&amp;rsquo;t work if you try to SSH to the RPi.&lt;/p&gt;</description></item></channel></rss>

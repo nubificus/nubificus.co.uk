@@ -1,0 +1,695 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Jetson AGX Orin | Nubificus</title><link>/tag/jetson-agx-orin/</link><atom:link href="/tag/jetson-agx-orin/index.xml" rel="self" type="application/rss+xml"/><description>Jetson AGX Orin</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Sun, 24 Sep 2023 16:31:04 +0100</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Jetson AGX Orin</title><link>/tag/jetson-agx-orin/</link></image><item><title>Isolated, hardware-accelerated functions on Jetson AGX Orin</title><link>/blog/orin-vm-vaccel/</link><pubDate>Sun, 24 Sep 2023 16:31:04 +0100</pubDate><guid>/blog/orin-vm-vaccel/</guid><description>&lt;p&gt;Following up on a successful &lt;a href="/orin-vm"&gt;VM boot&lt;/a&gt; on a &lt;a href="https://www.nvidia.com/en-il/autonomous-machines/embedded-systems/jetson-orin/" target="_blank" rel="noopener"&gt;Jetson AGX
+Orin&lt;/a&gt;,
+we continue exploring the capabilities of this edge device, focusing on the
+cloud-native aspect of application deployment.&lt;/p&gt;
+&lt;p&gt;As a team, we&amp;rsquo;ve built &lt;a href="https://docs.vaccel.org" target="_blank" rel="noopener"&gt;vAccel&lt;/a&gt;, a hardware
+acceleration framework that decouples the operation from its hardware
+implementation. One of the awesome things vAccel offers is the ability to
+execute hardware-accelerated applications in a VM that has no direct access to
+a hardware accelerator. Given the Jetson Orin board has an Ampere GPU, with
+1792 cores and 56 Tensor Cores, it sounds like a perfect edge device to try
+isolated hardware-accelerated workload execution through VM sandboxes.&lt;/p&gt;
+&lt;p&gt;Additionally, coupled with our downstream &lt;code&gt;kata-containers&lt;/code&gt; port, we can invoke a
+VM sandboxed container through CRI that can execute compute-intensive tasks
+faster by using the GPU without having direct access to it!&lt;/p&gt;
+&lt;h2 id="overview"&gt;Overview&lt;/h2&gt;
+&lt;p&gt;In this post we go through the high-level architecture of
+&lt;a href="#how-kata-containers-work"&gt;kata-containers&lt;/a&gt; and &lt;a href="#how-vaccel-works"&gt;vAccel&lt;/a&gt;
+and provide insights into the &lt;a href="#kata-vaccel"&gt;integration&lt;/a&gt; we did.&lt;/p&gt;
+&lt;p&gt;Then, we go through the steps to &lt;a href="#kata-containers-binary-installation"&gt;run a stock kata
+container&lt;/a&gt; using various supported VMMs
+(&lt;a href="https://github.com/qemu/qemu" target="_blank" rel="noopener"&gt;QEMU&lt;/a&gt;, &lt;a href="https://github.com/firecracker-microvm/firecracker" target="_blank" rel="noopener"&gt;AWS
+Firecracker&lt;/a&gt;, &lt;a href="https://github.com/cloud-hypervisor/cloud-hypervisor" target="_blank" rel="noopener"&gt;Cloud
+hypervisor&lt;/a&gt;, and
+&lt;a href="https://github.com/kata-containers/kata-containers/" target="_blank" rel="noopener"&gt;Dragonball&lt;/a&gt;) on the
+Jetson AGX Orin board.&lt;/p&gt;
+&lt;p&gt;Finally, we provide the steps to &lt;a href="#enable-vaccel-on-the-kata-runtime"&gt;enable
+vAccel&lt;/a&gt; on a VM sandboxed container using
+our custom &lt;code&gt;kata-containers&lt;/code&gt; runtime for the
+&lt;a href="https://github.com/nubificus/kata-containers/tree/vaccel-v3.2" target="_blank" rel="noopener"&gt;Go&lt;/a&gt; and
+&lt;a href="https://github.com/nubificus/kata-containers/tree/rs-vaccel-fusion" target="_blank" rel="noopener"&gt;Rust&lt;/a&gt;
+variants.&lt;/p&gt;
+&lt;h3 id="how-kata-containers-work"&gt;How kata containers work&lt;/h3&gt;
+&lt;p&gt;Kata containers is a sandboxed container runtime, combining the benefits of VMs
+in terms of workload isolation, with those of containers, in terms of
+portability. Installing and configuring &lt;code&gt;kata-containers&lt;/code&gt; is straightforward
+and we have covered that in &lt;a href="/posts/kata-build-source"&gt;some&lt;/a&gt; of our
+&lt;a href="/posts/kata-build-configure-qemu"&gt;previous&lt;/a&gt;
+&lt;a href="/posts/kata-build-configure-fc"&gt;posts&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;In this post, we will not go through the details of building &amp;ndash; we will just
+install &lt;code&gt;kata-containers&lt;/code&gt; from the stock releases and add the binaries to enable
+vAccel execution.&lt;/p&gt;
+&lt;h3 id="how-vaccel-works"&gt;How vAccel works&lt;/h3&gt;
+&lt;p&gt;vAccel is a software framework to expose hardware acceleration functionality to
+workloads that do not have direct access to an acceleration device. vAccel
+features a modular design where runtime &lt;code&gt;plugins&lt;/code&gt; implement API operations.
+Figure 1 shows the software stack for the core vAccel library, along with a
+number of plugins and their accompanying external libraries.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure id="figure-figure-1-the-vaccel-software-stack"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/orin/vaccel-stack.png" alt="vaccel-stack" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 1: The vAccel software stack
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;/p&gt;
+&lt;p&gt;Apart from &amp;ldquo;hardware&amp;rdquo; plugins (that implement the API operations in some sort
+of acceleration library, eg CUDA, OpenCL etc.), vAccel features virtual plugins
+that are able to forward requests to a remote Host. This functionality makes it
+an open-ended API remoting framework. Based on the transport plugin (virtio or
+vsock) multiple setups can be enabled, making it ideal to use on VMs or on
+resource-constrained devices for remote execution. You can find more info about
+vAccel in the &lt;a href="https://docs.vaccel.org" target="_blank" rel="noopener"&gt;vAccel docs website&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;The socket mode of vAccel for remote operations of vAccel works as follows:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;the Host component (direct access to an accelerator), listens for requests
+using a predefined protocol (over gRPC) and issues vAccel API calls to the
+core vAccelRT library.&lt;/li&gt;
+&lt;li&gt;the Remote/Guest component (no direct access to an accelerator), forwards
+requests to the Host component via a gRPC channel and receives results from
+the execution.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;At the moment, the Host component is a simple gRPC agent (&lt;code&gt;vaccel-agent&lt;/code&gt;) and
+the Remote/Guest component is a vAccel plugin (&lt;code&gt;libvaccel-vsock.so&lt;/code&gt;). A logical
+diagram of the execution flow for a VM workload taking advantage of the vAccel
+framework to run accelerated operations is shown in Figure 2.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure id="figure-figure-2-execution-flow-for-a-vaccel-application-running-in-a-vm"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/orin/vaccel-vm-flow.png" alt="vaccel" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 2: Execution flow for a vAccel application running in a VM
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;/p&gt;
+&lt;h3 id="kata-vaccel"&gt;kata-vAccel&lt;/h3&gt;
+&lt;p&gt;Integrating the vAccel framework to a sandboxed container runtime removes the
+need for complicated passthrough setups. No kernel prerequisites are needed
+(apart from the &lt;code&gt;VSOCK&lt;/code&gt; options which is by-default enabled in most sandboxed
+container runtimes).&lt;/p&gt;
+&lt;p&gt;
+&lt;figure id="figure-figure-3-kata-vaccel-modes"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/orin/kata-vaccel-modes.png" alt="vaccel" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 3: kata-vAccel modes
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;/p&gt;
+&lt;p&gt;Currently, there are two modes for kata-vAccel (Figure 3): (a) the first one,
+&lt;code&gt;exec&lt;/code&gt;/&lt;code&gt;external&lt;/code&gt; mode, supporting both runtime variants of &lt;code&gt;kata-containers&lt;/code&gt; (Go
+and Rust), spawns the &lt;code&gt;vaccelrt-agent&lt;/code&gt; as an external binary, listening to the
+vsock socket available for the &lt;code&gt;kata-agent&lt;/code&gt; component of the container runtime;
+(b) the second mode, &lt;code&gt;integrated&lt;/code&gt; is only supported for the rust runtime
+variant of &lt;code&gt;kata-containers&lt;/code&gt; and embeds the functionality of the &lt;code&gt;vaccelrt-agent&lt;/code&gt;
+into the runtime, allowing better control and sandboxing of the components
+running on the host system.&lt;/p&gt;
+&lt;p&gt;An overview of the execution flow for a vAccel-enabled
+sandboxed container running on &lt;code&gt;kata-containers&lt;/code&gt; is shown in Figure 4.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure id="figure-figure-4-execution-flow-for-a-vaccel-enabled-sandboxed-container"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/orin/vaccel-kata-rs.png" alt="kata-vaccel" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 4: Execution flow for a vAccel-enabled sandboxed container
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;/p&gt;
+&lt;h4 id="kata-containers-binary-installation"&gt;kata-containers binary installation&lt;/h4&gt;
+&lt;p&gt;The steps to install the stock &lt;code&gt;kata-containers&lt;/code&gt; runtime are shown below:&lt;/p&gt;
+&lt;p&gt;Get the release tarball:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://github.com/kata-containers/kata-containers/releases/download/3.2.0-rc0/kata-static-3.2.0-rc0-arm64.tar.xz
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Unpack it in a temporary directory:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mkdir /tmp/kata-release
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;xzcat kata-static-3.2.0-rc0-arm64.tar.xz &lt;span class="p"&gt;|&lt;/span&gt; tar -xvf - -C /tmp/kata-release
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;You should be presented with the following directory structure:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# tree -d /tmp/kata-release/&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;/tmp/kata-release/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;└── opt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; └── kata
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ├── bin
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ├── libexec
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ├── runtime-rs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; │   └── bin
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; └── share
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ├── bash-completion
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; │   └── completions
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ├── defaults
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; │   └── kata-containers
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ├── kata-containers
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; └── kata-qemu
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; └── qemu
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; └── firmware
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="m"&gt;15&lt;/span&gt; directories
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Move the files to &lt;code&gt;/opt/kata&lt;/code&gt; (This is a hard requirement, as all config files assume this folder):&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;rsync -oagxvPH /tmp/kata-release/opt/kata /opt/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;rm -rf /tmp/kata-release
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Create helper files for the kata VMMs you would like to try out:&lt;/p&gt;
+&lt;p&gt;Cloud-hypervisor:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-clh-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-clh.toml /opt/kata/bin/containerd-shim-kata-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Dragonball:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-rs-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-dragonball.toml /opt/kata/runtime-rs/bin/containerd-shim-kata-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;AWS Firecracker:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-fc-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-fc.toml /opt/kata/bin/containerd-shim-kata-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;QEMU:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-qemu-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-qemu.toml /opt/kata/bin/containerd-shim-kata-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;For each of the VMMs you need an entry in the &lt;code&gt;/etc/containerd/config.toml&lt;/code&gt; file:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;[&lt;/span&gt;plugins.&lt;span class="s2"&gt;&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span&gt;.containerd.runtimes.kata-fc&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;true&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices_all_devices_allowed&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;runtime_type&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;io.containerd.kata-fc.v2&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;snapshotter&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;devmapper&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;pod_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;container_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;[&lt;/span&gt;plugins.&lt;span class="s2"&gt;&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span&gt;.containerd.runtimes.kata-rs&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices_all_devices_allowed&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;runtime_type&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;io.containerd.kata-rs.v2&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="c1"&gt;#snapshotter = &amp;#34;devmapper&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;pod_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;container_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;[&lt;/span&gt;plugins.&lt;span class="s2"&gt;&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span&gt;.containerd.runtimes.kata-clh&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices_all_devices_allowed&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;runtime_type&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;io.containerd.kata-clh.v2&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;pod_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;container_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;[&lt;/span&gt;plugins.&lt;span class="s2"&gt;&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span&gt;.containerd.runtimes.kata-qemu&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices_all_devices_allowed&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;runtime_type&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;io.containerd.kata-qemu.v2&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;pod_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;container_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;Note&lt;/strong&gt;: for AWS Firecracker, the only supported snapshotter is &lt;code&gt;devmapper&lt;/code&gt;.
+Make sure you &lt;a href="/posts/kata-build-configure-fc/#devmapper-snapshotter"&gt;follow the
+instructions&lt;/a&gt; to setup
+it correctly in &lt;code&gt;containerd&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Restart &lt;code&gt;containerd&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;systemctl restart containerd
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;You should now be able to spawn a stock kata-container using one of the VMM configurations above:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo nerdctl run --rm -it --runtime io.containerd.kata-fc.v2 --snapshotter devmapper ubuntu:latest uname -a
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Linux d13db14b0c9a 5.15.26 #2 SMP Fri Apr 21 05:05:44 BST 2023 aarch64 aarch64 aarch64 GNU/Linux
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id="enable-vaccel-on-the-kata-runtime"&gt;Enable vAccel on the kata runtime&lt;/h4&gt;
+&lt;p&gt;To enable vAccel, we need to add a custom kata runtime binary that instantiates
+the &lt;code&gt;vaccel-agent&lt;/code&gt; alongside the container spawn.&lt;/p&gt;
+&lt;p&gt;For now, we build binaries for &lt;code&gt;x86_64&lt;/code&gt; and &lt;code&gt;aarch64&lt;/code&gt;:&lt;/p&gt;
+&lt;h5 id="go-runtime"&gt;Go runtime&lt;/h5&gt;
+&lt;p&gt;For the go runtime (&lt;code&gt;kata-fc&lt;/code&gt;):&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccel-go-lib/aarch64/containerd-shim-kata-v2 -O /opt/kata/bin/containerd-shim-kata-vaccel-v2
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;chmod +x /opt/kata/bin/containerd-shim-kata-vaccel-v2
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccel-go-lib/toml/configuration-fc-vaccel.toml -O /opt/kata/share/defaults/kata-containers/configuration-fc-vaccel.toml
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The next step is to setup helper scripts like above.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-fc-vaccel-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-fc-vaccel.toml /opt/kata/bin/containerd-shim-kata-vaccel-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and add the runtime to &lt;code&gt;/etc/containerd/config.toml&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; [plugins.&amp;#34;io.containerd.grpc.v1.cri&amp;#34;.containerd.runtimes.kata-fc-vaccel]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices = true
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices_all_devices_allowed = true
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtime_type = &amp;#34;io.containerd.kata-fc-vaccel.v2&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; snapshotter = &amp;#34;devmapper&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; pod_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; container_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h5 id="rust-runtime"&gt;Rust runtime&lt;/h5&gt;
+&lt;p&gt;For the rust runtime (&lt;code&gt;kata-rs&lt;/code&gt;)&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccel-rs-lib/shim/main/aarch64/containerd-shim-kata-v2 -O /opt/kata/runtime-rs/bin/containerd-shim-kata-vaccel-v2
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;chmod +x /opt/kata/runtime-rs/bin/containerd-shim-kata-vaccel-v2
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccel-rs-lib/toml/main/aarch64/configuration-dragonball.toml -O /opt/kata/share/defaults/kata-containers/configuration-dbs-vaccel.toml
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The next step is to setup helper scripts like above.&lt;/p&gt;
+&lt;p&gt;Dragonball with vAccel:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-rs-vaccel-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-dbs-vaccel.toml /opt/kata/runtime-rs/bin/containerd-shim-kata-vaccel-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and add the runtime to &lt;code&gt;/etc/containerd/config.toml&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; [plugins.&amp;#34;io.containerd.grpc.v1.cri&amp;#34;.containerd.runtimes.kata-rs-vaccel]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices = false
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices_all_devices_allowed = false
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtime_type = &amp;#34;io.containerd.kata-rs-vaccel.v2&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; #snapshotter = &amp;#34;devmapper&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; pod_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; container_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We should now be able to spawn a vAccel-enabled kata container with both go and rust runtimes:&lt;/p&gt;
+&lt;p&gt;Go:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ nerdctl run --runtime io.containerd.kata-fc-vaccel.v2 --rm -it --snapshotter devmapper harbor.nbfc.io/nubificus/test-vaccel:latest /bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;root@bce78aa7d1b4:/#
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Rust:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ nerdctl run --runtime io.containerd.kata-rs-vaccel.v2 --rm -it harbor.nbfc.io/nubificus/test-vaccel:latest /bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;root@2ce045d042bc:/#
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="install-and-setup-vaccel-and-the-jetson-inference-plugin-on-the-host"&gt;Install and Setup vAccel and the &lt;code&gt;jetson-inference&lt;/code&gt; plugin on the host&lt;/h3&gt;
+&lt;h4 id="setup-vaccel"&gt;Setup vAccel&lt;/h4&gt;
+&lt;p&gt;To install vAccel on the Orin we need to download the core runtime library, the
+agent and setup the jetson plugin. For a binary install, you can use the following snippet:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/main/aarch64/Release-deb/vaccel-0.5.0-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/agent/main/aarch64/Release-deb/vaccelrt-agent-0.3.6-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/plugins/jetson_inference/main/aarch64/Release-deb/vaccelrt-plugin-jetson-0.1.0-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;dpkg -i vaccel-0.5.0-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;dpkg -i vaccelrt-agent-0.3.6-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;dpkg -i vaccelrt-plugin-jetson-0.1.0-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;To be able to use the vAccel &lt;code&gt;jetson-inference&lt;/code&gt; plugin, we need to install the
+&lt;code&gt;jetson-inference&lt;/code&gt; framework on the host system.&lt;/p&gt;
+&lt;h4 id="setup-jetson-inference-on-the-orin"&gt;Setup &lt;code&gt;jetson-inference&lt;/code&gt; on the Orin&lt;/h4&gt;
+&lt;p&gt;We follow the installation instructions from
+&lt;a href="https://github.com/dusty-nv/jetson-inference" target="_blank" rel="noopener"&gt;dusty-nv/jetson-inference&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;TL;DR:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/dusty-nv/jetson-inference --depth &lt;span class="m"&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; jetson-inference
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git submodule update --init
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mkdir build &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="nb"&gt;cd&lt;/span&gt; build
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cmake ../ -DBUILD_INTERACTIVE&lt;span class="o"&gt;=&lt;/span&gt;OFF
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; make install
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Make sure you link the models to a directory in
+&lt;code&gt;/usr/local/share/imagenet-models&lt;/code&gt;, as this is the default path where the
+vAccel jetson plugin looks for them:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mkdir /usr/local/share/imagenet-models
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ln -s &lt;span class="nv"&gt;$PWD&lt;/span&gt;/../data/networks /usr/local/share/imagenet-models/
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;For more info on a full &lt;code&gt;jetson-inference&lt;/code&gt; vaccel example, have a look at the &lt;a href="https://docs.vaccel.org/quickstart/#jetson-example" target="_blank" rel="noopener"&gt;vAccel docs&lt;/a&gt;.&lt;/p&gt;
+&lt;h4 id="configure-the-container-runtime-to-use-vaccel"&gt;Configure the container runtime to use vAccel&lt;/h4&gt;
+&lt;p&gt;Now that we have kata containers setup and vAccel installed, let&amp;rsquo;s configure the runtime!&lt;/p&gt;
+&lt;p&gt;Make sure you specify the relevant vaccel backend/plugins in the kata
+configuration file. As mentioned above, there are two modes of operation
+supported in the kata runtime for the &lt;code&gt;vaccelrt-agent&lt;/code&gt;:&lt;/p&gt;
+&lt;p&gt;(a) &lt;em&gt;external&lt;/em&gt;: the kata runtime spawns the &lt;code&gt;vaccelrt-agent&lt;/code&gt; binary, as an external
+application. The setup for the host vAccel plugins is done in the kata
+configuration file.&lt;/p&gt;
+&lt;p&gt;(b) &lt;em&gt;integrated&lt;/em&gt;: the kata runtime includes the &lt;code&gt;vaccelrt-agent&lt;/code&gt; functionality,
+embedded in the runtime code. The setup for the host vAccel plugins is done in
+the helper script, as an environment variable (&lt;code&gt;VACCEL_BACKENDS&lt;/code&gt;).&lt;/p&gt;
+&lt;p&gt;To configure the system for mode (a), for the go runtime we edit
+&lt;code&gt;/opt/kata/share/defaults/kata-containers/configuration-fc-vaccel.toml&lt;/code&gt; and add
+the &lt;code&gt;jetson&lt;/code&gt; plugin before &lt;code&gt;noop&lt;/code&gt; (default/debug) plugin:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;@@ -54,7 +54,7 @@
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # vaccel_guest_backend can be one of &amp;#34;virtio&amp;#34; or &amp;#34;vsock&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # Your distribution recommends: vaccel_host_backend = noop
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # Your distribution recommends: vaccel_guest_backend = vsock
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-vaccel_host_backends = &amp;#34;noop&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;+vaccel_host_backends = &amp;#34;jetson,noop&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; vaccel_guest_backend = &amp;#34;vsock&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # If vaccel_guest_backend=vsock specify the vAccel Agent vsock port
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;For the rust runtime, we edit the &lt;code&gt;/opt/kata/share/defaults/kata-containers/configuration-dbs-vaccel.toml&lt;/code&gt; file as follows:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;...
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;agent_path= &amp;#34;/usr/local/bin/vaccelrt-agent&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;debug= &amp;#34;1&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;backends= &amp;#34;jetson,noop&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;backends_library= &amp;#34;/usr/local/lib/&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;endpoint_port= &amp;#34;2048&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;execution_type= &amp;#34;exec&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;...
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;For mode (b), we do:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;agent_path= &amp;#34;&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;debug= &amp;#34;1&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;backends= &amp;#34;&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;backends_library= &amp;#34;/usr/local/lib/&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;endpoint_port= &amp;#34;2048&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;execution_type= &amp;#34;integrated&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and edit the helper script to specify the plugins:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-rs-vaccel-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;VACCEL_BACKENDS=/usr/local/lib/libvaccel-jetson.so:/usr/local/lib/libvaccel-noop.so KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-dbs-vaccel.toml /opt/kata/runtime-rs/bin/containerd-shim-kata-vaccel-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="spawn-a-vaccel-enabled-sandboxed-container"&gt;Spawn a vAccel-enabled sandboxed container&lt;/h3&gt;
+&lt;p&gt;We are now ready to spawn a vAccel-enabled container. We already have a test container image,
+but if you would like to build your own, the Dockerfile is the one below:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;FROM ubuntu:latest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;RUN apt update &amp;amp;&amp;amp; apt install -y wget &amp;amp;&amp;amp; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/master/aarch64/Release-deb/vaccel-0.5.0-Linux.deb &amp;amp;&amp;amp; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/plugins/vsock/master/aarch64/Release-deb/vaccelrt-plugin-vsock-0.1.0-Linux.deb &amp;amp;&amp;amp; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; dpkg -i vaccel-0.5.0-Linux.deb vaccelrt-plugin-vsock-0.1.0-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ENV VACCEL_DEBUG_LEVEL=4
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ENV VACCEL_BACKENDS=/usr/local/lib/libvaccel-vsock.so
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;build like this:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker build -t vaccel-test-container:aarch64 -f Dockerfile .
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Essentially, it installs the vAccel core library, and the &lt;code&gt;vsock&lt;/code&gt; plugin that
+communicates with the vAccel agent running on the host (spawned using the modes
+described above).&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo nerdctl run --runtime io.containerd.kata-rs-vaccel.v2 --rm -it nubificus/vaccel-test-container:latest /bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;root@23a8738e14a8:/#
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Let&amp;rsquo;s get an image:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-gdscript3" data-lang="gdscript3"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="o"&gt;$&lt;/span&gt; &lt;span class="n"&gt;wget&lt;/span&gt; &lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;upload&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wikimedia&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;wikipedia&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;commons&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;bd&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;Golden_Retriever_Dukedestiny01_drvd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;jpg&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="o"&gt;--&lt;/span&gt;&lt;span class="mi"&gt;2023&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;09&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;17&lt;/span&gt; &lt;span class="mi"&gt;17&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;48&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;09&lt;/span&gt;&lt;span class="o"&gt;--&lt;/span&gt; &lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;upload&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wikimedia&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;wikipedia&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;commons&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;bd&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;Golden_Retriever_Dukedestiny01_drvd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;jpg&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;Resolving&lt;/span&gt; &lt;span class="n"&gt;upload&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wikimedia&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;upload&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wikimedia&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;...&lt;/span&gt; &lt;span class="mf"&gt;185.15&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mf"&gt;59.240&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="n"&gt;a02&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;ec80&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;300&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;ed1a&lt;/span&gt;&lt;span class="p"&gt;::&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;b&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;Connecting&lt;/span&gt; &lt;span class="n"&gt;to&lt;/span&gt; &lt;span class="n"&gt;upload&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wikimedia&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;upload&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wikimedia&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="mf"&gt;185.15&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mf"&gt;59.240&lt;/span&gt;&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mf"&gt;443.&lt;/span&gt;&lt;span class="o"&gt;..&lt;/span&gt; &lt;span class="n"&gt;connected&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;HTTP&lt;/span&gt; &lt;span class="n"&gt;request&lt;/span&gt; &lt;span class="n"&gt;sent&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;awaiting&lt;/span&gt; &lt;span class="n"&gt;response&lt;/span&gt;&lt;span class="o"&gt;...&lt;/span&gt; &lt;span class="mi"&gt;200&lt;/span&gt; &lt;span class="n"&gt;OK&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;Length&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="mi"&gt;165000&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;161&lt;/span&gt;&lt;span class="n"&gt;K&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;image&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;jpeg&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;Saving&lt;/span&gt; &lt;span class="n"&gt;to&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;Golden_Retriever_Dukedestiny01_drvd.jpg&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;Golden_Retriever_Dukedestiny01_drvd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;jpg&lt;/span&gt; &lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="o"&gt;%&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="o"&gt;==================================================================================================&amp;gt;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="mf"&gt;161.13&lt;/span&gt;&lt;span class="n"&gt;K&lt;/span&gt; &lt;span class="mi"&gt;701&lt;/span&gt;&lt;span class="n"&gt;KB&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;s&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="mf"&gt;0.2&lt;/span&gt;&lt;span class="n"&gt;s&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="mi"&gt;2023&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;09&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;17&lt;/span&gt; &lt;span class="mi"&gt;17&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;48&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;14&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;701&lt;/span&gt; &lt;span class="n"&gt;KB&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;s&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;Golden_Retriever_Dukedestiny01_drvd.jpg&amp;#39;&lt;/span&gt; &lt;span class="n"&gt;saved&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;165000&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="mi"&gt;165000&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and try to issue a classify operation using vAccel&amp;rsquo;s &lt;code&gt;jetson-inference&lt;/code&gt; backend:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;root@2ce045d042bc:/# /usr/local/bin/classify Golden_Retriever_Dukedestiny01_drvd.jpg &lt;span class="m"&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Initialized session with id: &lt;span class="m"&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Image size: 165000B
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;classification tags: 86.768% golden retriever
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Awesome, right?! We are able to use hardware acceleration on a sandboxed
+container that does not have direct access to the accelerator device. Stay
+tuned for more info on our progress with &lt;code&gt;kata-containers&lt;/code&gt; and vAccel!&lt;/p&gt;</description></item><item><title>Boot a VM on an NVIDIA Jetson AGX Orin</title><link>/blog/orin-vm/</link><pubDate>Mon, 13 Feb 2023 10:14:04 +0100</pubDate><guid>/blog/orin-vm/</guid><description>&lt;p&gt;In 2022, NVIDIA released the &lt;a href="https://www.nvidia.com/en-il/autonomous-machines/embedded-systems/jetson-orin/" target="_blank" rel="noopener"&gt;Jetson
+Orin&lt;/a&gt;
+modules, specifically designed for extreme computation at the Edge. The NVIDIA
+Jetson AGX Orin modules deliver up to 275 TOPS of AI performance with power
+configurable between 15W and 60W.&lt;/p&gt;
+&lt;figure id="figure-figure-1-the-nvidia-jetson-agx-orin-devkit--module"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/nvidia-jetson-agx-orin.jpg#center" alt="Figure 1: The NVIDIA Jetson AGX Orin devkit &amp; module" loading="lazy" data-zoomable width="80%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 1: The NVIDIA Jetson AGX Orin devkit &amp;amp; module
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;These powerful machines, apart from bleeding edge GPUs, feature 12 ARMv8 cores
+and come with 16GB, 32GB or 64GB of memory. The number of cores, combined with
+these amounts of RAM appear ideal for some use-cases where multi-tenancy is
+essential; making use of the virtualization extensions in these cores, we
+enforce stronger isolation among the workloads running at the Edge. Moreover,
+with the use of &lt;a href="https://katacontainers.io" target="_blank" rel="noopener"&gt;kata-containers&lt;/a&gt;, we maintain the
+cloud-native aspect of the application deployment at the Edge.&lt;/p&gt;
+&lt;p&gt;Following up on our work with &lt;a href="https://katacontainers.io" target="_blank" rel="noopener"&gt;kata-containers&lt;/a&gt; and
+&lt;a href="https://docs.vaccel.org" target="_blank" rel="noopener"&gt;vAccel&lt;/a&gt;, we got a couple of Orin nodes and started
+experimenting. Unfortunately, things are a bit different than with the original
+Jetson AGX Xavier boards we were used to. The SoC is slightly different, with a
+fully-featured, &lt;a href="https://developer.nvidia.com/orin-series-soc-technical-reference-manual" target="_blank" rel="noopener"&gt;multi-core
+GICv3&lt;/a&gt;
+implementation.&lt;/p&gt;
+&lt;p&gt;That&amp;rsquo;s great news! Right? well&amp;hellip; not really, as the necessary control
+structures for GICv3 are not created during boot, caused by an &lt;a href="https://forums.developer.nvidia.com/t/fix-interrupts-declarations-for-gicv3/240566" target="_blank" rel="noopener"&gt;incomplete
+interrupts declaration in the device
+tree&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://forums.developer.nvidia.com/u/vadim.likholetov/summary" target="_blank" rel="noopener"&gt;Vadim&lt;/a&gt; &amp;amp;
+&lt;a href="https://forums.developer.nvidia.com/u/alexey13/summary" target="_blank" rel="noopener"&gt;Alexey&lt;/a&gt; identified the
+issue and provided the necessary patches to the device tree source files and ..
+tada! we can boot a non-emulated VM, using GICv3 on Jetson Orin!&lt;/p&gt;
+&lt;h3 id="walk-through-the-issue"&gt;Walk through the issue&lt;/h3&gt;
+&lt;p&gt;So, initially, we started to see if the stock kernel has KVM enabled:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;#&lt;/span&gt; dmesg &lt;span class="p"&gt;|&lt;/span&gt;grep -i kvm
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.362967] kvm [1]: IPA Size Limit: 48 bits
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.363130] kvm [1]: VHE mode initialized successfully
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Looks like there is support. So we moved on to try running an AWS Firecracker
+VM. Got our &lt;code&gt;vmlinux&lt;/code&gt;, &lt;code&gt;rootfs.img&lt;/code&gt; and &lt;code&gt;config.json&lt;/code&gt; built for our tests and
+tried to boot the VM:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/vm-example/aarch64/rust-vmm/vmlinux
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/vm-example/aarch64/rootfs.img
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/vm-example/aarch64/fc/config_vsock.json
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/vm-example/aarch64/fc/firecracker
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;#&lt;/span&gt; ./firecracker --api-sock fc.sock --config-file config_vsock.json
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2023-02-13T18:54:29.061153660 [anonymous-instance:main:ERROR:src/firecracker/src/main.rs:480] Building VMM configured from cmdline json failed: Internal(Vm(VmCreateGIC(CreateGIC(Error(19)))))
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We were a bit troubled as the exact same setup was working fine on a Jetson AGX
+Xavier. We also tried
+&lt;a href="https://forums.developer.nvidia.com/t/jetson-agx-orin-devkit-34-1-1-gicv3-vgic-creation-failed/216192" target="_blank" rel="noopener"&gt;QEMU&lt;/a&gt;,
+with the same results:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;#&lt;/span&gt; qemu-system-aarch64 -cpu max -machine virt,gic-version&lt;span class="o"&gt;=&lt;/span&gt;3,kernel-irqchip&lt;span class="o"&gt;=&lt;/span&gt;on -m &lt;span class="m"&gt;1024&lt;/span&gt; -nographic -monitor none -kernel /boot/Image -enable-kvm
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;qemu-system-aarch64: gic-version=3 is not supported with kernel-irqchip=off
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;but if we disable KVM on qemu, we can see the kernel booting:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;#&lt;/span&gt; qemu-system-aarch64 -cpu max -machine virt,gic-version&lt;span class="o"&gt;=&lt;/span&gt;3,kernel-irqchip&lt;span class="o"&gt;=&lt;/span&gt;on -m &lt;span class="m"&gt;1024&lt;/span&gt; -nographic -monitor none -kernel /boot/Image
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Booting Linux on physical CPU 0x0000000000 [0x000f0510]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Linux version 5.10.65-tegra (buildbrain@mobile-u64-5266-d7000) (aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot 2020.08) 9.3.0, GNU ld (GNU Binutils) 2.33.1) #1 SMP PREEMPT Tue Mar 15 00:53:43 PDT 2022
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] OF: fdt: memory scan node memory@40000000, reg size 16,
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] OF: fdt: - 40000000 , 40000000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Machine model: linux,dummy-virt
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] efi: UEFI not found.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Zone ranges:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] DMA [mem 0x0000000040000000-0x000000007fffffff]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] DMA32 empty
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Normal empty
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Movable zone start for each node
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;So after digging into this issue, googling and trying various workarounds, we
+came across the points raised above about the GICv3 initialization.&lt;/p&gt;
+&lt;h3 id="solution"&gt;Solution&lt;/h3&gt;
+&lt;p&gt;Following the
+&lt;a href="https://docs.nvidia.com/jetson/archives/r35.2.1/DeveloperGuide/text/SD/Kernel/KernelCustomization.html" target="_blank" rel="noopener"&gt;instructions&lt;/a&gt;
+on how to build a kernel for the Jetson AGX Orin series, we get the sources and
+patch the device tree sources using the following snippet:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-patch" data-lang="patch"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gd"&gt;--- Linux_for_Tegra/source/public/hardware/nvidia/soc/t23x/kernel-dts/tegra234-soc/tegra234-soc-minimal.dtsi.orig 2022-08-11 03:14:51.000000000 +0000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+++ Linux_for_Tegra/source/public/hardware/nvidia/soc/t23x/kernel-dts/tegra234-soc/tegra234-soc-minimal.dtsi 2023-02-12 09:07:10.259761186 +0000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gu"&gt;@@ -43,6 +43,10 @@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; reg = &amp;lt;0x0 0x0f400000 0x0 0x00010000 /* GICD */
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 0x0 0x0f440000 0x0 0x00200000&amp;gt;; /* GICR CPU 0-15 */
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ranges;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+ interrupts = &amp;lt;GIC_PPI 9
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+ (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)&amp;gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+ interrupt-parent = &amp;lt;&amp;amp;intc&amp;gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; status = &amp;#34;disabled&amp;#34;;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; gic_v2m: v2m@f410000 {
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We build the kernel using the following command:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Linux_for_Tegra/source/public# ./nvbuild.sh -o kernel_out_updated
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Essentially, just the device tree is needed:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;kernel_out_updated/arch/arm64/boot/dts/nvidia/tegra234-p3701-0000-p3737-0000.dtb
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We copy this file to the board at the following directory:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;/boot/dtb
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and tweak the boot loader config to load the updated device-tree file, instead
+of the default one:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-patch" data-lang="patch"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gd"&gt;--- /boot/extlinux/extlinux.conf.orig 2023-02-13 18:41:26.208771762 +0000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+++ /boot/extlinux/extlinux.conf 2023-02-13 18:41:37.452854874 +0000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gu"&gt;@@ -1,6 +1,6 @@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; LABEL primary
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; MENU LABEL primary kernel
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; LINUX /boot/Image
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gd"&gt;- FDT /boot/dtb/kernel_tegra234-p3701-0000-p3737-0000.dtb
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+ FDT /boot/dtb/tegra234-p3701-0000-p3737-0000.dtb
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; INITRD /boot/initrd
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; APPEND ${cbootargs} root=/dev/mmcblk0p1 rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 console=ttyAMA0,115200 console=tty0 firmware_class.path=/etc/firmware fbcon=map:0 net.ifnames=0
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;And now we&amp;rsquo;re ready for reboot! Assuming all went well, you&amp;rsquo;ll end up with the
+following in the kernel boot logs:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;#&lt;/span&gt; dmesg &lt;span class="p"&gt;|&lt;/span&gt;grep -i kvm
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 3.048360] kvm [1]: IPA Size Limit: 48 bits
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 3.052646] kvm [1]: GICv3: no GICV resource entry
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 3.057437] kvm [1]: disabling GICv2 emulation
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 3.061891] kvm [1]: GIC system register CPU interface enabled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 3.067830] kvm [1]: vgic interrupt IRQ9
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 3.071899] kvm [1]: VHE mode initialized successfully
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;And if we try spawning a firecracker VM as above, we get the following:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;#&lt;/span&gt; ./bin/firecracker --config-file config_vsock.json --api-sock fc.sock
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Booting Linux on physical CPU 0x0000000000 [0x410fd421]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Linux version 5.10.0 (runner@gh-cloud-pod-ckp6h) (gcc (Ubuntu/Linaro 8.4.0-1ubuntu1~18.04) 8.4.0, GNU ld (GNU Binutils for Ubuntu) 2.30) #1 SMP Wed May 4 06:10:52 UTC 2022
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Machine model: linux,dummy-virt
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] earlycon: uart0 at MMIO 0x0000000040003000 (options &amp;#39;&amp;#39;)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] printk: bootconsole [uart0] enabled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] efi: UEFI not found.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] NUMA: No NUMA configuration found
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] NUMA: Faking a node at [mem 0x0000000080000000-0x000000017fffffff]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] NUMA: NODE_DATA [mem 0x17f6d7900-0x17f6f8fff]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Zone ranges:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] DMA [mem 0x0000000080000000-0x00000000bfffffff]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] DMA32 [mem 0x00000000c0000000-0x00000000ffffffff]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Normal [mem 0x0000000100000000-0x000000017fffffff]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Movable zone start for each node
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Early memory node ranges
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] node 0: [mem 0x0000000080000000-0x000000017fffffff]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Initmem setup node 0 [mem 0x0000000080000000-0x000000017fffffff]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] On node 0 totalpages: 1048576
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] DMA zone: 4096 pages used for memmap
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] DMA zone: 0 pages reserved
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] DMA zone: 262144 pages, LIFO batch:63
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] DMA32 zone: 4096 pages used for memmap
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] DMA32 zone: 262144 pages, LIFO batch:63
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Normal zone: 8192 pages used for memmap
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Normal zone: 524288 pages, LIFO batch:63
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] psci: probing for conduit method from DT.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] psci: PSCIv1.0 detected in firmware.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] psci: Using standard PSCI v0.2 function IDs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] psci: Trusted OS migration not required
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] psci: SMC Calling Convention v1.1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] percpu: Embedded 22 pages/cpu s49944 r8192 d31976 u90112
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] pcpu-alloc: s49944 r8192 d31976 u90112 alloc=22*4096
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] pcpu-alloc: [0] 0 [0] 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Detected PIPT I-cache on CPU0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] CPU features: detected: GIC system register CPU interface
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] CPU features: detected: Hardware dirty bit management
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] CPU features: detected: Spectre-v4
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Built 1 zonelists, mobility grouping on. Total pages: 1032192
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Policy zone: Normal
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Kernel command line: console=ttyS0 reboot=k panic=1 pci=off loglevel=8 root=/dev/vda ip=172.42.0.2::172.42.0.1:255.255.255.0::eth0:off random.trust_cpu=on root=/dev/vda rw earlycon=uart,mmio,0x40003000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Dentry cache hash table entries: 524288 (order: 10, 4194304 bytes, linear)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Inode-cache hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] mem auto-init: stack:off, heap alloc:off, heap free:off
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] software IO TLB: mapped [mem 0x00000000bbfff000-0x00000000bffff000] (64MB)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Memory: 4024740K/4194304K available (8064K kernel code, 7700K rwdata, 2060K rodata, 1408K init, 3005K bss, 169564K reserved, 0K cma-reserved)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] random: get_random_u64 called from __kmem_cache_create+0x2c/0x4a0 with crng_init=0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=2, Nodes=1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] rcu: Hierarchical RCU implementation.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] rcu: RCU restricting CPUs from NR_CPUS=128 to nr_cpu_ids=2.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] Tracing variant of Tasks RCU enabled.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=2
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] GICv3: 96 SPIs implemented
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] GICv3: 0 Extended SPIs implemented
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] GICv3: Distributor has no Range Selector support
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] GICv3: 16 PPIs implemented
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] GICv3: CPU0: found redistributor 0 region 0:0x000000003ffb0000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] arch_timer: cp15 timer(s) running at 31.25MHz (virt).
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000000] clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0xe6a171046, max_idle_ns: 881590405314 ns
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.000003] sched_clock: 56 bits at 31MHz, resolution 32ns, wraps every 4398046511088ns
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.001027] Console: colour dummy device 80x25
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.001600] Calibrating delay loop (skipped), value calculated using timer frequency.. 62.50 BogoMIPS (lpj=125000)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.003003] pid_max: default: 32768 minimum: 301
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.003621] LSM: Security Framework initializing
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.004239] SELinux: Initializing.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.004705] Mount-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.005642] Mountpoint-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.007399] rcu: Hierarchical SRCU implementation.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.008182] EFI services will not be available.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.008825] smp: Bringing up secondary CPUs ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.016089] Detected PIPT I-cache on CPU1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.016135] GICv3: CPU1: found redistributor 1 region 0:0x000000003ffd0000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.016251] CPU1: Booted secondary processor 0x0000000001 [0x410fd421]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.016842] smp: Brought up 1 node, 2 CPUs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.019483] SMP: Total of 2 processors activated.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.020055] CPU features: detected: Privileged Access Never
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.020721] CPU features: detected: LSE atomic instructions
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.021326] CPU features: detected: User Access Override
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.021913] CPU features: detected: 32-bit EL0 Support
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.022464] CPU features: detected: Common not Private translations
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.023120] CPU features: detected: RAS Extension Support
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.023723] CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.024694] CPU features: detected: CRC32 instructions
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.025269] CPU features: detected: Speculative Store Bypassing Safe (SSBS)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.051711] CPU: All CPU(s) started at EL1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.052455] alternatives: patching kernel code
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.054839] devtmpfs: initialized
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.056234] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.057936] futex hash table entries: 512 (order: 3, 32768 bytes, linear)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.059329] DMI not present or invalid.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.060220] NET: Registered protocol family 16
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.062118] DMA: preallocated 512 KiB GFP_KERNEL pool for atomic allocations
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.064139] DMA: preallocated 512 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.066196] DMA: preallocated 512 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.067848] audit: initializing netlink subsys (disabled)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.069643] audit: type=2000 audit(0.068:1): state=initialized audit_enabled=0 res=1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.069818] thermal_sys: Registered thermal governor &amp;#39;fair_share&amp;#39;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.071171] thermal_sys: Registered thermal governor &amp;#39;step_wise&amp;#39;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.071923] thermal_sys: Registered thermal governor &amp;#39;user_space&amp;#39;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.072795] cpuidle: using governor ladder
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.074720] cpuidle: using governor menu
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.075499] hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.076945] ASID allocator initialised with 65536 entries
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.085849] HugeTLB registered 1.00 GiB page size, pre-allocated 0 pages
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.087077] HugeTLB registered 32.0 MiB page size, pre-allocated 0 pages
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.088149] HugeTLB registered 2.00 MiB page size, pre-allocated 0 pages
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.089190] HugeTLB registered 64.0 KiB page size, pre-allocated 0 pages
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.093766] iommu: Default domain type: Translated
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.094597] SCSI subsystem initialized
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.095080] pps_core: LinuxPPS API ver. 1 registered
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.095636] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti &amp;lt;giometti@linux.it&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.096684] PTP clock support registered
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.097441] NetLabel: Initializing
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.097830] NetLabel: domain hash size = 128
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.098321] NetLabel: protocols = UNLABELED CIPSOv4 CALIPSO
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.098967] NetLabel: unlabeled traffic allowed by default
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.099750] clocksource: Switched to clocksource arch_sys_counter
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.100568] VFS: Disk quotas dquot_6.6.0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.101037] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.101952] FS-Cache: Loaded
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.102771] CacheFiles: Loaded
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.104955] NET: Registered protocol family 2
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.105781] tcp_listen_portaddr_hash hash table entries: 2048 (order: 3, 32768 bytes, linear)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.107212] TCP established hash table entries: 32768 (order: 6, 262144 bytes, linear)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.108659] TCP bind hash table entries: 32768 (order: 7, 524288 bytes, linear)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.110424] TCP: Hash tables configured (established 32768 bind 32768)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.111486] UDP hash table entries: 2048 (order: 4, 65536 bytes, linear)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.112545] UDP-Lite hash table entries: 2048 (order: 4, 65536 bytes, linear)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.113614] NET: Registered protocol family 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.114900] Initialise system trusted keyrings
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.115467] Key type blacklist registered
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.116112] workingset: timestamp_bits=36 max_order=20 bucket_order=0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.118568] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.132869] Key type asymmetric registered
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.133466] Asymmetric key parser &amp;#39;x509&amp;#39; registered
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.134217] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 251)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.136154] Serial: 8250/16550 driver, 1 ports, IRQ sharing disabled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.137435] printk: console [ttyS0] disabled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.138118] 40003000.uart: ttyS0 at MMIO 0x40003000 (irq = 14, base_baud = 1500000) is a 16550A
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.139487] printk: console [ttyS0] enabled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.139487] printk: console [ttyS0] enabled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.140875] printk: bootconsole [uart0] disabled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.140875] printk: bootconsole [uart0] disabled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.142604] cacheinfo: Unable to detect cache hierarchy for CPU 0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.146080] loop: module loaded
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.146816] virtio_blk virtio0: [vda] 2097152 512-byte logical blocks (1.07 GB/1.00 GiB)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.147764] vda: detected capacity change from 0 to 1073741824
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.149279] Loading iSCSI transport class v2.0-870.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.150525] iscsi: registered transport (tcp)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.151107] tun: Universal TUN/TAP device driver, 1.6
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.152381] rtc-pl031 40004000.rtc: designer ID = 0x41
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.153012] rtc-pl031 40004000.rtc: revision = 0x1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.153898] rtc-pl031 40004000.rtc: char device (254:0)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.154530] rtc-pl031 40004000.rtc: registered as rtc0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.155158] rtc-pl031 40004000.rtc: setting system clock to 2023-02-13T19:08:49 UTC (1676315329)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.156324] hid: raw HID events driver (C) Jiri Kosina
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.157485] Initializing XFRM netlink socket
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.158395] NET: Registered protocol family 10
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.160444] Segment Routing with IPv6
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.160971] NET: Registered protocol family 17
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.161565] Key type dns_resolver registered
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.162179] NET: Registered protocol family 40
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.163868] registered taskstats version 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.164554] Loading compiled-in X.509 certificates
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.166411] Loaded X.509 cert &amp;#39;Build time autogenerated kernel key: 5c87d35d601eb9a30312d062d8891ae920951e61&amp;#39;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.167750] Key type ._fscrypt registered
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.168431] Key type .fscrypt registered
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.169023] Key type fscrypt-provisioning registered
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.170251] Key type encrypted registered
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2023-02-13T19:08:49.402741111 [anonymous-instance:ERROR:src/devices/src/virtio/net/device.rs:390] Failed to write to tap: Os { code: 5, kind: Other, message: &amp;#34;Input/output error&amp;#34; }
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.187729] IP-Config: Complete:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.188127] device=eth0, hwaddr=aa:fc:00:00:00:01, ipaddr=172.42.0.2, mask=255.255.255.0, gw=172.42.0.1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.189265] host=172.42.0.2, domain=, nis-domain=(none)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.189908] bootserver=255.255.255.255, rootserver=255.255.255.255, rootpath=
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.190773]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.193054] EXT4-fs (vda): mounted filesystem with ordered data mode. Opts: (null)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.194395] VFS: Mounted root (ext4 filesystem) on device 254:0.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.195952] devtmpfs: mounted
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.197005] Freeing unused kernel memory: 1408K
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.215773] Run /sbin/init as init process
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.216663] with arguments:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.217281] /sbin/init
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.217844] with environment:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.218496] HOME=/
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.218989] TERM=linux
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.219552] pci=off
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;SELinux: Could not open policy file &amp;lt;= /etc/selinux/targeted/policy/policy.33: No such file or directory
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.258127] systemd[1]: Failed to find module &amp;#39;autofs4&amp;#39;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.263505] systemd[1]: systemd 245.4-4ubuntu3.11 running in system mode. (+PAM +AUDIT +SELINUX +IMA +APPARMOR +SMACK +SYSVINIT +UTMP +LIBCRYPTSETUP +GCRYPT +GNUTLS +ACL +XZ +LZ4 +SECCOMP +BLKID +ELFUTILS +KMOD +IDN2 -IDN +PCRE2 default-hierarchy=hybrid)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[ 0.266780] systemd[1]: Detected architecture arm64.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Welcome to Ubuntu 20.04.2 LTS!
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Initially, we got an RTC initialization error, so in case you get such an
+issue, disable &lt;code&gt;pl031_driver_init&lt;/code&gt; through the &lt;code&gt;initcall_blacklist&lt;/code&gt; kernel
+cmdline option:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-patch" data-lang="patch"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gd"&gt;--- config_vsock.json.orig 2023-02-13 19:17:43.750699285 +0000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+++ config_vsock.json 2023-02-13 19:17:57.154793334 +0000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gu"&gt;@@ -1,7 +1,7 @@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;#34;boot-source&amp;#34;: {
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;#34;kernel_image_path&amp;#34;: &amp;#34;vmlinux&amp;#34;,
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gd"&gt;- &amp;#34;boot_args&amp;#34;: &amp;#34;console=ttyS0 reboot=k panic=1 pci=off loglevel=8 root=/dev/vda ip=172.42.0.2::172.42.0.1:255.255.255.0::eth0:off random.trust_cpu=on&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gi"&gt;+ &amp;#34;boot_args&amp;#34;: &amp;#34;console=ttyS0 reboot=k panic=1 pci=off loglevel=8 root=/dev/vda ip=172.42.0.2::172.42.0.1:255.255.255.0::eth0:off random.trust_cpu=on initcall_blacklist=pl031_driver_init&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; },
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;#34;drives&amp;#34;: [
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="future-steps"&gt;Future steps&lt;/h2&gt;
+&lt;p&gt;Give us a shout at &lt;a href="mailto:team@cloudkernels.net"&gt;team@cloudkernels.net&lt;/a&gt; if you liked it! The plan is to use
+these boards to expose acceleration functionality in isolated workloads running
+on sandboxed containers using &lt;a href="https://katacontainers.io" target="_blank" rel="noopener"&gt;kata-containers&lt;/a&gt; and
+&lt;a href="https://vaccel.org" target="_blank" rel="noopener"&gt;vAccel&lt;/a&gt;. Take a sneak peek on what we are working on
+&lt;a href="https://docs.vaccel.org/container_runtimes" target="_blank" rel="noopener"&gt;here&lt;/a&gt; and stay tuned for the next
+post where we describe the process to build and run a vAccel-enabled sandboxed
+container on a Jetson Orin!&lt;/p&gt;</description></item></channel></rss>

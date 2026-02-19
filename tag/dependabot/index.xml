@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Dependabot | Nubificus</title><link>/tag/dependabot/</link><atom:link href="/tag/dependabot/index.xml" rel="self" type="application/rss+xml"/><description>Dependabot</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Thu, 23 Oct 2025 00:00:00 +0000</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Dependabot</title><link>/tag/dependabot/</link></image><item><title>Keeping Our GitHub Runners Alive with Dependabot</title><link>/blog/gh_runner_updates/</link><pubDate>Thu, 23 Oct 2025 00:00:00 +0000</pubDate><guid>/blog/gh_runner_updates/</guid><description>&lt;h2 id="when-a-release-breaks-your-ci"&gt;When a Release Breaks Your CI&lt;/h2&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/jenkins.png#floatleft" alt="" loading="lazy" data-zoomable width="90px" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+We’re a small engineering team. Everyone’s busy! Some days we’re deep in
+&lt;a href="https://github.com/urunc-dev/urunc" target="_blank" rel="noopener"&gt;container runtime dev&lt;/a&gt;, other days we’re
+debugging transport layers for &lt;a href="https://github.com/nubificus/vaccel" target="_blank" rel="noopener"&gt;vAccel&lt;/a&gt; or
+measuring latency for torch model execution offloading across Edge devices.
+What we &lt;em&gt;don’t&lt;/em&gt; have is a dedicated team for CI maintenance.&lt;/p&gt;
+&lt;p&gt;So when our GitHub Actions runners went down &lt;em&gt;again&lt;/em&gt;, we heard the familiar chorus:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&amp;ldquo;CI is down.&amp;rdquo;&lt;br&gt;
+&amp;ldquo;Is the cluster up?&amp;rdquo;&lt;br&gt;
+&amp;ldquo;Did someone change something?&amp;rdquo;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Nobody had. The culprit was subtler and (&lt;a href="/posts/github-runner-armv7l/"&gt;once&lt;/a&gt;
+&lt;a href="/posts/torch-arm-debug/"&gt;more&lt;/a&gt;) frustrating.&lt;/p&gt;
+&lt;p&gt;GitHub follows a &lt;a href="https://docs.github.com/en/actions/reference/runners/self-hosted-runners#runner-software-updates-on-self-hosted-runners" target="_blank" rel="noopener"&gt;30-day
+policy&lt;/a&gt;
+to update the runner software. Specifically:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Any updates released for the software, including major, minor, or patch
+releases, are considered as an available update. If you do not perform a
+software update within 30 days, the GitHub Actions service will not queue
+jobs to your runner. In addition, if a critical security update is required,
+the GitHub Actions service will not queue jobs to your runner until it has
+been updated.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;But if you&amp;rsquo;re like us, running self-hosted GH runners on containers, then the
+auto-update feature of the runner does not scale well.&lt;/p&gt;
+&lt;p&gt;As a result, when &lt;code&gt;v2.328.0&lt;/code&gt; was released, the older &lt;code&gt;v2.327.1&lt;/code&gt; became
+unsupported. Our self-hosted runners, built with the old version, were simply
+&lt;strong&gt;not receiving jobs by GitHub&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Just a broken CI.&lt;/p&gt;
+&lt;p&gt;We were wasting hours each time this happened: manually updating runner
+versions, rebuilding images, and redeploying. We needed a fix that was
+&lt;strong&gt;automatic&lt;/strong&gt;, &lt;strong&gt;self-contained&lt;/strong&gt;, and didn’t require human babysitting.&lt;/p&gt;
+&lt;h2 id="the-key-insight-use-dependabot-as-a-build-trigger"&gt;The Key Insight: Use Dependabot as a Build Trigger&lt;/h2&gt;
+&lt;p&gt;Dependabot is best known for keeping dependencies up to date. It can bump
+versions of Go packages, rust crates, container images, and even GitHub
+Actions.&lt;/p&gt;
+&lt;p&gt;That last part, &lt;strong&gt;GitHub Actions&lt;/strong&gt;, turned out to be our way out.&lt;/p&gt;
+&lt;p&gt;What if we asked Dependabot to track the version of &lt;code&gt;actions/runner&lt;/code&gt;,&lt;br&gt;
+and used its pull request as the &lt;strong&gt;trigger&lt;/strong&gt; to rebuild our runner images?&lt;/p&gt;
+&lt;p&gt;That single insight became the foundation of a hands-free &lt;a href="https://github.com/nubificus/runner-images" target="_blank" rel="noopener"&gt;CI maintenance
+pipeline&lt;/a&gt;.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;We will follow-up on another post about our CI setup, as we have upgraded to
+&lt;a href="https://docs.github.com/en/actions/tutorials/use-actions-runner-controller/quickstart" target="_blank" rel="noopener"&gt;ARC&lt;/a&gt;
+since our &lt;a href="/posts/gar_k8s/"&gt;last post&lt;/a&gt; about it. Runner images are mostly
+based on &lt;a href="https://github.com/some-natalie" target="_blank" rel="noopener"&gt;some-natalie&lt;/a&gt;&amp;rsquo;s
+&lt;a href="https://github.com/some-natalie/kubernoodles" target="_blank" rel="noopener"&gt;kubernoodles&lt;/a&gt;.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2 id="step-1-the-tracker"&gt;Step 1: The Tracker&lt;/h2&gt;
+&lt;p&gt;We added a minimal file to &lt;code&gt;.github/workflows&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# _track_runner.yml&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;uses&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;actions/runner@v2.329.0&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Then we configured Dependabot to watch that folder:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# .github/dependabot.yml&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;version&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;2&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;updates&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;package-ecosystem&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;github-actions&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;directory&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;/.github/workflows&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;schedule&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;interval&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;daily&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;That’s it.&lt;/p&gt;
+&lt;p&gt;Whenever GitHub publishes a new actions/runner release, Dependabot opens a PR like:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;chore(deps): Bump actions/runner from v2.327.1 to v2.329.0&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;That PR became our &lt;em&gt;signal&lt;/em&gt;: the moment Dependabot does its job, we rebuild our
+runners automatically.&lt;/p&gt;
+&lt;h2 id="step-2-the-trigger-workflow"&gt;Step 2: The Trigger Workflow&lt;/h2&gt;
+&lt;p&gt;When Dependabot’s PR gets issued, it triggers a lightweight workflow that
+extracts the runner version and dispatches a full image rebuild.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# .github/workflows/build-trigger.yml&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;on&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;pull_request&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;branches&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;main ]&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;paths&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="s2"&gt;&amp;#34;.github/workflows/_track_runner.yml&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;jobs&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;extract_version&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;runs-on&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;ubuntu-latest&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;outputs&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;runner-version&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;${{ steps.extract.outputs.version }}&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;steps&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;uses&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;actions/checkout@v5&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;with&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;ref&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;${{ github.event.pull_request.head.ref }}&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;fetch-depth&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;0&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;id&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;extract&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;run&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;|&lt;/span&gt;&lt;span class="sd"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="sd"&gt; version=$(grep -oE &amp;#39;actions/runner@v[0-9]+\.[0-9]+\.[0-9]+&amp;#39; .github/workflows/_track_runner.yml | cut -d@ -f2 | sed &amp;#39;s/^v//&amp;#39;)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="sd"&gt; echo &amp;#34;version=$version&amp;#34; &amp;gt;&amp;gt; $GITHUB_OUTPUT&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;build_base&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;needs&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;extract_version&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;uses&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;./.github/workflows/build-latest.yml&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;with&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;runner-version&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;${{ needs.extract_version.outputs.runner-version }}&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;runner&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;[&amp;#34;base&amp;#34;,&amp;#34;dind&amp;#34;,&amp;#34;2204&amp;#34;]&amp;#39;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;runner-archs&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;[&amp;#34;amd64&amp;#34;,&amp;#34;arm64&amp;#34;,&amp;#34;arm&amp;#34;]&amp;#39;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;dockerfiles&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;[&amp;#34;jammy-base&amp;#34;,&amp;#34;noble-base&amp;#34;]&amp;#39;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;secrets&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;inherit&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;build_custom&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;needs&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="l"&gt;extract_version,build_base]&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;uses&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;./.github/workflows/build-latest.yml&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;with&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;runner-version&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;${{ needs.extract_version.outputs.runner-version }}&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;runner&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;[&amp;#34;base&amp;#34;,&amp;#34;dind&amp;#34;,&amp;#34;2204&amp;#34;]&amp;#39;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;runner-archs&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;[&amp;#34;amd64&amp;#34;,&amp;#34;arm64&amp;#34;]&amp;#39;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;dockerfiles&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;[&amp;#34;jammy-tf&amp;#34;,&amp;#34;jammy-torch&amp;#34;,&amp;#34;jammy-tvm&amp;#34;,&amp;#34;jammy-opencv&amp;#34;]&amp;#39;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;secrets&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;inherit&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;auto_merge&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;needs&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="l"&gt;build_base,build_custom]&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;if&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;github.actor == &amp;#39;dependabot[bot]&amp;#39;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;runs-on&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;ubuntu-latest&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;steps&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;Auto-merge Dependabot PR&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;run&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;|&lt;/span&gt;&lt;span class="sd"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="sd"&gt; gh pr merge ${{ github.event.pull_request.number }} --rebase --delete-branch --admin --repo ${{ github.repository }}&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;env&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;GITHUB_TOKEN&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;${{ secrets.GITHUB_TOKEN }}&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;That small workflow is the &lt;em&gt;bridge&lt;/em&gt;: it detects the change, parses the version, and tells our builder to get to work.&lt;/p&gt;
+&lt;h2 id="step-3-building--signing-custom-runner-images"&gt;Step 3: Building &amp;amp; Signing Custom Runner Images&lt;/h2&gt;
+&lt;p&gt;Our main workflow, build-latest.yml, handles the heavy lifting:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Multi-arch container image builds for amd64, arm64, and arm&lt;/li&gt;
+&lt;li&gt;Image publishing to our Harbor registry&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;cosign&lt;/code&gt; signing for supply chain integrity&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Example output images:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;harbor.nbfc.io/nubificus/runner-images/jammy-base:amd64-d3aa6e9
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;harbor.nbfc.io/nubificus/runner-images/jammy-base:arm64-d3aa6e9
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We sign these images using &lt;code&gt;cosign&lt;/code&gt; in keyless mode (using GH&amp;rsquo;s OIDC) and we
+merge the per-arch images into a manifest which we also sign:&lt;/p&gt;
+&lt;p&gt;Example signing process:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.dockerfile }}@$DIGEST \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; -a &amp;#34;repo=${{github.repository}}&amp;#34; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; -a &amp;#34;workflow=${{github.workflow}}&amp;#34; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; -a &amp;#34;runner_version=${{ inputs.runner-version }}&amp;#34; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; -a &amp;#34;author=Nubificus LTD&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We use Harbor robot accounts for pushing images. Since Harbor doesn’t yet
+support &lt;code&gt;cosign&lt;/code&gt;’s latest bundle spec update (v3.x), we use the referrers API but
+keep the old format for the signature.&lt;/p&gt;
+&lt;h2 id="step-4-runners-that-update-themselves"&gt;Step 4: Runners That Update Themselves&lt;/h2&gt;
+&lt;p&gt;Now, whenever GitHub releases a new runner:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Dependabot notices the new version and opens a PR&lt;/li&gt;
+&lt;li&gt;Our trigger workflow fires&lt;/li&gt;
+&lt;li&gt;The build workflow rebuilds and publishes new images&lt;/li&gt;
+&lt;li&gt;Once the workflow succeeds, it is being auto-merged.&lt;/li&gt;
+&lt;li&gt;Our runner infrastructure updates itself automatically, since the
+&lt;code&gt;imagePullPolicy&lt;/code&gt; is set to &lt;code&gt;Always&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;No more manual updates.
+No more &amp;ldquo;why is CI down again?&amp;rdquo; messages.
+No one needs to touch anything.&lt;/p&gt;
+&lt;h2 id="the-impact-for-a-small-team"&gt;The Impact for a Small Team&lt;/h2&gt;
+&lt;p&gt;For a small, distributed team like ours, this bit of automation made a huge
+difference:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Zero manual maintenance: runners rebuild automatically&lt;/li&gt;
+&lt;li&gt;No more noise: engineers stopped pinging &amp;ldquo;CI down again?&amp;rdquo; in chat&lt;/li&gt;
+&lt;li&gt;Secure by default: each build is signed and traceable&lt;/li&gt;
+&lt;li&gt;Always up to date: Dependabot ensures we track upstream releases within hours&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;We now have a fully self-maintaining CI backbone, built with the same tools we
+already use, no new services, no new costs, and no dedicated CI admin.&lt;/p&gt;
+&lt;h2 id="epilogue-the-dependabot-hack"&gt;Epilogue: The Dependabot Hack&lt;/h2&gt;
+&lt;p&gt;It’s funny ;) Dependabot wasn’t built for this. It’s a dependency updater, not a
+workflow orchestrator. But it’s also the perfect sensor for upstream version
+changes.&lt;/p&gt;
+&lt;p&gt;By wiring it into our build system, we turned it into the simplest and most
+reliable CI babysitter we could have asked for. Sometimes, the most powerful
+DevOps automation comes from re-purposing what’s already there.&lt;/p&gt;</description></item></channel></rss>

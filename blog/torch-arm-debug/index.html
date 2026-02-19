@@ -1,0 +1,367 @@
+<!doctype html><!-- This site was created with Hugo Blox. https://hugoblox.com --><!-- Last Published: February 19, 2026 --><html lang=en-us><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=generator content="Hugo Blox Builder 5.9.7"><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link rel=preload as=style href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Roboto+Mono&family=Roboto:wght@400;700&display=swap"><link rel=stylesheet href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Roboto+Mono&family=Roboto:wght@400;700&display=swap" media=print onload='this.media="all"'><link rel=stylesheet href=/css/vendor-bundle.min.26c458e6907dc03073573976b7f4044e.css media=print onload='this.media="all"'><link rel=stylesheet href=https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1.9.4/css/academicons.min.css integrity="sha512-IW0nhlW5MgNydsXJO40En2EoCkTTjZhI3yuODrZIc8cQ4h1XcF53PsqDHa09NqnkXuIe0Oiyyj171BqZFwISBw==" crossorigin=anonymous media=print onload='this.media="all"'><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.min.css integrity crossorigin=anonymous media=print onload='this.media="all"'><link rel=stylesheet href=/css/wowchemy.0a92100ca9cf271dc93dd61885c3d747.css><link rel=stylesheet href=/css/libs/chroma/github-light.min.css title=hl-light media=print onload='this.media="all"'><link rel=stylesheet href=/css/libs/chroma/dracula.min.css title=hl-dark media=print onload='this.media="all"' disabled><meta name=author content="Charalampos Mainas"><meta name=description content="If you’ve ever tried to debug a PyTorch program on an ARM64 system using
+Valgrind, you might have stumbled on something really
+odd: &ldquo;Why does it take so long?&rdquo;. And if you&rsquo;re like us, you would probably try
+to run it locally, on a Raspberry pi, to see what&rsquo;s going on&mldr; And the madness
+begins!"><link rel=alternate hreflang=en-us href=/blog/torch-arm-debug/><link rel=canonical href=/blog/torch-arm-debug/><link rel=manifest href=/manifest.webmanifest><link rel=icon type=image/png href=/media/icon_hu_76f04f0ed4ada794.png><link rel=apple-touch-icon type=image/png href=/media/icon_hu_bbf9ba2454448482.png><meta name=theme-color content="#1565c0"><meta property="twitter:card" content="summary"><meta property="twitter:site" content="@GetResearchDev"><meta property="twitter:creator" content="@GetResearchDev"><meta property="twitter:image" content="/media/logo_hu_866fdf07312224c.png"><meta property="og:type" content="website"><meta property="og:site_name" content="Nubificus"><meta property="og:url" content="/blog/torch-arm-debug/"><meta property="og:title" content="When More Cores Means Less Speed: Debugging PyTorch with Valgrind on ARM | Nubificus"><meta property="og:description" content="If you’ve ever tried to debug a PyTorch program on an ARM64 system using
+Valgrind, you might have stumbled on something really
+odd: &ldquo;Why does it take so long?&rdquo;. And if you&rsquo;re like us, you would probably try
+to run it locally, on a Raspberry pi, to see what&rsquo;s going on&mldr; And the madness
+begins!"><meta property="og:image" content="/media/logo_hu_866fdf07312224c.png"><meta property="og:locale" content="en-us"><meta property="article:published_time" content="2025-07-11T08:02:51+01:00"><meta property="article:modified_time" content="2025-07-11T08:02:51+01:00"><script src=https://cdn.jsdelivr.net/gh/osano/cookieconsent@3.1.1/build/cookieconsent.min.js integrity="sha512-yXXqOFjdjHNH1GND+1EO0jbvvebABpzGKD66djnUfiKlYME5HGMUJHoCaeE4D5PTG2YsSJf6dwqyUUvQvS0vaA==" crossorigin=anonymous></script><link rel=stylesheet href=https://cdn.jsdelivr.net/gh/osano/cookieconsent@3.1.1/build/cookieconsent.min.css integrity="sha512-LQ97camar/lOliT/MqjcQs5kWgy6Qz/cCRzzRzUCfv0fotsCTC9ZHXaPQmJV8Xu/PVALfJZ7BDezl5lW3/qBxg==" crossorigin=anonymous><script>window.addEventListener("load",function(){window.cookieconsent.initialise({palette:{popup:{background:"#1565c0",text:"rgb(255, 255, 255)"},button:{background:"rgb(255, 255, 255)",text:"#1565c0"}},theme:"classic",content:{message:"This website uses cookies to ensure you get the best experience on our website.",dismiss:"Got it!",link:"Learn more",href:"https://www.cookiesandyou.com"}})})</script><title>When More Cores Means Less Speed: Debugging PyTorch with Valgrind on ARM | Nubificus</title></head><body id=top data-spy=scroll data-offset=70 data-target=#TableOfContents class=page-wrapper data-wc-page-id=843f06b1a6c23245ef03bb3746290d10><script src=/js/wowchemy-init.min.9e4214442a7711d35691acd58f6f6361.js></script><div class="page-header header--fixed"><style>.navbar-logo{height:50px;display:flex;align-items:center}.navbar-logo img{max-height:45px;width:auto;display:block}.navbar-logo .logo-dark{display:none}body.colorscheme-dark .navbar-logo .logo-light,body.dark .navbar-logo .logo-light{display:none}body.colorscheme-dark .navbar-logo .logo-dark,body.dark .navbar-logo .logo-dark{display:block}.navbar-logo.logo-nubis,.navbar-logo.logo-nubificus{display:none}</style><script>document.addEventListener("DOMContentLoaded",function(){var e=window.location.hostname,t=e==="nubis-pc.eu"||e==="www.nubis-pc.eu",n=t?"logo-nubis":"logo-nubificus";document.querySelectorAll(".navbar-logo."+n).forEach(function(e){e.style.display="flex"}),document.querySelectorAll("[data-brand]").forEach(function(e){var n=e.getAttribute("data-brand");t?e.textContent=n==="primary"?"Nubis":"Nubificus":e.textContent=n==="primary"?"Nubificus":"Nubis"})})</script><header><nav class="navbar navbar-expand-lg navbar-light compensate-for-scrollbar" id=navbar-main><div class=container-xl><div class="d-none d-lg-inline-flex"><a class=navbar-brand href=/><div class="navbar-logo logo-nubificus"><img class=logo-light src=/media/logo-nubificus_hu_7be4fa6b19286a64.png alt=Nubificus>
+<img class=logo-dark src=/media/logo-nubificus-dark_hu_bd80a6d6121ee2ff.png alt=Nubificus></div><div class="navbar-logo logo-nubis"><img class=logo-light src=/media/logo-nubis.png alt="Nubis PC">
+<img class=logo-dark src=/media/logo-nubis-dark.png alt="Nubis PC"></div></a></div><button type=button class=navbar-toggler data-toggle=collapse data-target=#navbar-content aria-controls=navbar-content aria-expanded=false aria-label="Toggle navigation">
+<span><i class="fas fa-bars"></i></span></button><div class="navbar-brand-mobile-wrapper d-inline-flex d-lg-none"><a class=navbar-brand href=/><div class="navbar-logo logo-nubificus"><img class=logo-light src=/media/logo-nubificus_hu_7be4fa6b19286a64.png alt=Nubificus>
+<img class=logo-dark src=/media/logo-nubificus-dark_hu_bd80a6d6121ee2ff.png alt=Nubificus></div><div class="navbar-logo logo-nubis"><img class=logo-light src=/media/logo-nubis.png alt="Nubis PC">
+<img class=logo-dark src=/media/logo-nubis-dark.png alt="Nubis PC"></div></a></div><div class="navbar-collapse main-menu-item collapse justify-content-end" id=navbar-content><ul class="navbar-nav d-md-inline-flex"><li class=nav-item><a class=nav-link href=/><span>Home</span></a></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>Research</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/projects/><span>Projects</span></a>
+<a class=dropdown-item href=/publication><span>Publications</span></a></div></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>Solutions</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/solutions/edgelink/><span>edgeLink</span></a>
+<a class=dropdown-item href=/solutions/urunc/><span>urunc</span></a>
+<a class=dropdown-item href=/solutions/vaccel/><span>vAccel</span></a></div></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>Feed</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/post><span>News</span></a>
+<a class=dropdown-item href=/event><span>Events</span></a></div></li><li class=nav-item><a class="nav-link active" href=/blog><span>Blog</span></a></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>About</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/people><span>People</span></a>
+<a class=dropdown-item href=/contact><span>Contact</span></a></div></li></ul></div><ul class="nav-icons navbar-nav flex-row ml-auto d-flex pl-md-2"><li class="nav-item dropdown theme-dropdown"><a href=# class=nav-link data-toggle=dropdown aria-haspopup=true aria-label="Display preferences"><i class="fas fa-moon" aria-hidden=true></i></a><div class=dropdown-menu><a href=# class="dropdown-item js-set-theme-light"><span>Light</span>
+</a><a href=# class="dropdown-item js-set-theme-dark"><span>Dark</span>
+</a><a href=# class="dropdown-item js-set-theme-auto"><span>Automatic</span></a></div></li></ul></div></nav></header><script>document.addEventListener("DOMContentLoaded",function(){var e=document.querySelectorAll(".navbar-nav .nav-item.dropdown");e.forEach(function(t){t.addEventListener("mouseenter",function(){e.forEach(function(e){if(e!==t){e.classList.remove("show");var n=e.querySelector(".dropdown-menu");n&&n.classList.remove("show")}}),t.classList.add("show");var n=t.querySelector(".dropdown-menu");n&&n.classList.add("show")}),t.addEventListener("mouseleave",function(){t.classList.remove("show");var e=t.querySelector(".dropdown-menu");e&&e.classList.remove("show")})})})</script></div><div class=page-body><article class=article><div class=article-container><a class=blog-back-link href=javascript:void(0) onclick=blogGoBack()><i class="fas fa-arrow-left"></i> Back to Blog</a></div><div class="article-container pt-3"><h1>When More Cores Means Less Speed: Debugging PyTorch with Valgrind on ARM</h1><div class=article-metadata><span class=article-date>Jul 11, 2025</span></div></div><div class=article-container><div class=article-style><p>If you’ve ever tried to debug a PyTorch program on an ARM64 system using
+<a href=https://valgrind.org/ target=_blank rel=noopener><code>Valgrind</code></a>, you might have stumbled on something really
+odd: &ldquo;Why does it take so long?&rdquo;. And if you&rsquo;re like us, you would probably try
+to run it locally, on a Raspberry pi, to see what&rsquo;s going on&mldr; And the madness
+begins!</p><p>TL;DR, as you probably figured out from the title of this post, it’s a
+counter-intuitive experience: the more cores your machine has, the slower your
+(torch) code seems to run under <code>Valgrind</code>. Shouldn’t more cores mean more speed?
+Let’s dive into why that’s not always the case ;)</p><h2 id=the-background>The background</h2><p>In an effort to improve our testing infrastructure for
+<a href=https://github.com/nubificus/vaccel target=_blank rel=noopener>vAccel</a> and make it more robust, we
+started cleaning up our examples, unifying the build & test scripts and started
+adding more elaborate test cases for both the library and the plugins.
+<code>Valgrind</code> provides a quite decent experience for this, especially to catch
+multi-arch errors, memory leaks and dangling pointers (something quite common
+when writing in C :D).</p><h2 id=the-issue>The issue</h2><p>While adding the <code>Valgrind</code> mode of execution in our tests for the vAccel
+plugins, we noticed something really weird in the
+<a href=https://docs.vaccel.org/latest/plugins/available-plugins/acceleration-plugins/torch-plugin/ target=_blank rel=noopener>Torch</a>
+case. The test was taking forever!</p><p><figure id=figure-figure-1-build--test-run-on-amd64><div class="d-flex justify-content-center"><div class=w-100><img src=/images/images/torch_run_amd64.png alt="Figure 1: Build & Test run on amd64" loading=lazy data-zoomable></div></div><figcaption>Figure 1: Build & Test run on amd64</figcaption></figure></p><p>Specifically, while the equivalent <code>amd64</code> was taking roughly 4 and a half
+minutes (Figure 1), the <code>arm64</code> run was taking nearly an hour (53 minutes) &ndash;
+see Figure 2.</p><p><figure id=figure-figure-2-why-is-it-taking-sooo-long><div class="d-flex justify-content-center"><div class=w-100><img src=/images/images/torch_run_arm64.png alt="Figure 2: Why is it taking sooo long?" loading=lazy data-zoomable></div></div><figcaption>Figure 2: Why is it taking sooo long?</figcaption></figure></p><h2 id=debugging>Debugging</h2><p>The first thing that came to mind was that there&rsquo;s something wrong with our
+infrastructure. We run self-hosted Github runners, with custom container images
+that support the relevant software components we need for each plugin/case. We
+run those on our infra, a set of VMs running on top of diverse low-end
+bare-metal machines, both <code>amd64</code> and <code>arm64</code>. The <code>arm64</code> runners run on a
+couple of <code>Jetson</code> <code>AGX</code> <code>Orins</code>, with 8 cores and 32GB of RAM.</p><p>And what&rsquo;s the first thing to try (especially when debugging on <code>arm64</code>? A
+Raspberry Pi of course!</p><p>So getting the runner container image on a Raspberry Pi 5, with 8GB of RAM,
+spinning up the container, building the library and the plugin, all took
+roughly 10 minutes. And we&rsquo;re ready for the test:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-console data-lang=console><span class=line><span class=cl><span class=gp>#</span> ninja run-examples-valgrind -C build-container
+</span></span><span class=line><span class=cl><span class=go>ninja: Entering directory `build-container&#39;
+</span></span></span><span class=line><span class=cl><span class=go>[0/1] Running external command run-examples-valgrind (wrapped by meson to set env)
+</span></span></span><span class=line><span class=cl><span class=go>Arch is 64bit      : true
+</span></span></span><span class=line><span class=cl><span class=go>[snipped]
+</span></span></span><span class=line><span class=cl><span class=go>Running examples with plugin &#39;libvaccel-torch.so&#39;
+</span></span></span><span class=line><span class=cl><span class=go>+ valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --errors-for-leak-kinds=all --max-stackframe=3150000 --keep-debuginfo=yes --error-exitcode=1 --suppressions=/home/ananos/develop/vaccel-plugin-torch/scripts/common/config/valgrind.supp --main-stacksize=33554432 --max-stackframe=4000000 --suppressions=/home/ananos/develop/vaccel-plugin-torch/scripts/config/valgrind.supp /home/runner/artifacts/bin/torch_inference /home/runner/artifacts/share/vaccel/images/example.jpg https://s3.nbfc.io/torch/mobilenet.pt /home/runner/artifacts/share/vaccel/labels/imagenet.txt
+</span></span></span><span class=line><span class=cl><span class=go>==371== Memcheck, a memory error detector
+</span></span></span><span class=line><span class=cl><span class=go>==371== Copyright (C) 2002-2024, and GNU GPL&#39;d, by Julian Seward et al.
+</span></span></span><span class=line><span class=cl><span class=go>==371== Using Valgrind-3.25.1 and LibVEX; rerun with -h for copyright info
+</span></span></span><span class=line><span class=cl><span class=go>==371== Command: /home/runner/artifacts/bin/torch_inference /home/runner/artifacts/share/vaccel/images/example.jpg https://s3.nbfc.io/torch/mobilenet.pt /home/runner/artifacts/share/vaccel/labels/imagenet.txt
+</span></span></span><span class=line><span class=cl><span class=go>==371==
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:01.91 - &lt;debug&gt; Initializing vAccel
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:01.93 - &lt;info&gt; vAccel 0.7.1-9-b175578f
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:01.93 - &lt;debug&gt; Config:
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:01.93 - &lt;debug&gt;   plugins = libvaccel-torch.so
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:01.93 - &lt;debug&gt;   log_level = debug
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:01.93 - &lt;debug&gt;   log_file = (null)
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:01.93 - &lt;debug&gt;   profiling_enabled = false
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:01.93 - &lt;debug&gt;   version_ignore = false
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:01.94 - &lt;debug&gt; Created top-level rundir: /run/user/0/vaccel/ZpNkGT
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:47.87 - &lt;info&gt; Registered plugin torch 0.2.1-3-0b1978fb
+</span></span></span><span class=line><span class=cl><span class=go>[snipped]
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:48.07 - &lt;debug&gt; Downloading https://s3.nbfc.io/torch/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:53.18 - &lt;debug&gt; Downloaded: 2.4 KB of 13.7 MB (17.2%) | Speed: 474.96 KB/sec
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:54.93 - &lt;debug&gt; Downloaded: 13.7 MB of 13.7 MB (100.0%) | Speed: 2.01 MB/sec
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:54.95 - &lt;debug&gt; Download completed successfully
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:55.04 - &lt;debug&gt; session:1 Registered resource 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:56.37 - &lt;debug&gt; session:1 Looking for plugin implementing torch_jitload_forward operation
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:48:56.37 - &lt;debug&gt; Returning func from hint plugin torch
+</span></span></span><span class=line><span class=cl><span class=go>[snipped]
+</span></span></span><span class=line><span class=cl><span class=go>CUDA not available, running in CPU mode
+</span></span></span><span class=line><span class=cl><span class=go>Success!
+</span></span></span><span class=line><span class=cl><span class=go>Result Tensor :
+</span></span></span><span class=line><span class=cl><span class=go>Output tensor =&gt; type:7 nr_dims:2
+</span></span></span><span class=line><span class=cl><span class=go>size: 4000 B
+</span></span></span><span class=line><span class=cl><span class=go>Prediction: banana
+</span></span></span><span class=line><span class=cl><span class=go>[snipped]
+</span></span></span><span class=line><span class=cl><span class=go>==371== HEAP SUMMARY:
+</span></span></span><span class=line><span class=cl><span class=go>==371==     in use at exit: 339,636 bytes in 3,300 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==371==   total heap usage: 1,779,929 allocs, 1,776,629 frees, 405,074,676 bytes allocated
+</span></span></span><span class=line><span class=cl><span class=go>==371==
+</span></span></span><span class=line><span class=cl><span class=go>==371== LEAK SUMMARY:
+</span></span></span><span class=line><span class=cl><span class=go>==371==    definitely lost: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==371==    indirectly lost: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==371==      possibly lost: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==371==    still reachable: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==371==         suppressed: 339,636 bytes in 3,300 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==371==
+</span></span></span><span class=line><span class=cl><span class=go>==371== For lists of detected and suppressed errors, rerun with: -s
+</span></span></span><span class=line><span class=cl><span class=go>==371== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 3160 from 3160)
+</span></span></span><span class=line><span class=cl><span class=go>+ valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --errors-for-leak-kinds=all --max-stackframe=3150000 --keep-debuginfo=yes --error-exitcode=1 --suppressions=/home/ananos/develop/vaccel-plugin-torch/scripts/common/config/valgrind.supp --main-stacksize=33554432 --max-stackframe=4000000 --suppressions=/home/ananos/develop/vaccel-plugin-torch/scripts/config/valgrind.supp /home/runner/artifacts/bin/classify /home/runner/artifacts/share/vaccel/images/example.jpg 1 https://s3.nbfc.io/torch/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>==376== Memcheck, a memory error detector
+</span></span></span><span class=line><span class=cl><span class=go>==376== Copyright (C) 2002-2024, and GNU GPL&#39;d, by Julian Seward et al.
+</span></span></span><span class=line><span class=cl><span class=go>==376== Using Valgrind-3.25.1 and LibVEX; rerun with -h for copyright info
+</span></span></span><span class=line><span class=cl><span class=go>==376== Command: /home/runner/artifacts/bin/classify /home/runner/artifacts/share/vaccel/images/example.jpg 1 https://s3.nbfc.io/torch/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>==376==
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:54:37.78 - &lt;debug&gt; Initializing vAccel
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:54:37.80 - &lt;info&gt; vAccel 0.7.1-9-b175578f
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:54:37.80 - &lt;debug&gt; Config:
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:54:37.80 - &lt;debug&gt;   plugins = libvaccel-torch.so
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:54:37.80 - &lt;debug&gt;   log_level = debug
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:54:37.80 - &lt;debug&gt;   log_file = (null)
+</span></span></span><span class=line><span class=cl><span class=go>[snipped]
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:55:30.78 - &lt;debug&gt; Found implementation in torch plugin
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:55:30.78 - &lt;debug&gt; [torch] Loading model from /run/user/0/vaccel/zazTtc/resource.1/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>CUDA not available, running in CPU mode
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-21:01:14.77 - &lt;debug&gt; [torch] Prediction: banana
+</span></span></span><span class=line><span class=cl><span class=go>classification tags: banana
+</span></span></span><span class=line><span class=cl><span class=go>[snipped]
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-21:01:23.92 - &lt;debug&gt; Unregistered plugin torch
+</span></span></span><span class=line><span class=cl><span class=go>==376==
+</span></span></span><span class=line><span class=cl><span class=go>==376== HEAP SUMMARY:
+</span></span></span><span class=line><span class=cl><span class=go>==376==     in use at exit: 341,280 bytes in 3,304 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==376==   total heap usage: 3,167,523 allocs, 3,164,219 frees, 534,094,402 bytes allocated
+</span></span></span><span class=line><span class=cl><span class=go>==376==
+</span></span></span><span class=line><span class=cl><span class=go>==376== LEAK SUMMARY:
+</span></span></span><span class=line><span class=cl><span class=go>==376==    definitely lost: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==376==    indirectly lost: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==376==      possibly lost: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==376==    still reachable: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==376==         suppressed: 341,280 bytes in 3,304 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==376==
+</span></span></span><span class=line><span class=cl><span class=go>==376== For lists of detected and suppressed errors, rerun with: -s
+</span></span></span><span class=line><span class=cl><span class=go>==376== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 3161 from 3161)
+</span></span></span><span class=line><span class=cl><span class=go>+ set +x
+</span></span></span></code></pre></div><blockquote><p>Note: We&rsquo;ll talk about the suppressions a bit later</p></blockquote><p>The test took roughly 13 minutes. At this point, we were scratching our heads.
+Why would a high-end Jetson Orin, with way more cores and RAM, perform so much
+worse under <code>Valgrind</code> than a humble Raspberry Pi? Time to dig deeper into what’s
+really going on under the hood&mldr;</p><h2 id=the-surprise>The Surprise</h2><p>When the results came in, the numbers were still striking: the same
+<code>Valgrind</code>-wrapped Torch test that took almost an hour on our Jetson Orin
+finished in just 13 minutes on the Raspberry Pi. The Pi, with far less RAM and
+CPU muscle, still managed to outperform the Orin by a wide margin under these
+specific conditions.</p><p>This result was the definition of counter-intuitive. Everything we know about
+hardware says the Orin should wipe the floor with the Pi. Yet, here we were,
+staring at the Pi’s prompt, wondering if we’d missed something obvious.</p><h2 id=digging-deeper-whats-really-happening>Digging Deeper: What’s Really Happening?</h2><p>So, what’s going on? Why does a high-end, multi-core ARM system get crushed by
+a humble Pi in this scenario? The answer lies at the intersection of <code>Valgrind</code>,
+multi-threaded workloads, and the quirks of the ARM64 ecosystem.</p><h3 id=thread-count-the-double-edged-sword>Thread Count: The Double-Edged Sword</h3><p>Modern CPUs, especially high-end ARM chips like the Orin, have lots of cores,
+and frameworks like PyTorch are eager to use them all. By default, PyTorch will
+spawn as many threads as it thinks your system can handle, aiming for maximum
+parallelism.</p><p>But <code>Valgrind</code>, which works by instrumenting every memory access and
+synchronizing thread activity to catch bugs, doesn’t scale gracefully with
+thread count. In fact:</p><ul><li>Each additional thread multiplies <code>Valgrind</code>’s overhead. More threads mean more
+context switches, more synchronization, and more internal bookkeeping.</li><li>On platforms where <code>Valgrind</code>’s threading support is less mature (like
+aarch64), this overhead can balloon out of control.</li><li>On the Raspberry Pi, with its modest core count, PyTorch only spawns a
+handful of threads. But on the Orin, with many more cores, PyTorch ramps up
+the thread count—and <code>Valgrind</code>’s overhead explodes.</li></ul><h3 id=the-arm64-valgrind-quirk>The ARM64 <code>Valgrind</code> Quirk</h3><p>The <code>arm64</code> port of <code>Valgrind</code> is still catching up to its <code>amd64</code> sibling in
+terms of optimizations and robustness. Some operations, especially those
+involving threads and memory, are simply slower to emulate and track on <code>arm64</code>.
+This compounds the thread explosion problem, making high-core-count systems
+paradoxically slower under <code>Valgrind</code>.</p><h4 id=dealing-with-library-suppressions-on-arm64-with-valgrind>Dealing with library suppressions on arm64 with <code>Valgrind</code></h4><p>For instance, when running applications that rely on specific libraries under
+<code>Valgrind</code> on <code>arm64</code> systems, developers frequently encounter a barrage of
+memory-related warnings and errors. Many of these issues are not actual bugs in
+your code, but rather artifacts of how these libraries manage memory
+internally, or limitations in <code>Valgrind</code>’s emulation on such architectures.</p><p>For instance, OpenSSL is known for its custom memory management strategies. It
+often allocates memory statically or uses platform-specific tricks, which can
+confuse <code>Valgrind</code>’s memory checker. For example, you might see reports of
+&ldquo;still reachable&rdquo; memory or even &ldquo;definitely lost&rdquo; memory at program exit.</p><p>In reality, much of this memory is intentionally held for the lifetime of the
+process—such as global tables or the state for the random number generator.
+These are not leaks in the conventional sense, but <code>Valgrind</code> will still flag
+them, especially if you run with strict leak checking enabled.</p><p>On <code>arm64</code> platforms, the situation can be further complicated. <code>Valgrind</code> may
+not fully emulate every instruction used by the specific library. This can lead
+to false positives, such as uninitialized value warnings, or even more dramatic
+errors like <code>SIGILL</code> (illegal instruction) if <code>Valgrind</code> encounters an
+unsupported operation.</p><p>It’s not uncommon to see a flood of warnings that are, in practice, harmless or
+simply not actionable unless you’re developing for that specific library itself.</p><p>To manage this noise and focus on real issues in our application, we use
+<code>Valgrind</code>’s suppression mechanism. Suppression files allow us
+to tell <code>Valgrind</code> to ignore specific known issues, so we can zero in on genuine
+bugs in our own code.</p><p>Suppression entries are typically matched by library object names, so on
+<code>arm64</code> we use patterns like <code>/usr/lib/aarch64-linux-gnu/libssh.so*</code> or
+<code>obj:*libc10*.so*</code>, <code>obj:*libtorch*.so*</code>.</p><p>An example suppression snippet (<code>valgrind.supp</code>) looks like the following:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>[...]
+</span></span><span class=line><span class=cl>{
+</span></span><span class=line><span class=cl>   suppress_libtorch_leaks
+</span></span><span class=line><span class=cl>   Memcheck:Leak
+</span></span><span class=line><span class=cl>   match-leak-kinds: reachable,possible
+</span></span><span class=line><span class=cl>   ...
+</span></span><span class=line><span class=cl>   obj:*libtorch*.so*
+</span></span><span class=line><span class=cl>}
+</span></span><span class=line><span class=cl>{
+</span></span><span class=line><span class=cl>   suppress_libtorch_ovelaps
+</span></span><span class=line><span class=cl>   Memcheck:Overlap
+</span></span><span class=line><span class=cl>   ...
+</span></span><span class=line><span class=cl>   obj:*libtorch*.so*
+</span></span><span class=line><span class=cl>}
+</span></span><span class=line><span class=cl>[...]
+</span></span></code></pre></div><p>It’s important to note that not all problems can be suppressed away. For
+example, if <code>Valgrind</code> encounters a truly unsupported instruction and throws a
+<code>SIGILL</code>, a suppression file won’t help; you may need to update <code>Valgrind</code> or avoid
+that code path. Still, for the majority of benign memory warnings from OpenSSL
+or Torch, well-crafted suppressions keeps our <code>Valgrind</code> output manageable
+and meaningful.</p><h3 id=debug-symbol-overhead>Debug Symbol Overhead</h3><p>Another factor: large binaries with lots of debug symbols (common in deep
+learning stacks) can cause <code>Valgrind</code> to spend an inordinate amount of time just
+parsing and managing symbol information. The more complex the binary and its
+dependencies, the longer the startup and runtime overhead. Again, amplified on
+<code>arm64</code>.</p><h2 id=lessons-learned-and-what-you-can-do>Lessons Learned (and What You Can Do)</h2><p><em>Limit Thread Count</em>: When running under <code>Valgrind</code>, explicitly set PyTorch to
+use a single thread <code>OMP_NUM_THREADS=1</code>. This alone can make a world of
+difference.</p><p><em>Test Small</em>: Use the smallest possible model and dataset for <code>Valgrind</code> runs.
+Save the big workloads for native or lighter-weight profiling tools.</p><p><em>Expect the Unexpected</em>: Don’t assume that “bigger is better” when debugging
+with <code>Valgrind</code> &ndash; sometimes, less really is more!</p><p><em>Profile Performance Separately</em>: Use <code>Valgrind</code> for correctness and bug-hunting,
+not for benchmarking or performance profiling.</p><p>And here&rsquo;s the full snippet of the test, on a runner VM on the Jetson Orin,
+taking less than 6 minutes:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-console data-lang=console><span class=line><span class=cl><span class=gp>$</span> ninja run-examples-valgrind -C build
+</span></span><span class=line><span class=cl><span class=go>ninja: Entering directory `build&#39;
+</span></span></span><span class=line><span class=cl><span class=go>[0/1] Running external command run-examples-valgrind (wrapped by meson to set env)
+</span></span></span><span class=line><span class=cl><span class=go>Arch is 64bit      : true
+</span></span></span><span class=line><span class=cl><span class=go>Default config dir : /home/ananos/vaccel-plugin-torch/scripts/common/config
+</span></span></span><span class=line><span class=cl><span class=go>Package            : vaccel-torch
+</span></span></span><span class=line><span class=cl><span class=go>Package config dir : /home/ananos/vaccel-plugin-torch/scripts/config
+</span></span></span><span class=line><span class=cl><span class=go>Package lib dir    : /home/ananos/vaccel-plugin-torch/build/src
+</span></span></span><span class=line><span class=cl><span class=go>vAccel prefix      : /home/runner/artifacts
+</span></span></span><span class=line><span class=cl><span class=go>vAccel lib dir     : /home/runner/artifacts/lib/aarch64-linux-gnu
+</span></span></span><span class=line><span class=cl><span class=go>vAccel bin dir     : /home/runner/artifacts/bin
+</span></span></span><span class=line><span class=cl><span class=go>vAccel share dir   : /home/runner/artifacts/share/vaccel
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=go>Running examples with plugin &#39;libvaccel-torch.so&#39;
+</span></span></span><span class=line><span class=cl><span class=go>+ eval valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --errors-for-leak-kinds=all --max-stackframe=3150000 --keep-debuginfo=yes --error-exitcode=1 --suppressions=/home/ananos/vaccel-plugin-torch/scripts/common/config/valgrind.supp --main-stacksize=33554432 --max-stackframe=4000000 --fair-sched=no --suppressions=/home/ananos/vaccel-plugin-torch/scripts/config/valgrind.supp /home/runner/artifacts/bin/torch_inference /home/runner/artifacts/share/vaccel/images/example.jpg https://s3.nbfc.io/torch/mobilenet.pt /home/runner/artifacts/share/vaccel/labels/imagenet.txt
+</span></span></span><span class=line><span class=cl><span class=go>+ valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --errors-for-leak-kinds=all --max-stackframe=3150000 --keep-debuginfo=yes --error-exitcode=1 --suppressions=/home/ananos/vaccel-plugin-torch/scripts/common/config/valgrind.supp --main-stacksize=33554432 --max-stackframe=4000000 --fair-sched=no --suppressions=/home/ananos/vaccel-plugin-torch/scripts/config/valgrind.supp /home/runner/artifacts/bin/torch_inference /home/runner/artifacts/share/vaccel/images/example.jpg https://s3.nbfc.io/torch/mobilenet.pt /home/runner/artifacts/share/vaccel/labels/imagenet.txt
+</span></span></span><span class=line><span class=cl><span class=go>==1655== Memcheck, a memory error detector
+</span></span></span><span class=line><span class=cl><span class=go>==1655== Copyright (C) 2002-2024, and GNU GPL&#39;d, by Julian Seward et al.
+</span></span></span><span class=line><span class=cl><span class=go>==1655== Using Valgrind-3.25.1 and LibVEX; rerun with -h for copyright info
+</span></span></span><span class=line><span class=cl><span class=go>==1655== Command: /home/runner/artifacts/bin/torch_inference /home/runner/artifacts/share/vaccel/images/example.jpg https://s3.nbfc.io/torch/mobilenet.pt /home/runner/artifacts/share/vaccel/labels/imagenet.txt
+</span></span></span><span class=line><span class=cl><span class=go>==1655==
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:06:28.83 - &lt;debug&gt; Initializing vAccel
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:06:28.85 - &lt;info&gt; vAccel 0.7.1-9-b175578f
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:06:28.86 - &lt;debug&gt; Config:
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:06:28.86 - &lt;debug&gt;   plugins = libvaccel-torch.so
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:06:28.86 - &lt;debug&gt;   log_level = debug
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:06:28.86 - &lt;debug&gt;   log_file = (null)
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:06:28.86 - &lt;debug&gt;   profiling_enabled = false
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:06:28.86 - &lt;debug&gt;   version_ignore = false
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:06:28.87 - &lt;debug&gt; Created top-level rundir: /run/user/1000/vaccel/P01ae4
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:27.35 - &lt;info&gt; Registered plugin torch 0.2.1-3-0b1978fb
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:27.35 - &lt;debug&gt; Registered op torch_jitload_forward from plugin torch
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:27.35 - &lt;debug&gt; Registered op torch_sgemm from plugin torch
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:27.35 - &lt;debug&gt; Registered op image_classify from plugin torch
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:27.35 - &lt;debug&gt; Loaded plugin torch from libvaccel-torch.so
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:27.39 - &lt;debug&gt; Initialized resource 1
+</span></span></span><span class=line><span class=cl><span class=go>Initialized model resource 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:27.39 - &lt;debug&gt; New rundir for session 1: /run/user/1000/vaccel/P01ae4/session.1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:27.39 - &lt;debug&gt; Initialized session 1
+</span></span></span><span class=line><span class=cl><span class=go>Initialized vAccel session 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:27.40 - &lt;debug&gt; New rundir for resource 1: /run/user/1000/vaccel/P01ae4/resource.1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:27.62 - &lt;debug&gt; Downloading https://s3.nbfc.io/torch/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:33.90 - &lt;debug&gt; Downloaded: 555.7 KB of 13.7 MB (4.0%) | Speed: 88.84 KB/sec
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:36.78 - &lt;debug&gt; Downloaded: 13.7 MB of 13.7 MB (100.0%) | Speed: 1.50 MB/sec
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:36.80 - &lt;debug&gt; Download completed successfully
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:36.94 - &lt;debug&gt; session:1 Registered resource 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:38.16 - &lt;debug&gt; session:1 Looking for plugin implementing torch_jitload_forward operation
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:38.16 - &lt;debug&gt; Returning func from hint plugin torch
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:38.16 - &lt;debug&gt; Found implementation in torch plugin
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:38.16 - &lt;debug&gt; [torch] session:1 Jitload &amp; Forward Process
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:38.16 - &lt;debug&gt; [torch] Model: /run/user/1000/vaccel/P01ae4/resource.1/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:07:38.17 - &lt;debug&gt; [torch] Loading model from /run/user/1000/vaccel/P01ae4/resource.1/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>CUDA not available, running in CPU mode
+</span></span></span><span class=line><span class=cl><span class=go>Success!
+</span></span></span><span class=line><span class=cl><span class=go>Result Tensor :
+</span></span></span><span class=line><span class=cl><span class=go>Output tensor =&gt; type:7 nr_dims:2
+</span></span></span><span class=line><span class=cl><span class=go>size: 4000 B
+</span></span></span><span class=line><span class=cl><span class=go>Prediction: banana
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:39.93 - &lt;debug&gt; session:1 Unregistered resource 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:39.94 - &lt;debug&gt; Released session 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:39.94 - &lt;debug&gt; Removing file /run/user/1000/vaccel/P01ae4/resource.1/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:39.95 - &lt;debug&gt; Released resource 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:48.91 - &lt;debug&gt; Cleaning up vAccel
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:48.91 - &lt;debug&gt; Cleaning up sessions
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:48.91 - &lt;debug&gt; Cleaning up resources
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:48.91 - &lt;debug&gt; Cleaning up plugins
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:48.92 - &lt;debug&gt; Unregistered plugin torch
+</span></span></span><span class=line><span class=cl><span class=go>==1655==
+</span></span></span><span class=line><span class=cl><span class=go>==1655== HEAP SUMMARY:
+</span></span></span><span class=line><span class=cl><span class=go>==1655==     in use at exit: 304,924 bytes in 3,290 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==1655==   total heap usage: 1,780,098 allocs, 1,776,808 frees, 406,800,553 bytes allocated
+</span></span></span><span class=line><span class=cl><span class=go>==1655==
+</span></span></span><span class=line><span class=cl><span class=go>==1655== LEAK SUMMARY:
+</span></span></span><span class=line><span class=cl><span class=go>==1655==    definitely lost: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==1655==    indirectly lost: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==1655==      possibly lost: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==1655==    still reachable: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==1655==         suppressed: 304,924 bytes in 3,290 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==1655==
+</span></span></span><span class=line><span class=cl><span class=go>==1655== For lists of detected and suppressed errors, rerun with: -s
+</span></span></span><span class=line><span class=cl><span class=go>==1655== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 3153 from 3153)
+</span></span></span><span class=line><span class=cl><span class=go>+ [ 1 = 1 ]
+</span></span></span><span class=line><span class=cl><span class=go>+ eval valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --errors-for-leak-kinds=all --max-stackframe=3150000 --keep-debuginfo=yes --error-exitcode=1 --suppressions=/home/ananos/vaccel-plugin-torch/scripts/common/config/valgrind.supp --main-stacksize=33554432 --max-stackframe=4000000 --fair-sched=no --suppressions=/home/ananos/vaccel-plugin-torch/scripts/config/valgrind.supp /home/runner/artifacts/bin/classify /home/runner/artifacts/share/vaccel/images/example.jpg 1 https://s3.nbfc.io/torch/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>+ valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --errors-for-leak-kinds=all --max-stackframe=3150000 --keep-debuginfo=yes --error-exitcode=1 --suppressions=/home/ananos/vaccel-plugin-torch/scripts/common/config/valgrind.supp --main-stacksize=33554432 --max-stackframe=4000000 --fair-sched=no --suppressions=/home/ananos/vaccel-plugin-torch/scripts/config/valgrind.supp /home/runner/artifacts/bin/classify /home/runner/artifacts/share/vaccel/images/example.jpg 1 https://s3.nbfc.io/torch/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>==1657== Memcheck, a memory error detector
+</span></span></span><span class=line><span class=cl><span class=go>==1657== Copyright (C) 2002-2024, and GNU GPL&#39;d, by Julian Seward et al.
+</span></span></span><span class=line><span class=cl><span class=go>==1657== Using Valgrind-3.25.1 and LibVEX; rerun with -h for copyright info
+</span></span></span><span class=line><span class=cl><span class=go>==1657== Command: /home/runner/artifacts/bin/classify /home/runner/artifacts/share/vaccel/images/example.jpg 1 https://s3.nbfc.io/torch/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>==1657==
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:50.40 - &lt;debug&gt; Initializing vAccel
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:50.42 - &lt;info&gt; vAccel 0.7.1-9-b175578f
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:50.42 - &lt;debug&gt; Config:
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:50.42 - &lt;debug&gt;   plugins = libvaccel-torch.so
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:50.42 - &lt;debug&gt;   log_level = debug
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:50.42 - &lt;debug&gt;   log_file = (null)
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:50.42 - &lt;debug&gt;   profiling_enabled = false
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:50.42 - &lt;debug&gt;   version_ignore = false
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:08:50.43 - &lt;debug&gt; Created top-level rundir: /run/user/1000/vaccel/73XJNT
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:48.93 - &lt;info&gt; Registered plugin torch 0.2.1-3-0b1978fb
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:48.93 - &lt;debug&gt; Registered op torch_jitload_forward from plugin torch
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:48.93 - &lt;debug&gt; Registered op torch_sgemm from plugin torch
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:48.93 - &lt;debug&gt; Registered op image_classify from plugin torch
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:48.93 - &lt;debug&gt; Loaded plugin torch from libvaccel-torch.so
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:48.94 - &lt;debug&gt; New rundir for session 1: /run/user/1000/vaccel/73XJNT/session.1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:48.95 - &lt;debug&gt; Initialized session 1
+</span></span></span><span class=line><span class=cl><span class=go>Initialized session with id: 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:48.97 - &lt;debug&gt; Initialized resource 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:48.98 - &lt;debug&gt; New rundir for resource 1: /run/user/1000/vaccel/73XJNT/resource.1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:49.19 - &lt;debug&gt; Downloading https://s3.nbfc.io/torch/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:55.17 - &lt;debug&gt; Downloaded: 816.6 KB of 13.7 MB (5.8%) | Speed: 137.30 KB/sec
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:57.71 - &lt;debug&gt; Downloaded: 13.7 MB of 13.7 MB (100.0%) | Speed: 1.62 MB/sec
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:57.73 - &lt;debug&gt; Download completed successfully
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:57.87 - &lt;debug&gt; session:1 Registered resource 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:57.88 - &lt;debug&gt; session:1 Looking for plugin implementing VACCEL_OP_IMAGE_CLASSIFY
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:57.88 - &lt;debug&gt; Returning func from hint plugin torch
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:57.88 - &lt;debug&gt; Found implementation in torch plugin
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:09:57.88 - &lt;debug&gt; [torch] Loading model from /run/user/1000/vaccel/73XJNT/resource.1/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>CUDA not available, running in CPU mode
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:11:31.42 - &lt;debug&gt; [torch] Prediction: banana
+</span></span></span><span class=line><span class=cl><span class=go>classification tags: banana
+</span></span></span><span class=line><span class=cl><span class=go>classification imagename: PLACEHOLDER
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:11:31.93 - &lt;debug&gt; session:1 Unregistered resource 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:11:31.93 - &lt;debug&gt; Removing file /run/user/1000/vaccel/73XJNT/resource.1/mobilenet.pt
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:11:31.94 - &lt;debug&gt; Released resource 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:11:31.95 - &lt;debug&gt; Released session 1
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:11:44.12 - &lt;debug&gt; Cleaning up vAccel
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:11:44.12 - &lt;debug&gt; Cleaning up sessions
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:11:44.12 - &lt;debug&gt; Cleaning up resources
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:11:44.12 - &lt;debug&gt; Cleaning up plugins
+</span></span></span><span class=line><span class=cl><span class=go>2025.07.10-20:11:44.12 - &lt;debug&gt; Unregistered plugin torch
+</span></span></span><span class=line><span class=cl><span class=go>==1657==
+</span></span></span><span class=line><span class=cl><span class=go>==1657== HEAP SUMMARY:
+</span></span></span><span class=line><span class=cl><span class=go>==1657==     in use at exit: 306,616 bytes in 3,294 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==1657==   total heap usage: 3,167,511 allocs, 3,164,217 frees, 533,893,229 bytes allocated
+</span></span></span><span class=line><span class=cl><span class=go>==1657==
+</span></span></span><span class=line><span class=cl><span class=go>==1657== LEAK SUMMARY:
+</span></span></span><span class=line><span class=cl><span class=go>==1657==    definitely lost: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==1657==    indirectly lost: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==1657==      possibly lost: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==1657==    still reachable: 0 bytes in 0 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==1657==         suppressed: 306,616 bytes in 3,294 blocks
+</span></span></span><span class=line><span class=cl><span class=go>==1657==
+</span></span></span><span class=line><span class=cl><span class=go>==1657== For lists of detected and suppressed errors, rerun with: -s
+</span></span></span><span class=line><span class=cl><span class=go>==1657== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 3153 from 3153)
+</span></span></span><span class=line><span class=cl><span class=go>+ set +x
+</span></span></span></code></pre></div><p>and the actual test in Figure 3, taking 8 minutes, almost 7 times faster than
+the original execution:</p><p><figure id=figure-figure-3-fixed-arm64-valgrind-test><div class="d-flex justify-content-center"><div class=w-100><img src=/images/images/torch_run_arm64-fixed.png alt="Figure 3: Fixed arm64 valgrind test" loading=lazy data-zoomable></div></div><figcaption>Figure 3: Fixed arm64 valgrind test</figcaption></figure></p><h2 id=wrapping-up>Wrapping Up</h2><p>This experience was a great reminder that debugging tools and parallel
+workloads don’t always play nicely, especially on less mature platforms.
+Sometimes, the humble Raspberry Pi will leave a high-end chip in the dust,
+at least when <code>Valgrind</code> is in the mix.</p><p>So next time you’re staring at a progress bar that refuses to budge, remember:
+more cores might just mean more waiting. And don’t be afraid to try your tests
+on the &ldquo;little guy&rdquo; &ndash; you might be surprised by what you find.</p></div><div class=article-tags><a class="badge badge-light" href=/tag/vaccel/>VAccel</a>
+<a class="badge badge-light" href=/tag/torch/>Torch</a>
+<a class="badge badge-light" href=/tag/slowdown/>Slowdown</a>
+<a class="badge badge-light" href=/tag/multi-cores/>Multi-Cores</a></div><div class=share-box><ul class=share><li><a href="https://twitter.com/intent/tweet?url=%2Fblog%2Ftorch-arm-debug%2F&amp;text=When+More+Cores+Means+Less+Speed%3A+Debugging+PyTorch+with+Valgrind+on+ARM" target=_blank rel=noopener class=share-btn-twitter aria-label=twitter><i class="fab fa-twitter"></i></a></li><li><a href="https://www.facebook.com/sharer.php?u=%2Fblog%2Ftorch-arm-debug%2F&amp;t=When+More+Cores+Means+Less+Speed%3A+Debugging+PyTorch+with+Valgrind+on+ARM" target=_blank rel=noopener class=share-btn-facebook aria-label=facebook><i class="fab fa-facebook"></i></a></li><li><a href="mailto:?subject=When%20More%20Cores%20Means%20Less%20Speed%3A%20Debugging%20PyTorch%20with%20Valgrind%20on%20ARM&amp;body=%2Fblog%2Ftorch-arm-debug%2F" target=_blank rel=noopener class=share-btn-email aria-label=envelope><i class="fas fa-envelope"></i></a></li><li><a href="https://www.linkedin.com/shareArticle?url=%2Fblog%2Ftorch-arm-debug%2F&amp;title=When+More+Cores+Means+Less+Speed%3A+Debugging+PyTorch+with+Valgrind+on+ARM" target=_blank rel=noopener class=share-btn-linkedin aria-label=linkedin-in><i class="fab fa-linkedin-in"></i></a></li><li><a href="whatsapp://send?text=When+More+Cores+Means+Less+Speed%3A+Debugging+PyTorch+with+Valgrind+on+ARM%20%2Fblog%2Ftorch-arm-debug%2F" target=_blank rel=noopener class=share-btn-whatsapp aria-label=whatsapp><i class="fab fa-whatsapp"></i></a></li><li><a href="https://service.weibo.com/share/share.php?url=%2Fblog%2Ftorch-arm-debug%2F&amp;title=When+More+Cores+Means+Less+Speed%3A+Debugging+PyTorch+with+Valgrind+on+ARM" target=_blank rel=noopener class=share-btn-weibo aria-label=weibo><i class="fab fa-weibo"></i></a></li></ul></div></div></article><script>function blogGoBack(){document.referrer&&document.referrer.indexOf("/blog")!==-1?history.back():window.location.href="/blog/"}</script></div><div class=page-footer><div class=container><footer class=site-footer><p class="powered-by copyright-license-text">© 2026 Nubificus LTD. This work is licensed under <a href=https://creativecommons.org/licenses/by-nc-nd/4.0 rel="noopener noreferrer" target=_blank>CC BY NC ND 4.0</a></p><p class="powered-by footer-license-icons"><a href=https://creativecommons.org/licenses/by-nc-nd/4.0 rel="noopener noreferrer" target=_blank aria-label="Creative Commons"><i class="fab fa-creative-commons fa-2x" aria-hidden=true></i>
+<i class="fab fa-creative-commons-by fa-2x" aria-hidden=true></i>
+<i class="fab fa-creative-commons-nc fa-2x" aria-hidden=true></i>
+<i class="fab fa-creative-commons-nd fa-2x" aria-hidden=true></i></a></p><p class=powered-by>Published with <a href="https://hugoblox.com/?utm_campaign=poweredby" target=_blank rel=noopener>Hugo Blox Builder</a> — the free, <a href=https://github.com/HugoBlox/hugo-blox-builder target=_blank rel=noopener>open source</a> website builder that empowers creators.</p></footer></div></div><script src=/js/vendor-bundle.min.6782e3f6a4f06ea4766df038c45ecf40.js></script><script src=https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.min.js integrity crossorigin=anonymous></script><script id=page-data type=application/json>{"use_headroom":true}</script><script src=/js/wowchemy-headroom.b95a7e109243f29d04930ae8cb49a756.js type=module></script><script src=/en/js/wowchemy.min.ed487406ecbb80985462ba7a97b6f2d2.js></script><script src=/js/wowchemy-map.a26e9d2f7238ba5b868384f1c5bc6477.js type=module></script><div id=modal class="modal fade" role=dialog><div class=modal-dialog><div class=modal-content><div class=modal-header><h5 class=modal-title>Cite</h5><button type=button class=close data-dismiss=modal aria-label=Close>
+<span aria-hidden=true>&#215;</span></button></div><div class=modal-body><pre><code></code></pre></div><div class=modal-footer><a class="btn btn-outline-primary my-1 js-copy-cite" href=# target=_blank><i class="fas fa-copy"></i> Copy
+</a><a class="btn btn-outline-primary my-1 js-download-cite" href=# target=_blank><i class="fas fa-download"></i> Download</a><div id=modal-error></div></div></div></div></div><script src=/js/wowchemy-publication.9c0e895144aef5a693008b5c5d450147.js type=module></script></body></html>

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>ARMv8 | Nubificus</title><link>/tag/armv8/</link><atom:link href="/tag/armv8/index.xml" rel="self" type="application/rss+xml"/><description>ARMv8</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Wed, 23 Jan 2019 14:41:44 +0200</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>ARMv8</title><link>/tag/armv8/</link></image><item><title>Experiences from porting nabla containers to an ARMv8 board</title><link>/blog/nabla-containers-aarch64/</link><pubDate>Wed, 23 Jan 2019 14:41:44 +0200</pubDate><guid>/blog/nabla-containers-aarch64/</guid><description>&lt;p&gt;[&lt;strong&gt;UPDATE:&lt;/strong&gt; Rumprun aarch64 support has now been merged in
+&lt;a href="https://github.com/nabla-containers/rumprun" target="_blank" rel="noopener"&gt;upstream nabla&lt;/a&gt;.]
+&lt;br&gt;
+&lt;br&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://nabla-containers.github.io" target="_blank" rel="noopener"&gt;Nabla containers&lt;/a&gt; provide a new type of container designed for strong
+isolation on a host system. The foundation of nabla containers lies in three
+main components: &lt;a href="http://rumpkernel.org" target="_blank" rel="noopener"&gt;rumpkernel&lt;/a&gt;, &lt;a href="https://github.com/Solo5/solo5" target="_blank" rel="noopener"&gt;solo5&lt;/a&gt;, and &lt;a href="https://github.com/nabla-containers/runnc" target="_blank" rel="noopener"&gt;runnc&lt;/a&gt;. The &lt;a href="https://nabla-containers.github.io/people" target="_blank" rel="noopener"&gt;team&lt;/a&gt;
+that built nabla containers extended the rumprun unikernel framework to support
+solo5 (instead of hardware/baremetal or xen), so that a rumprun-baked unikernel
+application can be executed on top of a lightweight monitor such as solo5. In
+this post, we describe the steps we took in order to port Nabla containers to
+the ARMv8 architecture.&lt;/p&gt;
+&lt;h3 id="a-bit-of-background"&gt;A bit of background&lt;/h3&gt;
+&lt;p&gt;&lt;a href="https://github.com/rumpkernel/rumprun" target="_blank" rel="noopener"&gt;Rumprun&lt;/a&gt; is a unikernel framework based on &lt;a href="http://rumpkernel.org" target="_blank" rel="noopener"&gt;rumpkernel&lt;/a&gt;, a project that
+provides kernel-quality drivers for various components, e.g. file systems,
+network devices, POSIX system calls. Rump kernel exposes these drivers through
+the &lt;em&gt;rump kernel hypercall interface&lt;/em&gt; to higher abstraction layers. While
+initially, rump kernels were designed to provide &amp;lsquo;userspace&amp;rsquo; &lt;a href="https://wiki.netbsd.org/projects/project/userland_pci" target="_blank" rel="noopener"&gt;drivers&lt;/a&gt;, they
+evolved to become the base of the Rumprun unikernel.&lt;/p&gt;
+&lt;p&gt;Almost any POSIX-based application can be built into a Rumprun unikernel using
+the following workflow:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Compile and link the application against the POSIX-y interface that Rumprun
+exposes.&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;Bake&lt;/em&gt; the application, in order to add the bits and pieces needed to turn
+it into an image that
+is bootable on the targets that Rumprun runs on top of.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;Upstream Rumprun defines the concept of &lt;em&gt;target&lt;/em&gt;, i.e. the platforms on which a
+Rumprun unikernel can run on top of. At the moment the upstream Rumprun
+provides two targets:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;The &lt;strong&gt;hw&lt;/strong&gt; target provides support on raw hardware which includes most
+available hypervisors.&lt;/li&gt;
+&lt;li&gt;The &lt;strong&gt;Xen&lt;/strong&gt; target is optimized for execution on top of the Xen hypervisor&lt;/li&gt;
+&lt;/ul&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/rumprun-solo5.png" alt="" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;p&gt;The Nabla fork of Rumprun provides a new unikernel target, &lt;a href="https://github.com/Solo5/solo5" target="_blank" rel="noopener"&gt;Solo5&lt;/a&gt;. Solo5
+is, essentially, a hardware abstraction layer that provides a very thin
+interface, or else a &lt;em&gt;minimal attach surface&lt;/em&gt;. Its purpose is to facilitate
+the port of libOS/unikernel frameworks on various hardware platforms, i.e. a
+unikernel that runs on top of Solo5, runs on top of all the hardware targets,
+or &lt;em&gt;tenders&lt;/em&gt;, using the Solo5 terminology, supported by Solo5.&lt;/p&gt;
+&lt;h3 id="armv8-rumprun-solo5"&gt;ARMv8 rumprun solo5&lt;/h3&gt;
+&lt;p&gt;To port nabla containers to the ARMv8 architecture, one has to provide support
+for each of these components: rumprun, solo5 and runnc. We decided to tackle
+this challenge by separately porting each component and working on integrating
+as much code as possible from upstream repositories.&lt;/p&gt;
+&lt;h4 id="solo5"&gt;Solo5&lt;/h4&gt;
+&lt;p&gt;For the solo5 port, most of the code was already in upstream solo5, although
+the seccomp tender (as it is now called) provided by nabla didn’t have support
+for aarch64 targets. To implement that, apart from adding the compilation
+target itself, we also had to provide the arch specific lds and add the
+hypercall-to-syscall mechanism used to aarch64. Finally, for everything to
+actually work we implemented reading the cpu timer frequency correctly for
+aarch64 and provided some missing seccomp definitions.
+As of the time of writing this post, an &lt;a href="https://github.com/Solo5/solo5/pull/310" target="_blank" rel="noopener"&gt;upstream solo5-seccomp tender&lt;/a&gt; for
+both x86 and aarch64 is under way and should be merged in really soon.&lt;/p&gt;
+&lt;h4 id="rumprun"&gt;Rumprun&lt;/h4&gt;
+&lt;p&gt;For rumprun, things were a bit more complicated. Both upstream and nabla
+rumprun repos build necessary &lt;code&gt;NetBSD&lt;/code&gt; parts from an old snapshot of the official
+sources. &lt;code&gt;NetBSD&lt;/code&gt; has added aarch64 support fairly recently and with much work
+still being done we decided to base our build on the latest official sources
+instead of the stripped down version provided by rumprun. This presented a
+challenge: integrating the changes to a not actively maintained code base is
+not a walk in the park. First things first, we had to successfully compile the
+whole project: Rump parts of the &lt;code&gt;NetBSD&lt;/code&gt; kernel are not actively tested with
+rumprun and so changes being made to related components are not always
+guaranteed to work. After adding the aarch64 platform to the required Makefiles
+for rump in &lt;code&gt;NetBSD&lt;/code&gt; source and creating the relevant directories, we encountered
+linking errors pertaining to both double symbols between the provided libc and
+rump and also incorrectly linked for the rump case internal functions of the
+kernel itself. Thankfully similar problems have already been solved for the arm
+32-bit architecture and so we could implement a solution based on existing
+code.&lt;/p&gt;
+&lt;p&gt;Having successfully compiled &lt;code&gt;NetBSD&lt;/code&gt;’s source we then had to implement any
+missing rumpuser parts either for aarch64 or for functions introduced in
+upstream kernel’s rump.&lt;/p&gt;
+&lt;p&gt;The most challenging part was to understand how thread-level switching happens
+on aarch64 and implement that in the context of rumprun. Upon initial creation
+of “main” threads for the rump components, rumprun stores a “bouncer” function
+on top of their freshly allocated stacks and then switches between them using
+its scheduler. When a thread’s turn comes to run, the “bouncer” function is
+popped from the stack and the actual thread content is executed.&lt;/p&gt;
+&lt;p&gt;The mechanism doing the actual thread switching is implemented in arch-specific
+assembly. Although a basic implementation for the ARM 32-bit architecture is
+provided with upstream rumprun, porting to 64-bit ARMv8 was not trivial due to
+two main architectural differences of ARMv8: a) one cannot directly modify the
+program counter, and b) storing and retrieving registers to/from the stack has
+to be aligned if they are used for memory access. As a result, push and pop
+functions have to be implemented manually, as no specific instruction exists
+for that purpose. After implementing the actual thread switcher and bouncer, we
+also had to make sure the TLS (Thread-Local Storage) register was set correctly
+in the solo5 platform implementation.&lt;/p&gt;
+&lt;p&gt;Last but not least, with thread switching in place, the rest of the solo5
+platform arch-specific bits needed to be created: the ldscript for linking, the
+relevant headers and the Makefile modifications for everything to build
+correctly.&lt;/p&gt;
+&lt;p&gt;NOTE: Stack protection in &lt;code&gt;NetBSD&lt;/code&gt; source caused problems in our tests and so
+it’s globally disabled for rumprun pending further investigation.&lt;/p&gt;
+&lt;h4 id="runnc"&gt;runnc&lt;/h4&gt;
+&lt;p&gt;Since runnc is written in GO, the arch-specific bits were only build related,
+so porting it to aarch64 was as easy as defining the architecture (arm64) and
+pointing to the correct submodule repos.&lt;/p&gt;
+&lt;p&gt;We are currently working with the &lt;a href="https://nabla-containers.github.io/people" target="_blank" rel="noopener"&gt;nabla containers team&lt;/a&gt; to merge in aarch64
+support. In the meantime, you can &lt;a href="https://github.com/cloudkernels/rumprun-aarch64" target="_blank" rel="noopener"&gt;browse&lt;/a&gt; &lt;a href="https://github.com/cloudkernels/src-netbsd" target="_blank" rel="noopener"&gt;through&lt;/a&gt; &lt;a href="https://github.com/cloudkernels/rumprun-packages" target="_blank" rel="noopener"&gt;the&lt;/a&gt; &lt;a href="https://github.com/cloudkernels/solo5" target="_blank" rel="noopener"&gt;code&lt;/a&gt;.
+Stay tuned for a tutorial on how to run a rumprun unikernel on a RPi3!&lt;/p&gt;</description></item></channel></rss>

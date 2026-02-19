@@ -1,0 +1,35 @@
+/* Theme-aware logo styling */
+.theme-logo {
+    position: relative;
+    display: inline-block;
+}
+
+.theme-logo img {
+    display: block;
+    transition: opacity 0.3s ease;
+}
+
+.theme-logo .logo-dark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    opacity: 0;
+}
+
+/* Show dark logo in dark theme */
+body.colorscheme-dark .theme-logo .logo-light {
+    opacity: 0;
+}
+
+body.colorscheme-dark .theme-logo .logo-dark {
+    opacity: 1;
+}
+
+/* Show light logo in light theme */
+body:not(.colorscheme-dark) .theme-logo .logo-light {
+    opacity: 1;
+}
+
+body:not(.colorscheme-dark) .theme-logo .logo-dark {
+    opacity: 0;
+}

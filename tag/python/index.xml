@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Python | Nubificus</title><link>/tag/python/</link><atom:link href="/tag/python/index.xml" rel="self" type="application/rss+xml"/><description>Python</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Sat, 23 Feb 2019 18:17:51 +0200</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Python</title><link>/tag/python/</link></image><item><title>How to build a python snippet for running in a Nabla container</title><link>/blog/building-python-snippets-for-nabla/</link><pubDate>Sat, 23 Feb 2019 18:17:51 +0200</pubDate><guid>/blog/building-python-snippets-for-nabla/</guid><description>&lt;p&gt;In our previous posts, we saw how to &lt;a href="/blog/building-nabla-aarch64/"&gt;build the toolchain for a Nabla container&lt;/a&gt;, and also how we can use this toolchain to
+&lt;a href="/blog/nabla-containers-aarch64/"&gt;run applications as unikernels using Nabla&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;In this post, we will be focusing on the steps we need to take into running something
+actually useful using Nabla. More specifically, we will go through all the steps for
+building Python3 into a &lt;a href="http://rumpkernel.org" target="_blank" rel="noopener"&gt;Rumprun&lt;/a&gt; unikernel, suitable for running in a Nabla container,
+and cooking a filesystem that includes a Python script that we wish to run within.&lt;/p&gt;
+&lt;p&gt;We will be using the &lt;a href="https://github.com/cloudkernels/rumprun-packages" target="_blank" rel="noopener"&gt;rumprun-packages&lt;/a&gt; git repository, which contains a collection
+of frameworks and applications that we can build on top of the Rumprun infrastructure.
+We have started doing some work on updating rumprun-packages, so that we can build
+and bake applications using the &lt;a href="https://github.com/nabla-containers/rumprun/commits/solo5" target="_blank" rel="noopener"&gt;recent updates&lt;/a&gt;
+done by the Nabla people for Solo5 support in Rumprun and more specifically
+the &lt;code&gt;spt&lt;/code&gt; and &lt;code&gt;hvt&lt;/code&gt; Solo5 tenders. This is work in progress and we will be porting
+more packages from rumprun-packages to work on top of the upstream toolchain, both
+for x86 and &lt;a href="/blog/nabla-containers-aarch64/"&gt;&lt;code&gt;aarch64&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+&lt;h3 id="building-python35-as-a-unikernel"&gt;Building Python3.5 as a unikernel&lt;/h3&gt;
+&lt;p&gt;Once we have &lt;a href="/blog/building-nabla-aarch64/"&gt;built&lt;/a&gt; the rumprun toolchain
+we can build and bake Python3.5 in a Rumprun unikernel following these steps:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/cloudkernels/rumprun-packages.git
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cd rumprun-packages
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# Setting up the rumprun-packages build environment
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cp config.mk.dist config.mk
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# If we are building for aarch64 we should also run:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;echo &amp;#34;RUMPRUN_TOOLCHAIN_TUPLE=aarch64-rumprun-netbsd&amp;#34; &amp;gt;&amp;gt; config.mk
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cd python3
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# Build for the spt target
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make python.spt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# Build for the hvt target
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make python.hvt
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="packing-our-python-script"&gt;Packing our Python script&lt;/h3&gt;
+&lt;p&gt;We still need to be able to pack our python script so that we can run it within the
+unikernel, i.e. the equivalent of doing &lt;code&gt;python my_script.py&lt;/code&gt;?&lt;/p&gt;
+&lt;p&gt;Remember, in the world of unikernels we do not have access to a terminal,
+our application &lt;em&gt;is&lt;/em&gt; our Linux box / VM / container.&lt;/p&gt;
+&lt;p&gt;We have two problems to solve:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Make our script available within the unikernel&lt;/li&gt;
+&lt;li&gt;Prepare our environment with all the package dependencies our script needs, in
+order to execute.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;We will solve these issues by packing our script along with all its dependencies
+inside a disk image which we will later provide to the unikernel at run time.&lt;/p&gt;
+&lt;p&gt;Here&amp;rsquo;s how we do this:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# We &amp;#39;re sill under rumprun-packages/python3.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# this will be were we will install the python environment and our script
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mkdir -p python/lib
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# Our previous step has fetched all the basic Python environment
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# under: ./build/pythondist/lib/python3.5
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cp -r build/pythondist/lib/python3.5 python/lib/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# We add the script to Python&amp;#39;s site-packages
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cp myscript.py python/lib/python3.5/site-packages/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# And we prepare our packages dependencies
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;pyvenv-3.5 newpackage-env
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;source newpackage-env/bin/activate
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;pip install a_python_package
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;deactivate
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cp -r newpackage-env/lib/python3.5/site-packages/* python/lib/python3.5/site-packages/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# Now we have everything we need under &amp;#39;python&amp;#39;, so we create the disk image
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;genisoimage -l -r -o disk.iso python
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;That&amp;rsquo;s it! disk.iso contains all the necessary environment to run our script.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;solo5-spt --disk=disk.iso --net=tap0 python.spt \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&amp;#39;{&amp;#34;cmdline&amp;#34;:&amp;#34;python.spt -m myscript&amp;#34;,&amp;#34;env&amp;#34;:&amp;#34;PYTHONHOME=/python&amp;#34;,&amp;#34;net&amp;#34;:{&amp;#34;if&amp;#34;:&amp;#34;ukvmif0&amp;#34;,&amp;#34;cloner&amp;#34;:&amp;#34;True&amp;#34;,&amp;#34;type&amp;#34;:&amp;#34;inet&amp;#34;,&amp;#34;method&amp;#34;:&amp;#34;static&amp;#34;,&amp;#34;addr&amp;#34;:&amp;#34;10.0.0.2&amp;#34;,&amp;#34;mask&amp;#34;:&amp;#34;16&amp;#34;},&amp;#34;blk&amp;#34;:{&amp;#34;source&amp;#34;:&amp;#34;etfs&amp;#34;,&amp;#34;path&amp;#34;:&amp;#34;/dev/ld0a&amp;#34;,&amp;#34;fstype&amp;#34;:&amp;#34;blk&amp;#34;,&amp;#34;mountpoint&amp;#34;:&amp;#34;/python&amp;#34;}}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We have created a Docker image in order to automate the previous procedure of
+building Python as a unikernel and preparing the disk iso with our script and its
+dependencies, so that instead of running the following steps you can simply do
+something like:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker run --rm -v $(pwd):/build cloudkernels/python3-build disk.iso myscript.py requirements.txt
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;where &lt;code&gt;requirements.txt&lt;/code&gt; includes the dependencies of &lt;code&gt;myscript.py&lt;/code&gt; in the form of one
+package per line (this is, essentially, whatever running &lt;code&gt;pip freeze&lt;/code&gt; on your python
+project directory would produce).&lt;/p&gt;
+&lt;p&gt;You can find the Docker image on &lt;a href="https://hub.docker.com/r/cloudkernels/python3-build" target="_blank" rel="noopener"&gt;Docker hub&lt;/a&gt; and on &lt;a href="https://github.com/cloudkernels/python3-build" target="_blank" rel="noopener"&gt;github&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;A working example is found below. Please note that this version includes a hack to hardcode the dns server in the dummy rootfs as we haven&amp;rsquo;t yet patched the configuration logic of rumprun to include a command line option for dns.&lt;/p&gt;
+&lt;p&gt;We will use a simple requests example. The files needed are the python snippet and &lt;code&gt;requirements.txt&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;requests_main.py&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-python" data-lang="python"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;requests&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;r&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;requests&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;https://www.example.com&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;status_code&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;text&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;requirements.txt:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;requests
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now run the command to bake the necessary python dependencies:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# docker run --rm -v $(pwd):/build cloudkernels/python3-build:x86_64_dns disk.iso requests_main.py requirements.txt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[...]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 7.12% done, estimate finish Sat Feb 23 18:56:49 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 14.25% done, estimate finish Sat Feb 23 18:56:49 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 21.35% done, estimate finish Sat Feb 23 18:56:49 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 28.48% done, estimate finish Sat Feb 23 18:56:49 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 35.59% done, estimate finish Sat Feb 23 18:56:49 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 42.70% done, estimate finish Sat Feb 23 18:56:49 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 49.81% done, estimate finish Sat Feb 23 18:56:51 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 56.94% done, estimate finish Sat Feb 23 18:56:50 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 64.04% done, estimate finish Sat Feb 23 18:56:50 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 71.16% done, estimate finish Sat Feb 23 18:56:50 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 78.27% done, estimate finish Sat Feb 23 18:56:50 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 85.38% done, estimate finish Sat Feb 23 18:56:50 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 92.51% done, estimate finish Sat Feb 23 18:56:50 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; 99.61% done, estimate finish Sat Feb 23 18:56:50 2019
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Total translation table size: 0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Total rockridge attributes bytes: 714249
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Total directory bytes: 1473102
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Path table size(bytes): 4710
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Max brk space used 678000
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;70274 extents written (137 MB)
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;And invoke the unikernel using the following command:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# ./solo5-hvt --mem=64 --disk=disk.iso --net=tap0 python.hvt &amp;#39;{&amp;#34;cmdline&amp;#34;:&amp;#34;python.hvt -m requests_main&amp;#34;,&amp;#34;env&amp;#34;:&amp;#34;PYTHONHOME=/python&amp;#34;,&amp;#34;net&amp;#34;:{&amp;#34;if&amp;#34;:&amp;#34;ukvmif0&amp;#34;,&amp;#34;cloner&amp;#34;:&amp;#34;True&amp;#34;,&amp;#34;type&amp;#34;:&amp;#34;inet&amp;#34;,&amp;#34;method&amp;#34;:&amp;#34;static&amp;#34;,&amp;#34;addr&amp;#34;:&amp;#34;10.0.0.2&amp;#34;,&amp;#34;mask&amp;#34;:&amp;#34;16&amp;#34;, &amp;#34;gw&amp;#34;:&amp;#34;10.0.0.1&amp;#34;},&amp;#34;blk&amp;#34;:{&amp;#34;source&amp;#34;:&amp;#34;etfs&amp;#34;,&amp;#34;path&amp;#34;:&amp;#34;/dev/ld0a&amp;#34;,&amp;#34;fstype&amp;#34;:&amp;#34;blk&amp;#34;,&amp;#34;mountpoint&amp;#34;:&amp;#34;/&amp;#34;}}&amp;#39;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;solo5-hvt: python.hvt: Warning: phdr[0] requests WRITE and EXEC permissions
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;solo5-hvt: WARNING: Tender is configured with HVT_DROP_PRIVILEGES=0. Not dropping any privileges.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;solo5-hvt: WARNING: This is not recommended for production use.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; | ___|
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; __| _ \ | _ \ __ \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;\__ \ ( | | ( | ) |
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;____/\___/ _|\___/____/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Solo5: Memory map: 64 MB addressable:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Solo5: reserved @ (0x0 - 0xfffff)
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Solo5: text @ (0x100000 - 0x73ae37)
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Solo5: rodata @ (0x73ae38 - 0x8cdcd7)
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Solo5: data @ (0x8cdcd8 - 0xb5b93f)
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Solo5: heap &amp;gt;= 0xb5c000 &amp;lt; stack &amp;lt; 0x4000000
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;rump kernel bare metal bootstrap
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0000000] Copyright (c) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0000000] 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017,
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0000000] 2018 The NetBSD Foundation, Inc. All rights reserved.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0000000] Copyright (c) 1982, 1986, 1989, 1991, 1993
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0000000] The Regents of the University of California. All rights reserved.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0000000] NetBSD 8.99.25 (RUMP-ROAST)
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0000000] total memory = 26824 KB
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0000000] timecounter: Timecounters tick every 10.000 msec
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0000080] timecounter: Timecounter &amp;#34;clockinterrupt&amp;#34; frequency 100 Hz quality 0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0000090] cpu0 at thinair0: rump virtual cpu
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0000090] root file system type: rumpfs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0000090] kern.module.path=/stand/amd64/8.99.25/modules
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0200090] mainbus0 (root)
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0200090] timecounter: Timecounter &amp;#34;bmktc&amp;#34; frequency 1000000000 Hz quality 100
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0200090] ukvmif0: Ethernet address 5e:ac:bf:a1:15:09
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.0732133] /dev//dev/ld0a: hostpath XENBLK_/dev/ld0a (137 MB)
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mounted tmpfs on /tmp
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;=== calling &amp;#34;python.hvt&amp;#34; main() ===
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;200
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&amp;lt;!doctype html&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&amp;lt;html&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&amp;lt;head&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;lt;title&amp;gt;Example Domain&amp;lt;/title&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;lt;meta charset=&amp;#34;utf-8&amp;#34; /&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;lt;meta http-equiv=&amp;#34;Content-type&amp;#34; content=&amp;#34;text/html; charset=utf-8&amp;#34; /&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;lt;meta name=&amp;#34;viewport&amp;#34; content=&amp;#34;width=device-width, initial-scale=1&amp;#34; /&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;lt;style type=&amp;#34;text/css&amp;#34;&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; body {
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; background-color: #f0f0f2;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; margin: 0;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; padding: 0;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; font-family: &amp;#34;Open Sans&amp;#34;, &amp;#34;Helvetica Neue&amp;#34;, Helvetica, Arial, sans-serif;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; div {
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; width: 600px;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; margin: 5em auto;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; padding: 50px;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; background-color: #fff;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; border-radius: 1em;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; a:link, a:visited {
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; color: #38488f;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; text-decoration: none;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; @media (max-width: 700px) {
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; body {
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; background-color: #fff;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; div {
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; width: auto;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; margin: 0 auto;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; border-radius: 0;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; padding: 1em;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;lt;/style&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&amp;lt;/head&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&amp;lt;body&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&amp;lt;div&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;lt;h1&amp;gt;Example Domain&amp;lt;/h1&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;lt;p&amp;gt;This domain is established to be used for illustrative examples in documents. You may use this
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; domain in examples without prior coordination or asking for permission.&amp;lt;/p&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;lt;p&amp;gt;&amp;lt;a href=&amp;#34;http://www.iana.org/domains/example&amp;#34;&amp;gt;More information...&amp;lt;/a&amp;gt;&amp;lt;/p&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&amp;lt;/div&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&amp;lt;/body&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&amp;lt;/html&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;rumprun: call to ``sigaction&amp;#39;&amp;#39; ignored
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;=== main() of &amp;#34;python.hvt&amp;#34; returned 0 ===
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;=== _exit(0) called ===
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.8632722] rump kernel halting...
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.8632722] syncing disks... done
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.8632722] unmounting file systems...
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.9953910] unmounted tmpfs on /tmp type tmpfs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.9967528] unmounted /dev//dev/ld0a on / type cd9660
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.9967528] unmounted rumpfs on / type rumpfs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[ 1.9967528] unmounting done
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;halted
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Solo5: solo5_exit(0) called
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Please note that for this to work, we have setup tap0 with an ip address of
+10.0.0.1 and have setup NAT in the host for the guest to access the network.&lt;/p&gt;
+&lt;h3 id="building-the-nabla-container"&gt;Building the Nabla container&lt;/h3&gt;
+&lt;p&gt;Now baking the nabla container is a walk in the park after the above steps. You
+can have a look in our &lt;a href="/blog/build-a-nabla-docker-image/"&gt;previous&lt;/a&gt;
+post or the relevant &lt;a href="https://github.com/cloudkernels/nabla-base" target="_blank" rel="noopener"&gt;repo&lt;/a&gt;, or if you&amp;rsquo;re a bit lazy here&amp;rsquo;s a quick summary:&lt;/p&gt;
+&lt;p&gt;Just clone &lt;a href="https://github.com/cloudkernels/nabla-base" target="_blank" rel="noopener"&gt;this&lt;/a&gt; repo:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/cloudkernels/nabla-base
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;add the needed files in the rootfs directory:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mount -o loop disk.iso /mnt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cp -avf /mnt/* nabla-base/rootfs/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;umount /mnt
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;add the &lt;code&gt;seccomp&lt;/code&gt; tender binary:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cp python.spt nabla-base/python.nabla
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Replace &lt;code&gt;myprog.nabla&lt;/code&gt; with &lt;code&gt;python.nabla&lt;/code&gt; in the &lt;code&gt;Dockerfile&lt;/code&gt; (careful, the runtime
+expects to find a file ending in .nabla so make sure to keep the extension
+name).&lt;/p&gt;
+&lt;p&gt;And build your &lt;code&gt;nabla&lt;/code&gt; container image using the following command:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cd nabla-base
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker build -f Dockerfile -t python3-requests-nabla .
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Assuming you have setup runnc correctly, spawning the container is as easy as:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker run --rm --runtime=runnc python3-requests-nabla -m requests_main
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Note the boot command line &amp;ndash; it has to match the &lt;code&gt;'cmdline:''&lt;/code&gt; parameter in the &lt;code&gt;json&lt;/code&gt; string used above.&lt;/p&gt;
+&lt;p&gt;That&amp;rsquo;s it folks!&lt;/p&gt;
+&lt;p&gt;Give it a try and let us know what you think!&lt;/p&gt;</description></item></channel></rss>

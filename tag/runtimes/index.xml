@@ -1,0 +1,1293 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Runtimes | Nubificus</title><link>/tag/runtimes/</link><atom:link href="/tag/runtimes/index.xml" rel="self" type="application/rss+xml"/><description>Runtimes</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Fri, 24 Nov 2023 11:28:46 +0000</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Runtimes</title><link>/tag/runtimes/</link></image><item><title>Optimizing Performance with Unikernels: Exploring Container Runtimes for Serverless Workloads with Knative Benchmarking</title><link>/blog/knative-runtime-eval/</link><pubDate>Fri, 24 Nov 2023 11:28:46 +0000</pubDate><guid>/blog/knative-runtime-eval/</guid><description>&lt;!-- [Knative](https://knative.dev/docs/concepts/#what-is-knative) --&gt;
+&lt;p&gt;In our &lt;a href="/posts/knative-diverse-deployments/"&gt;previous&lt;/a&gt; &lt;a href="/posts/urunc"&gt;posts&lt;/a&gt;,
+we walked through the process of configuring various low-level container
+runtimes in Knative using the &lt;code&gt;RuntimeClass&lt;/code&gt; feature of K8s. We
+&lt;a href="/posts/knative-diverse-deployments/#gvisor-deployment"&gt;detailed&lt;/a&gt; the setup for
+isolation mechanisms like
+&lt;a href="/posts/knative-diverse-deployments/#gvisor-deployment"&gt;gVisor&lt;/a&gt;, with a special
+focus on Kata and its associated hypervisors, including &lt;a href="/posts/knative-diverse-deployments/#gvisor-deployment"&gt;AWS
+Firecracker&lt;/a&gt; and
+&lt;a href="/posts/knative-diverse-deployments/#kata-qemu"&gt;QEMU&lt;/a&gt;. Additionally, we
+&lt;a href="/posts/urunc"&gt;delved&lt;/a&gt; into the capabilities of unikernels, showcasing the
+power of &lt;code&gt;urunc&lt;/code&gt; in the serverless realm.&lt;/p&gt;
+&lt;p&gt;Now, you might be wondering: What&amp;rsquo;s the real advantage beyond ensuring the
+security isolation of workloads? Why choose one mechanism over another? And why
+even dive into this conversation?&lt;/p&gt;
+&lt;p&gt;This post aims to provide insights into these questions, shedding light on the
+considerations and factors at play in the dynamic landscape of low-level
+container runtimes for Knative workloads.&lt;/p&gt;
+&lt;h3 id="overview"&gt;Overview&lt;/h3&gt;
+&lt;p&gt;Despite achieving security isolation through sandboxed container runtimes like
+Kata-containers or gVisor, it is crucial to acknowledge that running
+containerized workloads in a VM, isolated from the host kernel, can introduce
+significant overhead to the final execution. In serverless architectures,
+where the cost of a function is directly tied to deployment time, this
+factor becomes a key consideration.&lt;/p&gt;
+&lt;p&gt;Moreover, optimizing the use of hardware resources by activating them only when
+necessary contributes to a &amp;lsquo;greener&amp;rsquo; cloud solution, reducing &lt;a href="https://github.com/Green-Software-Foundation/sci/blob/main/Software_Carbon_Intensity/Software_Carbon_Intensity_Specification.md#:~:text=be%20expanded%20to%3A-,SCI%20%3D%20%28O%20%2B%20M%29%20per%20R,-Operational%20emissions" target="_blank" rel="noopener"&gt;Software Carbon
+Intensity&lt;/a&gt;. Conventional practices, like booting an entire OS and unnecessary
+libraries, can be counterproductive in terms of software stack complexity and
+performance. To this end, we try to combine isolated execution of
+user-workloads with optimal resource utilization and performance efficiency in
+a serverless context.&lt;/p&gt;
+&lt;p&gt;To validate the above hypothesis we present an initial, high-level performance
+analysis of Knative using:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;generic container runtimes (&lt;code&gt;runc&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;sandboxed container runtimes (&lt;code&gt;kata-containers&lt;/code&gt;, &lt;code&gt;gVisor&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;urunc&lt;/code&gt;, our own unikernel container runtime&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;We base our measurements on our own
+&lt;a href="https://github.com/nubificus/kperf" target="_blank" rel="noopener"&gt;modified&lt;/a&gt; version of
+&lt;a href="https://github.com/knative-extensions/kperf" target="_blank" rel="noopener"&gt;&lt;code&gt;kperf&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Our primary focus revolved around examining function-spawning latency,
+response time, and scalability. To achieve this, we developed
+&lt;a href="https://github.com/nubificus/kperf-metrics-scripts/blob/main/get-metrics.py" target="_blank" rel="noopener"&gt;scripts&lt;/a&gt; utilizing &lt;code&gt;kperf&lt;/code&gt; to specifically measure these aspects. Below, we showcase
+two experiments conducted using &lt;code&gt;kperf&lt;/code&gt;.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;The initial set of measurements pertain to &amp;ldquo;cold-start&amp;rdquo; latencies,
+representing the duration required for a function to spawn and respond to a request.&lt;/li&gt;
+&lt;li&gt;The second set, illustrates average latencies when concurrently spawning
+multiple services.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;By presenting these findings, our aim is to provide users with critical metrics
+that aid in selecting the most efficient low-level container runtime,
+optimizing their serverless workload performance.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;NOTE&lt;/strong&gt;: &lt;code&gt;kperf&lt;/code&gt; development was stale for a while and Sep 15th the maintainers archived the
+repo, focusing on a &lt;a href="https://github.com/knative/serving/tree/main/test/performance" target="_blank" rel="noopener"&gt;different
+approach&lt;/a&gt; for
+benchmarking &lt;code&gt;Knative&lt;/code&gt;. We plan to gather metrics related to container runtimes
+with this tool as well.&lt;/p&gt;
+&lt;h3 id="architecture-overview"&gt;Architecture overview&lt;/h3&gt;
+&lt;figure id="figure-figure-1-knative-serving-stock-components-and-workflow"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/knative/knative-runc.png#center" alt="Figure 1: Knative Serving stock components and workflow." loading="lazy" data-zoomable width="80%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 1: Knative Serving stock components and workflow.
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;Figure 1 depicts a typical &lt;code&gt;Knative&lt;/code&gt; setup on a k8s cluster. Boxes in light
+blue show the &lt;code&gt;Knative&lt;/code&gt; components, while the ingress controller is assumed to
+be provided by the infrastructure. Since &lt;code&gt;Knative&lt;/code&gt; function pods are
+essentially containers, cloud vendors &lt;em&gt;refrain&lt;/em&gt; from serving multiple tenants on
+shared hardware due the limitations this technology imposes on &lt;a href="https://thenewstack.io/interview-google-gvisor-and-the-challenge-of-securing-multitenant-containers/" target="_blank" rel="noopener"&gt;isolating&lt;/a&gt; user
+workloads. Consequently, these vendors opt to offer dedicated bare-metal or
+virtualized infrastructure specifically for serverless tenants.&lt;/p&gt;
+&lt;p&gt;A solution to the issue above, could be to sandbox the user workload (the
+Serverless Function) in an enclave that protects the host (and the rest of the
+tenants) from potentially malicious code. Figure 2 shows an alternative setup
+to the default, where the function pods are being spawned using sandboxed
+container runtimes such as kata-containers (left) and gVisor (right).&lt;/p&gt;
+&lt;figure id="figure-figure-2-knative-serving-with-sandboxed-container-runtimes"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/knative/knative-sandboxed.png#center" alt="Figure 2: Knative Serving with sandboxed container runtimes." loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 2: Knative Serving with sandboxed container runtimes.
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;This mechanism has merits and shortcomings:&lt;/p&gt;
+&lt;p&gt;cons:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;the sandbox spawn is on the critical path (slower cold boot times)&lt;/li&gt;
+&lt;li&gt;the code executing in the user-container runs virtualized (no straightforward
+access to hardware accelerators)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;pros:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;the code executing in the user-container runs virtualized: it is much harder
+for malicious user code to escape to the host and/or access sensitive data
+from the system or other co-located tenants.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id="user-workloads"&gt;User workloads&lt;/h4&gt;
+&lt;p&gt;Another point of discussion is the type of workloads in a typical serverless
+setup. What do users run, or better, how complicated is the code that users run
+in a common serverless application?&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://dl.acm.org/doi/10.1145/2451116.2451167" target="_blank" rel="noopener"&gt;Unikernels&lt;/a&gt;
+have come a long way since their inception several years ago, where
+they showed great potential (e.g. millisecond boot times, ultra low OS memory
+consumption) but were difficult to use, hard to debug or limited in
+functionality. Today, with the advent of approaches to run unmodified Linux
+binaries as unikernels, or automate the building process they seem ready for
+prime time.&lt;/p&gt;
+&lt;p&gt;In an effort to combine the isolation characteristics of virtualization /
+sandboxed container runtimes and the lightweight nature of unikernels, we couple
+unikernels and containers with &lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;&lt;code&gt;urunc&lt;/code&gt;&lt;/a&gt;
+and deploy Knative functions on top of that, bringing the system management
+overhead for a secure, isolated, and efficient serverless deployment to the
+bare minimum.&lt;/p&gt;
+&lt;p&gt;To validate our assumptions, we measure end-to-end service latencies across various
+container runtimes, including: &lt;code&gt;generic&lt;/code&gt;, &lt;code&gt;gvisor&lt;/code&gt;, &lt;code&gt;kata-qemu&lt;/code&gt;, &lt;code&gt;kata-fc&lt;/code&gt;, &lt;code&gt;kata-rs&lt;/code&gt;, &lt;code&gt;kata-clh&lt;/code&gt;,
+and &lt;code&gt;urunc&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;We assume the bare minimum in terms of application (user-container), a simple HTTP reply program
+written in
+&lt;a href="https://github.com/nubificus/helloworld-knative/blob/main/hello.go" target="_blank" rel="noopener"&gt;go&lt;/a&gt; for
+the generic and sandboxed functions and in
+&lt;a href="https://github.com/nubificus/app-httpreply/tree/nbfc-knative" target="_blank" rel="noopener"&gt;C&lt;/a&gt; for the
+unikernel function.&lt;/p&gt;
+&lt;p&gt;The individual steps that comprise the service latency measured are shown below:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;kperf&lt;/code&gt; issues the request that reaches the ingress controller&lt;/li&gt;
+&lt;li&gt;the request traverses the networking stack of k8s and reaches the &lt;code&gt;activator&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;the &lt;code&gt;activator&lt;/code&gt; triggers the deployment of a function pod&lt;/li&gt;
+&lt;li&gt;upon the creation of the function pod, the request reaches &lt;code&gt;queue-proxy&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;queue-proxy&lt;/code&gt; forwards the request to the &lt;code&gt;user-container&lt;/code&gt;,&lt;/li&gt;
+&lt;li&gt;the &lt;code&gt;user-container&lt;/code&gt; replies to &lt;code&gt;kperf&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Figure 4 visualizes these steps in a sequence diagram, presenting which
+components interact with each other, as well as the time spent at each part for
+the flow.&lt;/p&gt;
+&lt;figure id="figure-figure-4-end-to-end-request-servicing-on-knative-cold-instantiation"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/knative/knative-workflow.png#center" alt="Figure 4: End-to-end request servicing on Knative (cold instantiation)." loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 4: End-to-end request servicing on Knative (cold instantiation).
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;In what follows, we briefly describe the hardware and software components that
+comprise our experimental setup, and present the measurements we captured.&lt;/p&gt;
+&lt;h3 id="experimental-testbed"&gt;Experimental testbed&lt;/h3&gt;
+&lt;p&gt;For our measurements, we use a bare metal server from
+&lt;a href="https://www.hetzner.com/dedicated-rootserver/ax161/" target="_blank" rel="noopener"&gt;Hetzner&lt;/a&gt; with 32 physical
+cores and 128GB RAM. Detailed specifications are shown in the table below:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="text-align: center"&gt;CPU&lt;/th&gt;
+&lt;th style="text-align: center"&gt;Memory&lt;/th&gt;
+&lt;th style="text-align: center"&gt;Storage&lt;/th&gt;
+&lt;th style="text-align: center"&gt;Network&lt;/th&gt;
+&lt;th style="text-align: left"&gt;OS&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;AMD EPYC 7502P &amp;ldquo;Rome&amp;rdquo; (32 Cores) Zen2&lt;/td&gt;
+&lt;td style="text-align: center"&gt;4 x 32 GB DDR4 ECC&lt;/td&gt;
+&lt;td style="text-align: center"&gt;960 GB NVMe SSD Datacenter Edition&lt;/td&gt;
+&lt;td style="text-align: center"&gt;Internal (single server setup)&lt;/td&gt;
+&lt;td style="text-align: left"&gt;Ubuntu 22.04.3 LTS (jammy)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;The software stack we use for our tests is focused around the requirements for
+a generic k8s plus Knative &lt;a href="https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#prerequisites" target="_blank" rel="noopener"&gt;setup&lt;/a&gt;, along with the sandboxed container runtimes and &lt;code&gt;urunc&lt;/code&gt;.
+Detailed components and versions are shown in the table below:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="text-align: center"&gt;Linux&lt;/th&gt;
+&lt;th style="text-align: center"&gt;runc&lt;/th&gt;
+&lt;th style="text-align: center"&gt;containerd&lt;/th&gt;
+&lt;th style="text-align: center"&gt;nerdctl&lt;/th&gt;
+&lt;th style="text-align: center"&gt;kubelet&lt;/th&gt;
+&lt;th style="text-align: center"&gt;calico&lt;/th&gt;
+&lt;th style="text-align: center"&gt;kata-containers&lt;/th&gt;
+&lt;th style="text-align: center"&gt;kperf&lt;/th&gt;
+&lt;th style="text-align: center"&gt;Knative serving&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;v5.15.0&lt;/td&gt;
+&lt;td style="text-align: center"&gt;v1.1.9&lt;/td&gt;
+&lt;td style="text-align: center"&gt;v1.7.5&lt;/td&gt;
+&lt;td style="text-align: center"&gt;v0.20.0&lt;/td&gt;
+&lt;td style="text-align: center"&gt;v1.28.2&lt;/td&gt;
+&lt;td style="text-align: center"&gt;v3.26.0&lt;/td&gt;
+&lt;td style="text-align: center"&gt;v3.2.0&lt;/td&gt;
+&lt;td style="text-align: center"&gt;v20231115-78dabcb&lt;/td&gt;
+&lt;td style="text-align: center"&gt;v1.12.0&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;To enhance kperf, we initiated a tailored development process by forking and constructing our
+unique iteration. Among the fundamental modifications crucial for efficient result collection was
+the &lt;a href="https://github.com/knative-extensions/kperf/commit/191436bfa78e4fedfb7c020e89d8373b099ef917" target="_blank" rel="noopener"&gt;redirection&lt;/a&gt;
+of &lt;code&gt;GET&lt;/code&gt; requests to the ingress controller with the appropriate headers
+and the implementation of &lt;a href="https://github.com/knative-extensions/kperf/commit/fca4a218acd166ff4d10cd2c65e9eacd8257a1c4" target="_blank" rel="noopener"&gt;timeouts&lt;/a&gt; inserted specifically for clients.
+This was imperative to alleviate the issue of non-responsive services caused by
+hardware constraints, notably the burden of spawning an excessive number of services.&lt;/p&gt;
+&lt;p&gt;With these modifications implemented, we effectively utilized kperf&amp;rsquo;s &lt;a href="https://github.com/knative-extensions/kperf/blob/main/docs/examples.md#scale-from-zero-and-measure-knative-service-latency" target="_blank" rel="noopener"&gt;&lt;code&gt;scale&lt;/code&gt;&lt;/a&gt;
+command to gather latency statistics for both single-service function instances
+and multiple services spawned simultaneously.
+Moreover, the incorporation of a helper
+&lt;a href="https://github.com/nubificus/kperf-metrics-scripts/blob/main/get-metrics.py" target="_blank" rel="noopener"&gt;script&lt;/a&gt;
+facilitated an automated
+process for retrieving this data and dynamically adjusting the low-level
+runtime of workloads as well as the number of concurrently
+spawned services.&lt;/p&gt;
+&lt;p&gt;Furthermore, we undertook another aspect of our work aimed at enhancing the accuracy of retrieved metrics.
+This involved disabling the CPU frequency scaler, responsible for dynamically modifying the CPU cores&amp;rsquo; frequency.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cpupower frequency-set --governor performance
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;By disable frequency scaling, we are essentially ensuring that the CPU operates
+at a constant frequency leading to more stable and accurate metric retrieval.&lt;/p&gt;
+&lt;p&gt;At the same time, limiting the CPU cores&amp;rsquo; &lt;code&gt;turbo&lt;/code&gt; feature, allows us to capture reproducible metrics.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;echo &amp;#34;0&amp;#34; | sudo tee /sys/devices/system/cpu/cpufreq/boost
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="evaluation"&gt;Evaluation&lt;/h3&gt;
+&lt;p&gt;We plot our findings and present an initial analysis of Knative performance
+over the various container runtimes we consider for our tests.&lt;/p&gt;
+&lt;h4 id="service-response-latency-single-instance"&gt;Service Response Latency (single instance)&lt;/h4&gt;
+&lt;p&gt;We first test the total time needed for a single request to reach a defined,
+but not provisioned, &lt;code&gt;Knative&lt;/code&gt; service. Essentially, this metric represents how
+much time the user will wait for a service when they first access it. Usually,
+the dominating part of this time is the &lt;em&gt;cold-boot&lt;/em&gt; time of the function.&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="text-align: center"&gt;Parameter name&lt;/th&gt;
+&lt;th style="text-align: center"&gt;Value&lt;/th&gt;
+&lt;th style="text-align: center"&gt;Metric&lt;/th&gt;
+&lt;th style="text-align: center"&gt;Description&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;&lt;code&gt;timeout&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;3&lt;/td&gt;
+&lt;td style="text-align: center"&gt;sec&lt;/td&gt;
+&lt;td style="text-align: center"&gt;Duration to wait for Knative Service to be ready&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;&lt;code&gt;time-interval&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;90&lt;/td&gt;
+&lt;td style="text-align: center"&gt;sec&lt;/td&gt;
+&lt;td style="text-align: center"&gt;The time interval of each scale up&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;&lt;code&gt;iterations&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;30&lt;/td&gt;
+&lt;td style="text-align: center"&gt;-&lt;/td&gt;
+&lt;td style="text-align: center"&gt;nr of consecutive runs of the same test&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;&lt;code&gt;scale-client-timeout&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;100&lt;/td&gt;
+&lt;td style="text-align: center"&gt;sec&lt;/td&gt;
+&lt;td style="text-align: center"&gt;time to give up on the operation (non-responsive service)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;&lt;code&gt;stable-window&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;25&lt;/td&gt;
+&lt;td style="text-align: center"&gt;sec&lt;/td&gt;
+&lt;td style="text-align: center"&gt;&amp;ldquo;&lt;a href="https://knative.dev/docs/serving/autoscaling/scale-bounds/#stable-window" target="_blank" rel="noopener"&gt;time window&lt;/a&gt; over which metrics are averaged to provide the input for scaling decisions&amp;rdquo;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;code&gt;kperf&lt;/code&gt; reports this metric as &lt;em&gt;Service Response Latency&lt;/em&gt;. The &lt;a href="https://github.com/nubificus/kperf#:~:text=default%20%22/home/ubuntu/.config/kperf/config.yaml" target="_blank" rel="noopener"&gt;parameters&lt;/a&gt; we
+used for setting up &lt;code&gt;kperf&lt;/code&gt; are shown in the table above.&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="text-align: center"&gt;Service Latency&lt;/th&gt;
+&lt;th style="text-align: center"&gt;Average&lt;/th&gt;
+&lt;th style="text-align: center"&gt;Minimum&lt;/th&gt;
+&lt;th style="text-align: left"&gt;Maximum&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;generic&lt;/td&gt;
+&lt;td style="text-align: center"&gt;&lt;strong&gt;1.20&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;0.92&lt;/td&gt;
+&lt;td style="text-align: left"&gt;1.23&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;gvisor&lt;/td&gt;
+&lt;td style="text-align: center"&gt;&lt;strong&gt;2.21&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;2.15&lt;/td&gt;
+&lt;td style="text-align: left"&gt;2.23&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;kata-qemu&lt;/td&gt;
+&lt;td style="text-align: center"&gt;&lt;strong&gt;2.21&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;2.10&lt;/td&gt;
+&lt;td style="text-align: left"&gt;2.23&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;kata-fc&lt;/td&gt;
+&lt;td style="text-align: center"&gt;&lt;strong&gt;2.21&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;2.21&lt;/td&gt;
+&lt;td style="text-align: left"&gt;2.22&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;urunc&lt;/td&gt;
+&lt;td style="text-align: center"&gt;&lt;strong&gt;1.21&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;1.19&lt;/td&gt;
+&lt;td style="text-align: left"&gt;1.23&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;The table above, summarizes the absolute service latency for the various
+container runtimes in our test. We plot these results in Figure 4.&lt;/p&gt;
+&lt;figure id="figure-figure-4-service-response-latency-as-a-function-of-the-various-container-runtimes"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/knative/svc_latency.png#center" alt="Figure 4: Service Response Latency as a function of the various container runtimes." loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 4: Service Response Latency as a function of the various container runtimes.
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;Figure 4 depicts the service response latency for the sandboxed container
+runtimes and &lt;code&gt;urunc&lt;/code&gt;. The horizontal lines show the average response latency,
+while the vertical lines depict the minimum (lower) and maximum (higher)
+response latency captured during our test.&lt;/p&gt;
+&lt;p&gt;An expected observation in Figure 4 is that the sandboxed container runtimes
+require 2-2.5 seconds for servicing a request. The parameters for
+each one vary depending on the sandbox technology used, but on average a request will
+be served in approximately 2.21 seconds.&lt;/p&gt;
+&lt;p&gt;Moreover, using the generic container runtime, we see that a request is being
+served in approximately 1.20 seconds.&lt;/p&gt;
+&lt;p&gt;Additionally, Figure 4 shows that the behavior of &lt;code&gt;urunc&lt;/code&gt; is on par with the generic
+container runtime (&lt;code&gt;runc&lt;/code&gt;). The performance of our early version of &lt;code&gt;urunc&lt;/code&gt; is
+comparable to &lt;code&gt;runc&lt;/code&gt; (~1.21s on average vs 1.20s for &lt;code&gt;runc&lt;/code&gt;).&lt;/p&gt;
+&lt;p&gt;Finally, the maximum service request latency for &lt;code&gt;runc&lt;/code&gt; and &lt;code&gt;urunc&lt;/code&gt; do not
+exceed 5% of the total latency.&lt;/p&gt;
+&lt;p&gt;Figure 5 plots the 99th percentile of Service latency for the various runtimes,
+proving that &lt;code&gt;urunc&lt;/code&gt; can sustain low latency even for slower requests.&lt;/p&gt;
+&lt;figure id="figure-figure-5-service-response-latency-for-the-99th-percentile-as-a-function-of-the-various-container-runtimes"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/knative/svc_latency_99th.png#center" alt="Figure 5: Service Response Latency for the 99th percentile as a function of the various container runtimes." loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 5: Service Response Latency for the 99th percentile as a function of the various container runtimes.
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;The takeaway message from Figures 4 and 5 is that unikernels can achieve the
+same or (yet to be proven) better performance than generic containers when it
+comes to serverless functions!&lt;/p&gt;
+&lt;h4 id="concurrent-servicing-multiple-instances"&gt;Concurrent servicing (multiple instances)&lt;/h4&gt;
+&lt;p&gt;In this test we want to assess the footprint and responsiveness of a &lt;code&gt;Knative&lt;/code&gt;
+service by scaling to a large number of instances.&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="text-align: center"&gt;Parameter name&lt;/th&gt;
+&lt;th style="text-align: center"&gt;Value&lt;/th&gt;
+&lt;th style="text-align: center"&gt;Metric&lt;/th&gt;
+&lt;th style="text-align: center"&gt;Description&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;&lt;code&gt;timeout&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;3&lt;/td&gt;
+&lt;td style="text-align: center"&gt;sec&lt;/td&gt;
+&lt;td style="text-align: center"&gt;Duration to wait for Knative Service to be ready&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;&lt;code&gt;time-interval&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;95&lt;/td&gt;
+&lt;td style="text-align: center"&gt;sec&lt;/td&gt;
+&lt;td style="text-align: center"&gt;The time interval of each scale up&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;&lt;code&gt;iterations&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;15&lt;/td&gt;
+&lt;td style="text-align: center"&gt;-&lt;/td&gt;
+&lt;td style="text-align: center"&gt;nr of consecutive runs of the same test&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;&lt;code&gt;scale-client-timeout&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;120&lt;/td&gt;
+&lt;td style="text-align: center"&gt;sec&lt;/td&gt;
+&lt;td style="text-align: center"&gt;time to give up on the operation (non-responsive service)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: center"&gt;&lt;code&gt;stable-window&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: center"&gt;300&lt;/td&gt;
+&lt;td style="text-align: center"&gt;sec&lt;/td&gt;
+&lt;td style="text-align: center"&gt;&amp;ldquo;&lt;a href="https://knative.dev/docs/serving/autoscaling/scale-bounds/#stable-window" target="_blank" rel="noopener"&gt;time window&lt;/a&gt; over which metrics are averaged to provide the input for scaling decisions&amp;rdquo;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;The parameters we used for setting up &lt;code&gt;kperf&lt;/code&gt; can be found in the table above.&lt;/p&gt;
+&lt;p&gt;One distinction in the parameters for the single-instance scale metrics involves the extension of the stable-window duration.
+This extension ensures an extended lifespan for functions/pods, thereby guaranteeing that the required number of services remains
+concurrently operational.&lt;/p&gt;
+&lt;figure id="figure-figure-5-service-response-latency-for-various-container-runtimes-when-servicing-multiple-parallel-requests"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/knative/conc_latency.png#center" alt="Figure 5: Service Response Latency for various container runtimes when servicing multiple parallel requests." loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 5: Service Response Latency for various container runtimes when servicing multiple parallel requests.
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;Figure 5 presents the average service response latency (sec) for each container
+runtime as a function of the number of concurrent instances of the service. From this figure, some interesting conclusions can be drawn:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;generic&lt;/code&gt;, &lt;code&gt;gvisor&lt;/code&gt;, and &lt;code&gt;urunc&lt;/code&gt; exhibit similar behavior when increasing the
+number of instances&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;urunc&lt;/code&gt; and &lt;code&gt;generic&lt;/code&gt; appear identical in terms of response latency even when
+scaling to 250 services.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;gvisor&lt;/code&gt; exhibits approximately an average of +1.5sec latency compared to
+&lt;code&gt;urunc&lt;/code&gt;. This accounts for 2x the latency for instances up to 125.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;kata-*&lt;/code&gt;&amp;rsquo;s overhead ranges from 2x to 3x latency compared to &lt;code&gt;urunc&lt;/code&gt; up to
+125 instances and approximately 1.5x for more instances.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Although the target number of services is defined, some of the instances did
+not manage to produce a response after 125. Figure 6 summarizes
+how many actual instances responded in our test for the various runtimes.&lt;/p&gt;
+&lt;figure id="figure-figure-6-number-of-instances-spawned-for-various-container-runtimes-as-a-function-of-the-target-services-requested"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/knative/scale_instances_spawned.png#center" alt="Figure 6: Number of Instances spawned for various container runtimes as a function of the target services requested." loading="lazy" data-zoomable width="80%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 6: Number of Instances spawned for various container runtimes as a function of the target services requested.
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;h4 id="pushing-the-scaling-limits"&gt;Pushing the scaling limits&lt;/h4&gt;
+&lt;p&gt;To explore the maximum amount of services supported on the testbed hardware, we increase the number of services to 500 for &lt;code&gt;urunc&lt;/code&gt; and capture:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;the number of actual services spawned&lt;/li&gt;
+&lt;li&gt;the service response latency in this context.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;We compare these results with the generic container runtime.&lt;/p&gt;
+&lt;figure id="figure-figure-7-number-of-instances-spawned-target-500-for-various-container-runtimes-higher-is-better"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/knative/scale_instances.png#center" alt="Figure 7: Number of Instances spawned (target 500) for various container runtimes (higher is better)." loading="lazy" data-zoomable width="50%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 7: Number of Instances spawned (target 500) for various container runtimes (higher is better).
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;Figure 7 plots the number of spawned instances for the generic container
+runtime and &lt;code&gt;urunc&lt;/code&gt; with a target of 500. The achievable number for each
+container runtime is shown in the plot. We can see that &lt;code&gt;urunc&lt;/code&gt; is able to
+spawn as much instances as &lt;code&gt;runc&lt;/code&gt;, enabling the sandboxing of user code without
+imposing any additional overhead in terms of memory / CPU footprint.&lt;/p&gt;
+&lt;figure id="figure-figure-7-service-response-latency-for-multiple-concurrent-instances-500-for-various-container-runtimes-lower-is-better"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/knative/scale_instances_svc.png#center" alt="Figure 7: Service Response Latency for multiple concurrent instances (500) for various container runtimes (lower is better)." loading="lazy" data-zoomable width="50%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 7: Service Response Latency for multiple concurrent instances (500) for various container runtimes (lower is better).
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;To validate that the services are responsive and to assess the latency imposed
+by so many services running at the same time, we plot the Average response
+latency for these services. Figure 7 shows that &lt;code&gt;urunc&lt;/code&gt; is able to sustain low
+response latency compared to the generic container runtime, even with ~450
+instances running.&lt;/p&gt;
+&lt;h4 id="conclusions-and-next-steps"&gt;Conclusions and next steps&lt;/h4&gt;
+&lt;p&gt;In this post, we went through an initial evaluation of container runtimes that
+sandbox the user code in a serverless environment such as Knative. We presented
+the rationale of sandboxing serverless functions, following up from our
+previous posts regarding &lt;a href="/posts/knative-diverse-deployments"&gt;alternative container runtimes&lt;/a&gt; for
+Knative and &lt;a href="/posts/urunc"&gt;&lt;code&gt;urunc&lt;/code&gt;&lt;/a&gt;, our own container runtime for unikernels.&lt;/p&gt;
+&lt;p&gt;Isolating the user code from the platform allows cloud vendors to better
+utilize their infrastructure and enables users to share infrastructure without
+compromising their isolation requirements. Especially in the context of
+serverless computing, unikernels seem like a great fit, combining the isolation
+principles of Virtual Machines, without the overhead and management burden of
+generic, full virtualization stacks.&lt;/p&gt;
+&lt;p&gt;There are still a few ways to go for the wider adoption of unikernels, but
+still, we are working towards this direction and, hopefully, we get to see
+unikernels in production soon!&lt;/p&gt;
+&lt;p&gt;Our plan is to continue de-mystifying quirks and issues with serverless
+platforms and focus on evaluating our approach on devices with lower compute
+capabilities, as well as add hardware acceleration to the mix!&lt;/p&gt;</description></item><item><title>Knative: A Deep Dive into K-Deployments across diverse Runtimes (part II)</title><link>/blog/knative-diverse-deployments/</link><pubDate>Mon, 09 Oct 2023 14:28:46 +0000</pubDate><guid>/blog/knative-diverse-deployments/</guid><description>&lt;p&gt;The Serverless computing paradigm has revolutionized the way applications are deployed.
+In a serverless architecture, developers can focus solely on writing code without the need to
+provision or manage servers.&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://knative.dev/docs/concepts/#what-is-knative" target="_blank" rel="noopener"&gt;Knative&lt;/a&gt; is such a Serverless-Framework, providing a set of essential building
+blocks (on top of Kubernetes) for developers to simplify the deployment and
+management of cloud-services and workloads. The user simply containerizes the function (&lt;a href="https://en.wikipedia.org/wiki/Function_as_a_service" target="_blank" rel="noopener"&gt;FaaS&lt;/a&gt;)
+to be deployed, managed in yaml-format as a Kubernetes-object predefined by
+Knative&amp;rsquo;s &lt;a href="https://knative.dev/docs/install/operator/configuring-serving-cr/" target="_blank" rel="noopener"&gt;CRDs&lt;/a&gt; (Knative.Service).&lt;/p&gt;
+&lt;p&gt;As every K8s deployment, execution of the workload takes place in the
+node selected by the &lt;a href="https://kubernetes.io/docs/concepts/scheduling-eviction/kube-scheduler/" target="_blank" rel="noopener"&gt;Scheduler&lt;/a&gt; (core component responsible for making decisions about where to run containers or pods within a cluster of nodes).&lt;/p&gt;
+&lt;p&gt;At a lower level, execution of the workload inside the node is handled
+by a container-manager (&lt;a href="https://github.com/docker" target="_blank" rel="noopener"&gt;&lt;em&gt;Docker&lt;/em&gt;&lt;/a&gt;, &lt;a href="https://github.com/containerd/containerd" target="_blank" rel="noopener"&gt;&lt;em&gt;containerd&lt;/em&gt;&lt;/a&gt;) and the &amp;ldquo;low-level&amp;rdquo; runtimes
+(&lt;a href="https://github.com/opencontainers/runc" target="_blank" rel="noopener"&gt;&lt;em&gt;runc&lt;/em&gt;&lt;/a&gt;, &lt;a href="https://github.com/google/gvisor" target="_blank" rel="noopener"&gt;&lt;em&gt;gVisor&lt;/em&gt;&lt;/a&gt;, &lt;a href="https://github.com/kata-containers/kata-containers" target="_blank" rel="noopener"&gt;&lt;em&gt;Kata-containers&lt;/em&gt;&lt;/a&gt;) that are pre-configured. But on the other hand, why use a &amp;rsquo;non-traditional&amp;rsquo; low-level runtime? What is the purpose of such an act?&lt;/p&gt;
+&lt;p&gt;Well, to answer this we need to fully understand certain aspects of
+containers:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;em&gt;&lt;em&gt;&lt;a href="https://cloud.google.com/learn/what-are-containers" target="_blank" rel="noopener"&gt;&amp;ldquo;Containers&lt;/a&gt; are packages of software that contain all of the necessary elements to run in any environment. In this way, containers virtualize the operating system and run anywhere from a private data center to the public cloud&amp;rdquo; &amp;hellip;&lt;/em&gt;&lt;/em&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Developers running and deploying their code in servers often led to &amp;ldquo;it works on my machine&amp;rdquo; type of problems in the past (e.g. misconfigured dependencies). Utilization of containerization technologies provides a consistent and isolated environment for applications, ensuring that software runs reliably across platforms.&lt;/p&gt;
+&lt;p&gt;But wait &amp;hellip; isn&amp;rsquo;t this why we used VMs in the first place?&lt;/p&gt;
+&lt;p&gt;One might make the case that this is reminiscent of the original
+rationale for employing virtual machines (VMs) prior to the advent
+of containerization technologies. Despite the fact that containers
+and virtual machines offer analogous resource isolation and
+allocation advantages (as explained &lt;a href="https://www.docker.com/resources/what-container/#:~:text=Comparing%20Containers%20and%20Virtual%20Machines" target="_blank" rel="noopener"&gt;here&lt;/a&gt;), their primary
+distinguishing factor, from an architectural perspective, lies in
+the location of the abstraction layer, which can be seen in the graph below.&lt;/p&gt;
+&lt;!-- &gt;_Abstraction, in our technical context, doesn't mean simplifying things or leaving out details, but it means understanding things in a different way, from a different level of detail._ - Brian Kernighan --&gt;
+&lt;figure id="figure-figure-1-containers-vs-vms-architecture"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/kn-diverse-runtime/vm-vs-container.png#center" alt="Figure 1: Containers vs VMs Architecture" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 1: Containers vs VMs Architecture
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;Containers are &lt;a href="https://www.docker.com/resources/what-container/#:~:text=an%20abstraction%20at%20the%20app%20layer" target="_blank" rel="noopener"&gt;&amp;ldquo;an abstraction at the app
+layer&amp;rdquo;&lt;/a&gt;. Several containers can operate on a single system, utilizing the same OS kernel and running as separate processes within the user space, effectively isolated from one another. On the other hand, the architecture diagram of VMs
+implies &lt;a href="https://www.docker.com/resources/what-container/#:~:text=an%20abstraction%20of%20physical%20hardware" target="_blank" rel="noopener"&gt;&amp;ldquo;an abstraction of physical hardware&amp;rdquo;&lt;/a&gt;.
+The hypervisor enables the simultaneous operation of multiple virtual machines (VMs) on a single system. Each VM encompasses a complete instance of an operating system along with the requisite applications, binaries, and libraries.&lt;/p&gt;
+&lt;p&gt;While Containers offer the potential for workload isolation through the utilization of &lt;a href="https://jvns.ca/blog/2016/10/10/what-even-is-a-container/" target="_blank" rel="noopener"&gt;cgroups and namespaces&lt;/a&gt;, the underlying host&amp;rsquo;s operating system remains susceptible to risks. On the other hand VMs have their own kernel and do not directly interact with the host system, thus providing an additional
+layer of security between the Host and the workload.&lt;/p&gt;
+&lt;p&gt;What if we could get the best of both worlds &amp;hellip;
+the security of VMs plus the &amp;ldquo;lightweight&amp;rdquo; nature of containers ?&lt;/p&gt;
+&lt;figure id="figure-figure-2-micro-vms-architecture"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/kn-diverse-runtime/micro-vm.png#center" alt="Figure 2: Micro-VM&amp;#39;s Architecture" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 2: Micro-VM&amp;rsquo;s Architecture
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;a href="%28https://firecracker-microvm.github.io/#:~:text=microVMs%2C%20which%20provide%20enhanced%20security%20and%20workload%20isolation%20over%20traditional%20VMs%2C%20while%20enabling%20the%20speed%20and%20resource%20efficiency%20of%20containers.%29"&gt;&lt;em&gt;&amp;ldquo;Micro-VMs&lt;/em&gt;&lt;/a&gt; provide enhanced security and workload isolation over traditional VMs, while enabling the speed and resource efficiency of containers&amp;rdquo;.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Utilizing and configuring &amp;rsquo;low-level&amp;rsquo; runtimes like &lt;em&gt;Kata-containers&lt;/em&gt; and &lt;em&gt;gVisor&lt;/em&gt; empowers the generation of Micro-VMs from the container manager, along with the various tools using it, including Kubernetes and Knative.&lt;/p&gt;
+&lt;p&gt;In this article we explore &lt;strong&gt;how to enable the deployment of workloads sandboxed in Micro-VMs, across various runtimes via Knative&lt;/strong&gt;.&lt;/p&gt;
+&lt;h3 id="prerequisites--"&gt;Prerequisites :&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Kubernetes Cluster &amp;gt;= v1.25&lt;/li&gt;
+&lt;/ul&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;&lt;em&gt;NOTE:&lt;/em&gt;&lt;/strong&gt; If you have only one node in your cluster, you need at least 6 CPUs, 6 GB of memory, and 30 GB of disk storage.
+If you have multiple nodes in your cluster, for each node you need at least 2 CPUs, 4 GB of memory, and 20 GB of disk storage.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/" target="_blank" rel="noopener"&gt;Knative&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/containerd/containerd/blob/main/docs/getting-started.md#step-1-installing-containerd" target="_blank" rel="noopener"&gt;containerd&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;More info on how we set-up our K8s cluster with Knative can be found &lt;a href="/posts/knative-installation"&gt;here&lt;/a&gt;&lt;/p&gt;
+&lt;h3 id="knative-configuration"&gt;Knative-Configuration&lt;/h3&gt;
+&lt;p&gt;To configure the placement of Knative Services on designated nodes and specify the runtime for execution, you can achieve this by editing the configuration as follows:&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;kubectl -n knative-serving edit cm config-features &lt;/code&gt;&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; kubernetes.podspec-affinity: enabled
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; kubernetes.podspec-runtimeclassname: enabled
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;&lt;em&gt;NOTE:&lt;/em&gt;&lt;/strong&gt; Add the lines under the &lt;code&gt;data&lt;/code&gt; section,
+not the &lt;a href="https://github.com/knative/serving/issues/11388" target="_blank" rel="noopener"&gt;&lt;code&gt;_example&lt;/code&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h3 id="runc--deployment"&gt;Runc deployment&lt;/h3&gt;
+&lt;p&gt;We use a simple &lt;code&gt;helloworld&lt;/code&gt; server as &lt;code&gt;Knative-Service&lt;/code&gt; to deploy the containerized function:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;apiVersion: serving.knative.dev/v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kind: Service
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;metadata:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; name: helloworld
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; namespace: ktest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;spec:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; template:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; metadata: null
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; spec:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; containerConcurrency: 10
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; containers:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - env:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - name: TARGET
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; value: Go Sample v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; image: harbor.nbfc.io/kimage/hello-world@sha256:4554e30f8380ad74003fafe0f7136dc7511a3d437da2bfdc55fb4f913d641951
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;&lt;em&gt;NOTE:&lt;/em&gt;&lt;/strong&gt; To further configure the placement of the function in specific nodes on the k8s cluster,
+we could add an affinity section in the template spec of the container function. See the snippet below etc.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;/blockquote&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;spec:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; template:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; metadata: null
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; spec:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; affinity:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; nodeAffinity:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; requiredDuringSchedulingIgnoredDuringExecution:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; nodeSelectorTerms:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - matchExpressions:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - key: kubernetes.io/hostname
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; operator: In
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; values:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - &lt;span class="nv"&gt;$NODE_NAME&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; containerConcurrency: &lt;span class="m"&gt;10&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; containers:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - env:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - name: TARGET
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; value: Go Sample v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; image: harbor.nbfc.io/kimage/hello-world@sha256:4554e30f8380ad74003fafe0f7136dc7511a3d437da2bfdc55fb4f913d641951
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;In order to test the deployment of the &lt;code&gt;helloworld-Knative-Service&lt;/code&gt;, you can use the curl
+command. To do this, we need to retrieve IP of &lt;a href="https://github.com/knative/serving/issues/10897#issuecomment-791025666" target="_blank" rel="noopener"&gt;&lt;code&gt;kourier-internal service&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl apply -f ksvc-hello-world.yaml
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Warning: Kubernetes default value is insecure, Knative may default this to secure in a future release: spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.allowPrivilegeEscalation, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.capabilities, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.runAsNonRoot, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.seccompProfile
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;service.serving.knative.dev/helloworld created
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl get ksvc -n ktest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;NAME URL LATESTCREATED LATESTREADY READY REASON
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;helloworld http://helloworld.ktest.svc.cluster.local helloworld-00001 helloworld-00001 True
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl get svc -A &lt;span class="p"&gt;|&lt;/span&gt; grep kourier-internal
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kourier-system kourier-internal ClusterIP 10.98.240.177 &amp;lt;none&amp;gt; 80/TCP,443/TCP 2d2h
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ktest helloworld ExternalName &amp;lt;none&amp;gt; kourier-internal.kourier-system.svc.cluster.local 80/TCP 61s
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ curl -H &lt;span class="s2"&gt;&amp;#34;Host: helloworld.ktest.svc.cluster.local&amp;#34;&lt;/span&gt; http://10.98.240.177
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Hello ! The IP is : 10.80.157.91
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;&lt;em&gt;NOTE:&lt;/em&gt;&lt;/strong&gt; By default the &amp;ldquo;low-level&amp;rdquo; runtime &lt;code&gt;containerd&lt;/code&gt; utilizes is &lt;em&gt;runc&lt;/em&gt; thus
+we don&amp;rsquo;t need to specify a &lt;code&gt;RuntimeClass&lt;/code&gt; on K8s or re-configure the containerd&amp;rsquo;s configuration
+file on the deployment node&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h3 id="gvisor-deployment"&gt;gVisor Deployment&lt;/h3&gt;
+&lt;p&gt;&lt;a href="https://gvisor.dev/docs/" target="_blank" rel="noopener"&gt;&lt;code&gt;gVisor&lt;/code&gt;&lt;/a&gt; is an open-source container runtime that enhances
+the security and isolation of containerized applications. To enable the deployment of
+workloads to &lt;code&gt;gVisor-runtime&lt;/code&gt; first we need to install the gVisor-handler binaries and
+then define the &lt;code&gt;gvisor-RuntimeClass&lt;/code&gt; in Kubernetes.&lt;/p&gt;
+&lt;p&gt;Thus to run pods with &lt;code&gt;gVisor-runtime&lt;/code&gt; we need to
+&lt;a href="https://gvisor.dev/docs/user_guide/install/#:~:text=%28%0A%20%20set%20%2De,local/bin%0A%29" target="_blank" rel="noopener"&gt;install&lt;/a&gt; &lt;em&gt;runsc&lt;/em&gt; and &lt;em&gt;containerd-shim-runsc-v1&lt;/em&gt; on deployment-node.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="o"&gt;(&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nb"&gt;set&lt;/span&gt; -e
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;ARCH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;uname -m&lt;span class="k"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;URL&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;https://storage.googleapis.com/gvisor/releases/release/latest/&lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;ARCH&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; wget &lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;URL&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;/runsc &lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;URL&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;/runsc.sha512 &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;URL&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;/containerd-shim-runsc-v1 &lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;URL&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;/containerd-shim-runsc-v1.sha512
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; sha512sum -c runsc.sha512 &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; -c containerd-shim-runsc-v1.sha512
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; rm -f *.sha512
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; chmod a+rx runsc containerd-shim-runsc-v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; sudo mv runsc containerd-shim-runsc-v1 /usr/local/bin
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="o"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Then we add the following lines to the &lt;code&gt;containerd&lt;/code&gt;&amp;rsquo;s config(&lt;em&gt;&lt;code&gt;/etc/containerd/config.toml&lt;/code&gt;&lt;/em&gt;)&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[plugins.&amp;#34;io.containerd.grpc.v1.cri&amp;#34;.containerd.runtimes.runsc]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtime_type = &amp;#34;io.containerd.runsc.v1&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;&lt;em&gt;NOTE:&lt;/em&gt;&lt;/strong&gt; We modify the containerd of the &lt;strong&gt;node&lt;/strong&gt;
+that will run the deployment.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Then restart the &lt;code&gt;containerd&lt;/code&gt; service and reload the systemd configuration&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-gdscript3" data-lang="gdscript3"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;sudo&lt;/span&gt; &lt;span class="n"&gt;systemctl&lt;/span&gt; &lt;span class="n"&gt;restart&lt;/span&gt; &lt;span class="n"&gt;containerd&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;sudo&lt;/span&gt; &lt;span class="n"&gt;systemctl&lt;/span&gt; &lt;span class="n"&gt;daemon&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;reload&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now let&amp;rsquo;s create the &lt;code&gt;gVisor-RuntimeClass&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;lt;&amp;lt;EOF | kubectl apply -f -
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;apiVersion: node.k8s.io/v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kind: RuntimeClass
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;metadata:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; name: gvisor
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;handler: runsc
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;&lt;em&gt;NOTE:&lt;/em&gt;&lt;/strong&gt; The &lt;a href="https://kubernetes.io/docs/concepts/containers/runtime-class/" target="_blank" rel="noopener"&gt;&lt;code&gt;RuntimeClass&lt;/code&gt;&lt;/a&gt;
+Kubernetes object is a resource that defines
+the container runtime to Pod&amp;rsquo;s containers.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;By applying the following &lt;code&gt;Knative-Service&lt;/code&gt; yaml, we deploy
+our function(a simple hello-world server) via the
+&lt;code&gt;gVisor&lt;/code&gt; runtime.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;lt;&amp;lt;EOF | tee gvisor-ksvc-hello-world.yaml | kubectl apply -f -
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;apiVersion: serving.knative.dev/v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kind: Service
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;metadata:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; name: gvisor-helloworld-0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; namespace: ktest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;spec:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; template:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; spec:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; containerConcurrency: 10
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; containers:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - env:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - name: TARGET
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; value: Go Sample v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; image: harbor.nbfc.io/kimage/hello-world@sha256:4554e30f8380ad74003fafe0f7136dc7511a3d437da2bfdc55fb4f913d641951
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtimeClassName: gvisor
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We can test the deployment in the same way we did with &lt;code&gt;runc&lt;/code&gt; :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl apply -f gvisor-ksvc-hello-world.yaml
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Warning: Kubernetes default value is insecure, Knative may default this to secure in a future release: spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.allowPrivilegeEscalation, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.capabilities, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.runAsNonRoot, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.seccompProfile
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;service.serving.knative.dev/kata-fc-helloworld-0 created
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl get ksvc -n ktest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;NAME URL LATESTCREATED LATESTREADY READY REASON
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;gvisor-helloworld-0 http://gvisor-helloworld-0.ktest.svc.cluster.local gvisor-helloworld-0-00001 gvisor-helloworld-0-00001 True
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl get svc -A &lt;span class="p"&gt;|&lt;/span&gt; grep kourier-internal
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kourier-system kourier-internal ClusterIP 10.98.240.177 &amp;lt;none&amp;gt; 80/TCP,443/TCP 2d4h
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ktest gvisor-helloworld-0 ExternalName &amp;lt;none&amp;gt; kourier-internal.kourier-system.svc.cluster.local 80/TCP 37s
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ curl -H &lt;span class="s2"&gt;&amp;#34;Host: gvisor-helloworld-0.ktest.svc.cluster.local&amp;#34;&lt;/span&gt; http://10.98.240.177
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Hello ! The IP is : 10.80.157.94
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;But how do we know the deployment actually runs via &lt;code&gt;gVisor&lt;/code&gt; on the specified node ?
+In order to validate everything is set up correctly
+we retrieve logs from the handling-processes.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;ps aux | grep gvisor | grep ktest&lt;/code&gt;&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ ps aux &lt;span class="p"&gt;|&lt;/span&gt; grep gvisor &lt;span class="p"&gt;|&lt;/span&gt; grep ktest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;root &lt;span class="m"&gt;534472&lt;/span&gt; 0.1 0.4 &lt;span class="m"&gt;1261980&lt;/span&gt; &lt;span class="m"&gt;18488&lt;/span&gt; ? Ssl 14:21 0:00 runsc-gofer --log&lt;span class="o"&gt;=&lt;/span&gt;/run/containerd/io.containerd.runtime.v2.task/k8s.io/1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20/log.json --log-format&lt;span class="o"&gt;=&lt;/span&gt;json --panic-log&lt;span class="o"&gt;=&lt;/span&gt;/var/log/pods/ktest_gvisor-helloworld-0-00001-deployment-6896594586-5s4tv_625b38a0-8355-4d44-9d2a-843d898d2c2a/gvisor_panic.log --root&lt;span class="o"&gt;=&lt;/span&gt;/run/containerd/runsc/k8s.io --log-fd&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;3&lt;/span&gt; gofer --bundle&lt;span class="o"&gt;=&lt;/span&gt;/run/containerd/io.containerd.runtime.v2.task/k8s.io/1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20 --io-fds&lt;span class="o"&gt;=&lt;/span&gt;6,7 --mounts-fd&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;5&lt;/span&gt; --overlay-mediums&lt;span class="o"&gt;=&lt;/span&gt;0,0 --spec-fd&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;4&lt;/span&gt; --sync-nvproxy-fd&lt;span class="o"&gt;=&lt;/span&gt;-1 --sync-userns-fd&lt;span class="o"&gt;=&lt;/span&gt;-1 --proc-mount-sync-fd&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;14&lt;/span&gt; --apply-caps&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nb"&gt;false&lt;/span&gt; --setup-root&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;root &lt;span class="m"&gt;534476&lt;/span&gt; 2.0 0.8 &lt;span class="m"&gt;2411120&lt;/span&gt; &lt;span class="m"&gt;35288&lt;/span&gt; ? Ssl 14:21 0:00 runsc-sandbox --root&lt;span class="o"&gt;=&lt;/span&gt;/run/containerd/runsc/k8s.io --log&lt;span class="o"&gt;=&lt;/span&gt;/run/containerd/io.containerd.runtime.v2.task/k8s.io/1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20/log.json --log-format&lt;span class="o"&gt;=&lt;/span&gt;json --panic-log&lt;span class="o"&gt;=&lt;/span&gt;/var/log/pods/ktest_gvisor-helloworld-0-00001-deployment-6896594586-5s4tv_625b38a0-8355-4d44-9d2a-843d898d2c2a/gvisor_panic.log --log-fd&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;3&lt;/span&gt; --panic-log-fd&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;4&lt;/span&gt; boot --apply-caps&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nb"&gt;false&lt;/span&gt; --bundle&lt;span class="o"&gt;=&lt;/span&gt;/run/containerd/io.containerd.runtime.v2.task/k8s.io/1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20 --controller-fd&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;10&lt;/span&gt; --cpu-num&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;2&lt;/span&gt; --io-fds&lt;span class="o"&gt;=&lt;/span&gt;5,6 --mounts-fd&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;7&lt;/span&gt; --overlay-mediums&lt;span class="o"&gt;=&lt;/span&gt;0,0 --setup-root&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nb"&gt;false&lt;/span&gt; --spec-fd&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;11&lt;/span&gt; --start-sync-fd&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;8&lt;/span&gt; --stdio-fds&lt;span class="o"&gt;=&lt;/span&gt;12,13,14 --total-host-memory&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;4110331904&lt;/span&gt; --total-memory&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;4110331904&lt;/span&gt; --user-log-fd&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;9&lt;/span&gt; --product-name&lt;span class="o"&gt;=&lt;/span&gt;Standard PC &lt;span class="o"&gt;(&lt;/span&gt;Q35 + ICH9, 2009&lt;span class="o"&gt;)&lt;/span&gt; --proc-mount-sync-fd&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;22&lt;/span&gt; 1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;root &lt;span class="m"&gt;534526&lt;/span&gt; 0.0 0.4 &lt;span class="m"&gt;1261980&lt;/span&gt; &lt;span class="m"&gt;17800&lt;/span&gt; ? Sl 14:21 0:00 runsc --root&lt;span class="o"&gt;=&lt;/span&gt;/run/containerd/runsc/k8s.io --log&lt;span class="o"&gt;=&lt;/span&gt;/run/containerd/io.containerd.runtime.v2.task/k8s.io/1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20/log.json --log-format&lt;span class="o"&gt;=&lt;/span&gt;json --panic-log&lt;span class="o"&gt;=&lt;/span&gt;/var/log/pods/ktest_gvisor-helloworld-0-00001-deployment-6896594586-5s4tv_625b38a0-8355-4d44-9d2a-843d898d2c2a/gvisor_panic.log &lt;span class="nb"&gt;wait&lt;/span&gt; 1e5fea157377c9b9d94c81e2921ef35712d5abdf08d3b3c19b138f40b0aacb20
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="kata-containers"&gt;Kata-containers&lt;/h3&gt;
+&lt;p&gt;Another option for enhancing the security and isolation of
+containerized applications is &lt;a href="https://github.com/kata-containers/kata-containers" target="_blank" rel="noopener"&gt;&lt;code&gt;Kata-containers&lt;/code&gt;&lt;/a&gt;-containers. Utilizing virtualization mechanisms
+provides an additional layer of isolation, mitigating potential security
+vulnerabilities.&lt;/p&gt;
+&lt;p&gt;The virtual machines created to execute
+the workload may vary depending on the chosen hypervisor.&lt;/p&gt;
+&lt;p&gt;Such &lt;a href="https://github.com/kata-containers/kata-containers/blob/main/docs/hypervisors.md#choose-a-hypervisor" target="_blank" rel="noopener"&gt;Hypervisors&lt;/a&gt;
+can be : &lt;code&gt;QEMU&lt;/code&gt;,&lt;code&gt;Firecracker&lt;/code&gt;,&lt;code&gt;DragonBall&lt;/code&gt;,&lt;code&gt;Cloud-hypervisor&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;In the following section we explore these options.&lt;/p&gt;
+&lt;h3 id="kata-qemu"&gt;Kata-QEMU&lt;/h3&gt;
+&lt;p&gt;For enabling the &lt;code&gt;Kata&lt;/code&gt;-runtime we need to
+install first &lt;code&gt;kata-shim&lt;/code&gt;(containerd-shim-kata-v2) and &lt;code&gt;kata-runtime&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Thus we follow this &lt;a href="https://github.com/kata-containers/kata-containers/blob/main/docs/install/container-manager/containerd/containerd-install.md" target="_blank" rel="noopener"&gt;installation guide&lt;/a&gt;&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-gdscript3" data-lang="gdscript3"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;wget&lt;/span&gt; &lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;github&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;com&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;kata&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;containers&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;kata&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;containers&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;releases&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;download&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="mf"&gt;3.2&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;alpha4&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;kata&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="k"&gt;static&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mf"&gt;3.2&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;alpha4&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;amd64&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;tar&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;xz&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;tar&lt;/span&gt; &lt;span class="n"&gt;xvf&lt;/span&gt; &lt;span class="n"&gt;kata&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="k"&gt;static&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mf"&gt;3.2&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;alpha4&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;amd64&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;tar&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;xz&lt;/span&gt; &lt;span class="o"&gt;./&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;sudo&lt;/span&gt; &lt;span class="n"&gt;cp&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;r&lt;/span&gt; &lt;span class="n"&gt;opt&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;kata&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;opt&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;echo&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;PATH=&amp;#34;$PATH:/opt/kata/bin&amp;#34;&amp;#39;&lt;/span&gt; &lt;span class="o"&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class="o"&gt;~/.&lt;/span&gt;&lt;span class="n"&gt;profile&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;source&lt;/span&gt; &lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;profile&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;echo&lt;/span&gt; &lt;span class="o"&gt;$&lt;/span&gt;&lt;span class="n"&gt;PATH&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;kata&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;runtime&lt;/span&gt; &lt;span class="o"&gt;--&lt;/span&gt;&lt;span class="n"&gt;version&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kata-runtime --version
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kata-runtime : 3.2.0-alpha3
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; commit : 61a8eabf8e4c3a0ff807f7461b27a1a036ef816e
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; OCI specs: 1.0.2-dev
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now we need to make &lt;code&gt;kata-runtime&lt;/code&gt; use the &lt;code&gt;QEMU&lt;/code&gt; hypervisor,
+following the &lt;a href="https://blog.cloudkernels.net/posts/orin-vm-vaccel/#kata-containers-binary-installation:~:text=QEMU%3A,1" target="_blank" rel="noopener"&gt;installation-guide&lt;/a&gt;
+let&amp;rsquo;s create a script indicating the usage of &lt;code&gt;QEMU&lt;/code&gt; hypervisor from &lt;code&gt;kata-runtime&lt;/code&gt;, in &lt;code&gt;/usr/local/bin/containerd-shim-kata-qemu-v2&lt;/code&gt;
+add the following lines.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="cp"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;KATA_CONF_FILE&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;/opt/kata/share/defaults/kata-containers/configuration-qemu.toml /opt/kata/bin/containerd-shim-kata-v2 &lt;span class="nv"&gt;$@&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Make it executable.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo chmod +x /usr/local/bin/containerd-shim-kata-qemu-v2
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;It&amp;rsquo;s time to tell &lt;code&gt;containerd&lt;/code&gt; about the &lt;code&gt;kata-qemu&lt;/code&gt; container-runtime, so we define
+the runtime by adding these lines in &lt;code&gt;/etc/containerd/config.toml&lt;/code&gt;&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; [plugins.&amp;#34;io.containerd.grpc.v1.cri&amp;#34;.containerd.runtimes.kata-qemu]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices = false
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices_all_devices_allowed = false
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtime_type = &amp;#34;io.containerd.kata-qemu.v2&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; pod_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; container_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Restart the &lt;code&gt;containerd&lt;/code&gt; service and reload the systemd
+configuration&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-gdscript3" data-lang="gdscript3"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;sudo&lt;/span&gt; &lt;span class="n"&gt;systemctl&lt;/span&gt; &lt;span class="n"&gt;restart&lt;/span&gt; &lt;span class="n"&gt;containerd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;service&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;sudo&lt;/span&gt; &lt;span class="n"&gt;systemctl&lt;/span&gt; &lt;span class="n"&gt;daemon&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;reload&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;To verify the containerd configuration, we execute a basic
+command within a container, specifying the kata-qemu runtime.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo ctr run --runtime io.containerd.kata-qemu.v2 --rm docker.io/library/ubuntu:latest test uname -a
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;## Linux localhost 6.1.38 #1 SMP Tue Jul 25 16:32:12 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now we know containerd is configured properly is time to define
+the&lt;code&gt;Kata-QEMU RuntimeClass&lt;/code&gt; in Kubernetes.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;lt;&amp;lt; EOF | kubectl apply -f -
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kind: RuntimeClass
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;apiVersion: node.k8s.io/v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;metadata:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; name: kata-qemu
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;handler: kata-qemu
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Next we create another deployment of &lt;code&gt;helloworld-Knative-service&lt;/code&gt;
+but this time the &lt;code&gt;RuntimeClass&lt;/code&gt; points
+to the &lt;code&gt;kata-qemu&lt;/code&gt; handler&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;lt;&amp;lt;EOF | tee kata-qemu-ksvc-hello-world.yaml | kubectl apply -f -
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;apiVersion: serving.knative.dev/v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kind: Service
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;metadata:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; name: kata-qemu-helloworld-0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; namespace: ktest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;spec:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; template:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; metadata: null
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; spec:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; containerConcurrency: 10
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; containers:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - env:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - name: TARGET
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; value: Go Sample v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; image: harbor.nbfc.io/kimage/hello-world@sha256:4554e30f8380ad74003fafe0f7136dc7511a3d437da2bfdc55fb4f913d641951
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtimeClassName: kata-qemu
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The following figure shows the deployment and response of the function:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl create ns ktest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;namespace/ktest created
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl apply -f kata-qemu-ksvc-hello-world.yaml
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Warning: Kubernetes default value is insecure, Knative may default this to secure in a future release: spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.allowPrivilegeEscalation, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.capabilities, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.runAsNonRoot, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.seccompProfile
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;service.serving.knative.dev/kata-qemu-helloworld-00 created
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl get ksvc -n ktest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;NAME URL LATESTCREATED LATESTREADY READY REASON
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kata-qemu-helloworld-00 http://kata-qemu-helloworld-00.ktest.svc.cluster.local kata-qemu-helloworld-00-00001 kata-qemu-helloworld-00-00001 True
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl get svc -A &lt;span class="p"&gt;|&lt;/span&gt; grep kourier-internal
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kourier-system kourier-internal ClusterIP 10.98.240.177 &amp;lt;none&amp;gt; 80/TCP,443/TCP 2d4h
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ktest kata-qemu-helloworld-00 ExternalName &amp;lt;none&amp;gt; kourier-internal.kourier-system.svc.cluster.local 80/TCP 103s
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ curl -H &lt;span class="s2"&gt;&amp;#34;Host: kata-qemu-helloworld-00.ktest.svc.cluster.local&amp;#34;&lt;/span&gt; http://10.98.240.177
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Hello ! The IP is : 10.80.157.99
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="kata-firecracker"&gt;Kata-Firecracker&lt;/h2&gt;
+&lt;p&gt;The same process is followed for utilization of
+&lt;code&gt;kata-runtime&lt;/code&gt; with &lt;a href="https://firecracker-microvm.github.io/" target="_blank" rel="noopener"&gt;&lt;code&gt;Firecracker&lt;/code&gt;&lt;/a&gt; hypervisor configured.&lt;/p&gt;
+&lt;p&gt;One fundamental distinction in this context is the necessity to incorporate the &lt;code&gt;devmapper&lt;/code&gt; &lt;a href="https://dev.to/napicella/what-is-a-containerd-snapshotters-3eo2" target="_blank" rel="noopener"&gt;&lt;code&gt;snapshotter&lt;/code&gt;&lt;/a&gt;
+to manage virtual block devices required by the Firecracker hypervisor.
+Make sure you &lt;a href="/posts/kata-build-configure-fc/#devmapper-snapshotter"&gt;follow the instructions&lt;/a&gt; to setup
+it correctly in &lt;code&gt;containerd&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;To check that &lt;code&gt;devmapper&lt;/code&gt; is registered and running:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo dmsetup ls
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# containerd-pool (253:0)
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo ctr plugins ls | grep devmapper
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# io.containerd.snapshotter.v1 devmapper linux/amd64 ok
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Seems like &lt;code&gt;devmapper&lt;/code&gt; is configured properly !&lt;/p&gt;
+&lt;p&gt;Now we have configure the &lt;code&gt;containerd-pool&lt;/code&gt;
+let&amp;rsquo;s create a script indicating the usage of &lt;code&gt;Firecracker&lt;/code&gt; configuration for &lt;code&gt;kata-runtime&lt;/code&gt;,&lt;/p&gt;
+&lt;p&gt;Add the following lines in &lt;code&gt;/usr/local/bin/containerd-shim-kata-fc-v2&lt;/code&gt; :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="cp"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;KATA_CONF_FILE&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;/opt/kata/share/defaults/kata-containers/configuration-fc.toml /opt/kata/bin/containerd-shim-kata-v2 &lt;span class="nv"&gt;$@&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo chmod +x /usr/local/bin/containerd-shim-fc-qemu-v2
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Then define the &lt;code&gt;kata-fc&lt;/code&gt; runtime in containerd:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; [plugins.&amp;#34;io.containerd.grpc.v1.cri&amp;#34;.containerd.runtimes.kata-fc]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices = true
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices_all_devices_allowed = false
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtime_type = &amp;#34;io.containerd.kata-fc.v2&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; snapshotter = &amp;#34;devmapper&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; pod_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; container_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;&lt;em&gt;NOTE:&lt;/em&gt;&lt;/strong&gt; We create the &lt;code&gt;containerd-pool&lt;/code&gt; and modify the containerd-configuration of the &lt;strong&gt;node&lt;/strong&gt; that will run the deployment.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Restart the &lt;code&gt;containerd&lt;/code&gt; service and reload the systemd
+configuration&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-gdscript3" data-lang="gdscript3"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;sudo&lt;/span&gt; &lt;span class="n"&gt;systemctl&lt;/span&gt; &lt;span class="n"&gt;restart&lt;/span&gt; &lt;span class="n"&gt;containerd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;service&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;sudo&lt;/span&gt; &lt;span class="n"&gt;systemctl&lt;/span&gt; &lt;span class="n"&gt;daemon&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;reload&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;To test the configuration of &lt;code&gt;kata-fc&lt;/code&gt; in containerd, run a simple container with the specified runtime:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; sudo ctr run --snapshotter devmapper --runtime io.containerd.run.kata-fc.v2 -t --rm docker.io/library/ubuntu:latest ubuntu-kata-fc-test uname -a
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;# Linux localhost 6.1.38 #1 SMP Tue Jul 25 16:32:12 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;It appears that everything has been configured correctly!&lt;/p&gt;
+&lt;p&gt;We now need to define the &lt;code&gt;RuntimeClass&lt;/code&gt;
+in Kubernetes to enable the utilization of the &lt;code&gt;kata-fc&lt;/code&gt;
+runtime through containerd on the deployment nodes.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;lt;&amp;lt; EOF | kubectl apply -f -
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kind: RuntimeClass
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;apiVersion: node.k8s.io/v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;metadata:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; name: kata-fc
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;handler: kata-fc
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Create the &lt;code&gt;Knative-Service&lt;/code&gt; to be deployed with &lt;code&gt;kata-fc&lt;/code&gt; &lt;code&gt;RuntimeClass&lt;/code&gt;&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;lt;&amp;lt;EOF | tee kata-fc-ksvc-hello-world.yaml | kubectl apply -f -
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;apiVersion: serving.knative.dev/v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kind: Service
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;metadata:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; name: kata-fc-helloworld-0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; namespace: ktest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;spec:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; template:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; spec:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; containerConcurrency: 10
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; containers:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - env:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - name: TARGET
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; value: Go Sample v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; image: harbor.nbfc.io/kimage/hello-world@sha256:4554e30f8380ad74003fafe0f7136dc7511a3d437da2bfdc55fb4f913d641951
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtimeClassName: kata-fc
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;After a successful deployment we can &lt;code&gt;curl&lt;/code&gt; the &lt;code&gt;Knative-Service&lt;/code&gt; (through &lt;code&gt;kourier-internal&lt;/code&gt; svc) and check its
+response.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl apply -f kata-fc-ksvc-hello-world.yaml
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Warning: Kubernetes default value is insecure, Knative may default this to secure in a future release: spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.allowPrivilegeEscalation, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.capabilities, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.runAsNonRoot, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.seccompProfile
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;service.serving.knative.dev/kata-fc-helloworld-00 created
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl get ksvc -n ktest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;NAME URL LATESTCREATED LATESTREADY READY REASON
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kata-fc-helloworld-00 http://kata-fc-helloworld-00.ktest.svc.cluster.local kata-fc-helloworld-00-00001 kata-fc-helloworld-00-00001 True
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl get svc -A &lt;span class="p"&gt;|&lt;/span&gt; grep kourier-internal
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kourier-system kourier-internal ClusterIP 10.98.240.177 &amp;lt;none&amp;gt; 80/TCP,443/TCP 2d5h
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ktest kata-fc-helloworld-00 ExternalName &amp;lt;none&amp;gt; kourier-internal.kourier-system.svc.cluster.local 80/TCP 31s
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ curl -H &lt;span class="s2"&gt;&amp;#34;Host: kata-fc-helloworld-00.ktest.svc.cluster.local&amp;#34;&lt;/span&gt; http://10.98.240.177
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Hello ! The IP is : 10.80.157.100
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="kata-dragonball"&gt;Kata-Dragonball&lt;/h2&gt;
+&lt;p&gt;Another hypervisor option, enhancing the low-CPU utilization and low-memory overhead
+is &lt;a href="https://github.com/openanolis/dragonball-sandbox" target="_blank" rel="noopener"&gt;&lt;code&gt;Dragonball&lt;/code&gt;&lt;/a&gt;. In the same manner
+we create a script pointing to the &lt;code&gt;dragonball-configuration&lt;/code&gt; this time. In &lt;code&gt;/usr/local/bin/containerd-shim-kata-rs-v2&lt;/code&gt;
+add the following lines:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="cp"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;KATA_CONF_FILE&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;/opt/kata/share/defaults/kata-containers/configuration-dragonball.toml /opt/kata/runtime-rs/bin/containerd-shim-kata-v2 &lt;span class="nv"&gt;$@&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Make it executable.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo chmod +x /usr/local/bin/containerd-shim-kata-rs-v2
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Add the following lines in containerd&amp;rsquo;s config(&lt;code&gt;/etc/containerd/config.toml&lt;/code&gt;) to
+enable the utilization of &lt;code&gt;Dragonball&lt;/code&gt; hypervisor&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[plugins.&amp;#34;io.containerd.grpc.v1.cri&amp;#34;.containerd.runtimes.kata-rs]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices = true
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices_all_devices_allowed = true
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtime_type = &amp;#34;io.containerd.kata-rs.v2&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; #snapshotter = &amp;#34;devmapper&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; pod_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; container_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Then restart the &lt;code&gt;containerd&lt;/code&gt; service and reload the systemd configuration&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-gdscript3" data-lang="gdscript3"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;sudo&lt;/span&gt; &lt;span class="n"&gt;systemctl&lt;/span&gt; &lt;span class="n"&gt;restart&lt;/span&gt; &lt;span class="n"&gt;containerd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;service&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;sudo&lt;/span&gt; &lt;span class="n"&gt;systemctl&lt;/span&gt; &lt;span class="n"&gt;daemon&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;reload&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now let&amp;rsquo;s test everything is set up correctly :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo ctr run --runtime io.containerd.kata-rs.v2 --rm docker.io/library/ubuntu:latest test-rs uname -a
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;## Linux localhost 6.1.38 #1 SMP Tue Jul 25 16:32:12 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Seems everything works as expected!&lt;/p&gt;
+&lt;p&gt;In order to make the &lt;code&gt;Dragonball-runtime&lt;/code&gt; option available, we need to define a new &lt;code&gt;RuntimeClass&lt;/code&gt;
+utilizing the kata-rs handler of the &lt;code&gt;containerd&lt;/code&gt;s deployment-node. Thus execute
+the following:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;lt;&amp;lt; EOF | kubectl apply -f -
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kind: RuntimeClass
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;apiVersion: node.k8s.io/v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;metadata:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; name: kata-rs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;handler: kata-rs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Apply the &lt;code&gt;helloworld-Knative-Service&lt;/code&gt; with the &lt;code&gt;Dragonball&lt;/code&gt; runtime&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;lt;&amp;lt;EOF | tee kata-rs-ksvc-hello-world.yaml | kubectl apply -f -
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;apiVersion: serving.knative.dev/v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kind: Service
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;metadata:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; name: kata-rs-helloworld-0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; namespace: ktest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;spec:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; template:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; spec:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; containerConcurrency: 10
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; containers:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - env:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - name: TARGET
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; value: Go Sample v1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; image: harbor.nbfc.io/kimage/hello-world@sha256:4554e30f8380ad74003fafe0f7136dc7511a3d437da2bfdc55fb4f913d641951
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtimeClassName: kata-rs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;To test the FaaS-deployed service, execute the curl command as illustrated in the figure below:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl apply -f kata-rs-ksvc-hello-world.yaml
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Warning: Kubernetes default value is insecure, Knative may default this to secure in a future release: spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.allowPrivilegeEscalation, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.capabilities, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.runAsNonRoot, spec.template.spec.containers&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;.securityContext.seccompProfile
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;$service&lt;/span&gt;.serving.knative.dev/kata-rs-helloworld-0 created
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl get ksvc -n ktest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;NAME URL LATESTCREATED LATESTREADY READY REASON
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kata-rs-helloworld-0 http://kata-rs-helloworld-0.ktest.svc.cluster.local kata-rs-helloworld-0-00001 kata-rs-helloworld-0-00001 True
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ kubectl get svc -A &lt;span class="p"&gt;|&lt;/span&gt; grep kourier-internal
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kourier-system kourier-internal ClusterIP 10.98.240.177 &amp;lt;none&amp;gt; 80/TCP,443/TCP 2d5h
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ktest kata-rs-helloworld-0 ExternalName &amp;lt;none&amp;gt; kourier-internal.kourier-system.svc.cluster.local 80/TCP 97s
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ curl -H &lt;span class="s2"&gt;&amp;#34;Host: kata-rs-helloworld-0.ktest.svc.cluster.local&amp;#34;&lt;/span&gt; http://10.98.240.177
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Hello ! The IP is : 10.80.157.102
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;That&amp;rsquo;s all!&lt;/p&gt;</description></item><item><title>Isolated, hardware-accelerated functions on Jetson AGX Orin</title><link>/blog/orin-vm-vaccel/</link><pubDate>Sun, 24 Sep 2023 16:31:04 +0100</pubDate><guid>/blog/orin-vm-vaccel/</guid><description>&lt;p&gt;Following up on a successful &lt;a href="/orin-vm"&gt;VM boot&lt;/a&gt; on a &lt;a href="https://www.nvidia.com/en-il/autonomous-machines/embedded-systems/jetson-orin/" target="_blank" rel="noopener"&gt;Jetson AGX
+Orin&lt;/a&gt;,
+we continue exploring the capabilities of this edge device, focusing on the
+cloud-native aspect of application deployment.&lt;/p&gt;
+&lt;p&gt;As a team, we&amp;rsquo;ve built &lt;a href="https://docs.vaccel.org" target="_blank" rel="noopener"&gt;vAccel&lt;/a&gt;, a hardware
+acceleration framework that decouples the operation from its hardware
+implementation. One of the awesome things vAccel offers is the ability to
+execute hardware-accelerated applications in a VM that has no direct access to
+a hardware accelerator. Given the Jetson Orin board has an Ampere GPU, with
+1792 cores and 56 Tensor Cores, it sounds like a perfect edge device to try
+isolated hardware-accelerated workload execution through VM sandboxes.&lt;/p&gt;
+&lt;p&gt;Additionally, coupled with our downstream &lt;code&gt;kata-containers&lt;/code&gt; port, we can invoke a
+VM sandboxed container through CRI that can execute compute-intensive tasks
+faster by using the GPU without having direct access to it!&lt;/p&gt;
+&lt;h2 id="overview"&gt;Overview&lt;/h2&gt;
+&lt;p&gt;In this post we go through the high-level architecture of
+&lt;a href="#how-kata-containers-work"&gt;kata-containers&lt;/a&gt; and &lt;a href="#how-vaccel-works"&gt;vAccel&lt;/a&gt;
+and provide insights into the &lt;a href="#kata-vaccel"&gt;integration&lt;/a&gt; we did.&lt;/p&gt;
+&lt;p&gt;Then, we go through the steps to &lt;a href="#kata-containers-binary-installation"&gt;run a stock kata
+container&lt;/a&gt; using various supported VMMs
+(&lt;a href="https://github.com/qemu/qemu" target="_blank" rel="noopener"&gt;QEMU&lt;/a&gt;, &lt;a href="https://github.com/firecracker-microvm/firecracker" target="_blank" rel="noopener"&gt;AWS
+Firecracker&lt;/a&gt;, &lt;a href="https://github.com/cloud-hypervisor/cloud-hypervisor" target="_blank" rel="noopener"&gt;Cloud
+hypervisor&lt;/a&gt;, and
+&lt;a href="https://github.com/kata-containers/kata-containers/" target="_blank" rel="noopener"&gt;Dragonball&lt;/a&gt;) on the
+Jetson AGX Orin board.&lt;/p&gt;
+&lt;p&gt;Finally, we provide the steps to &lt;a href="#enable-vaccel-on-the-kata-runtime"&gt;enable
+vAccel&lt;/a&gt; on a VM sandboxed container using
+our custom &lt;code&gt;kata-containers&lt;/code&gt; runtime for the
+&lt;a href="https://github.com/nubificus/kata-containers/tree/vaccel-v3.2" target="_blank" rel="noopener"&gt;Go&lt;/a&gt; and
+&lt;a href="https://github.com/nubificus/kata-containers/tree/rs-vaccel-fusion" target="_blank" rel="noopener"&gt;Rust&lt;/a&gt;
+variants.&lt;/p&gt;
+&lt;h3 id="how-kata-containers-work"&gt;How kata containers work&lt;/h3&gt;
+&lt;p&gt;Kata containers is a sandboxed container runtime, combining the benefits of VMs
+in terms of workload isolation, with those of containers, in terms of
+portability. Installing and configuring &lt;code&gt;kata-containers&lt;/code&gt; is straightforward
+and we have covered that in &lt;a href="/posts/kata-build-source"&gt;some&lt;/a&gt; of our
+&lt;a href="/posts/kata-build-configure-qemu"&gt;previous&lt;/a&gt;
+&lt;a href="/posts/kata-build-configure-fc"&gt;posts&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;In this post, we will not go through the details of building &amp;ndash; we will just
+install &lt;code&gt;kata-containers&lt;/code&gt; from the stock releases and add the binaries to enable
+vAccel execution.&lt;/p&gt;
+&lt;h3 id="how-vaccel-works"&gt;How vAccel works&lt;/h3&gt;
+&lt;p&gt;vAccel is a software framework to expose hardware acceleration functionality to
+workloads that do not have direct access to an acceleration device. vAccel
+features a modular design where runtime &lt;code&gt;plugins&lt;/code&gt; implement API operations.
+Figure 1 shows the software stack for the core vAccel library, along with a
+number of plugins and their accompanying external libraries.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure id="figure-figure-1-the-vaccel-software-stack"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/orin/vaccel-stack.png" alt="vaccel-stack" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 1: The vAccel software stack
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;/p&gt;
+&lt;p&gt;Apart from &amp;ldquo;hardware&amp;rdquo; plugins (that implement the API operations in some sort
+of acceleration library, eg CUDA, OpenCL etc.), vAccel features virtual plugins
+that are able to forward requests to a remote Host. This functionality makes it
+an open-ended API remoting framework. Based on the transport plugin (virtio or
+vsock) multiple setups can be enabled, making it ideal to use on VMs or on
+resource-constrained devices for remote execution. You can find more info about
+vAccel in the &lt;a href="https://docs.vaccel.org" target="_blank" rel="noopener"&gt;vAccel docs website&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;The socket mode of vAccel for remote operations of vAccel works as follows:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;the Host component (direct access to an accelerator), listens for requests
+using a predefined protocol (over gRPC) and issues vAccel API calls to the
+core vAccelRT library.&lt;/li&gt;
+&lt;li&gt;the Remote/Guest component (no direct access to an accelerator), forwards
+requests to the Host component via a gRPC channel and receives results from
+the execution.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;At the moment, the Host component is a simple gRPC agent (&lt;code&gt;vaccel-agent&lt;/code&gt;) and
+the Remote/Guest component is a vAccel plugin (&lt;code&gt;libvaccel-vsock.so&lt;/code&gt;). A logical
+diagram of the execution flow for a VM workload taking advantage of the vAccel
+framework to run accelerated operations is shown in Figure 2.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure id="figure-figure-2-execution-flow-for-a-vaccel-application-running-in-a-vm"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/orin/vaccel-vm-flow.png" alt="vaccel" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 2: Execution flow for a vAccel application running in a VM
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;/p&gt;
+&lt;h3 id="kata-vaccel"&gt;kata-vAccel&lt;/h3&gt;
+&lt;p&gt;Integrating the vAccel framework to a sandboxed container runtime removes the
+need for complicated passthrough setups. No kernel prerequisites are needed
+(apart from the &lt;code&gt;VSOCK&lt;/code&gt; options which is by-default enabled in most sandboxed
+container runtimes).&lt;/p&gt;
+&lt;p&gt;
+&lt;figure id="figure-figure-3-kata-vaccel-modes"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/orin/kata-vaccel-modes.png" alt="vaccel" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 3: kata-vAccel modes
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;/p&gt;
+&lt;p&gt;Currently, there are two modes for kata-vAccel (Figure 3): (a) the first one,
+&lt;code&gt;exec&lt;/code&gt;/&lt;code&gt;external&lt;/code&gt; mode, supporting both runtime variants of &lt;code&gt;kata-containers&lt;/code&gt; (Go
+and Rust), spawns the &lt;code&gt;vaccelrt-agent&lt;/code&gt; as an external binary, listening to the
+vsock socket available for the &lt;code&gt;kata-agent&lt;/code&gt; component of the container runtime;
+(b) the second mode, &lt;code&gt;integrated&lt;/code&gt; is only supported for the rust runtime
+variant of &lt;code&gt;kata-containers&lt;/code&gt; and embeds the functionality of the &lt;code&gt;vaccelrt-agent&lt;/code&gt;
+into the runtime, allowing better control and sandboxing of the components
+running on the host system.&lt;/p&gt;
+&lt;p&gt;An overview of the execution flow for a vAccel-enabled
+sandboxed container running on &lt;code&gt;kata-containers&lt;/code&gt; is shown in Figure 4.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure id="figure-figure-4-execution-flow-for-a-vaccel-enabled-sandboxed-container"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/orin/vaccel-kata-rs.png" alt="kata-vaccel" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 4: Execution flow for a vAccel-enabled sandboxed container
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;/p&gt;
+&lt;h4 id="kata-containers-binary-installation"&gt;kata-containers binary installation&lt;/h4&gt;
+&lt;p&gt;The steps to install the stock &lt;code&gt;kata-containers&lt;/code&gt; runtime are shown below:&lt;/p&gt;
+&lt;p&gt;Get the release tarball:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://github.com/kata-containers/kata-containers/releases/download/3.2.0-rc0/kata-static-3.2.0-rc0-arm64.tar.xz
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Unpack it in a temporary directory:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mkdir /tmp/kata-release
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;xzcat kata-static-3.2.0-rc0-arm64.tar.xz &lt;span class="p"&gt;|&lt;/span&gt; tar -xvf - -C /tmp/kata-release
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;You should be presented with the following directory structure:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# tree -d /tmp/kata-release/&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;/tmp/kata-release/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;└── opt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; └── kata
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ├── bin
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ├── libexec
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ├── runtime-rs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; │   └── bin
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; └── share
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ├── bash-completion
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; │   └── completions
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ├── defaults
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; │   └── kata-containers
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ├── kata-containers
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; └── kata-qemu
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; └── qemu
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; └── firmware
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="m"&gt;15&lt;/span&gt; directories
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Move the files to &lt;code&gt;/opt/kata&lt;/code&gt; (This is a hard requirement, as all config files assume this folder):&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;rsync -oagxvPH /tmp/kata-release/opt/kata /opt/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;rm -rf /tmp/kata-release
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Create helper files for the kata VMMs you would like to try out:&lt;/p&gt;
+&lt;p&gt;Cloud-hypervisor:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-clh-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-clh.toml /opt/kata/bin/containerd-shim-kata-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Dragonball:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-rs-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-dragonball.toml /opt/kata/runtime-rs/bin/containerd-shim-kata-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;AWS Firecracker:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-fc-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-fc.toml /opt/kata/bin/containerd-shim-kata-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;QEMU:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-qemu-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-qemu.toml /opt/kata/bin/containerd-shim-kata-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;For each of the VMMs you need an entry in the &lt;code&gt;/etc/containerd/config.toml&lt;/code&gt; file:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;[&lt;/span&gt;plugins.&lt;span class="s2"&gt;&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span&gt;.containerd.runtimes.kata-fc&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;true&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices_all_devices_allowed&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;runtime_type&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;io.containerd.kata-fc.v2&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;snapshotter&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;devmapper&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;pod_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;container_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;[&lt;/span&gt;plugins.&lt;span class="s2"&gt;&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span&gt;.containerd.runtimes.kata-rs&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices_all_devices_allowed&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;runtime_type&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;io.containerd.kata-rs.v2&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="c1"&gt;#snapshotter = &amp;#34;devmapper&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;pod_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;container_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;[&lt;/span&gt;plugins.&lt;span class="s2"&gt;&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span&gt;.containerd.runtimes.kata-clh&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices_all_devices_allowed&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;runtime_type&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;io.containerd.kata-clh.v2&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;pod_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;container_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;[&lt;/span&gt;plugins.&lt;span class="s2"&gt;&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span&gt;.containerd.runtimes.kata-qemu&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;privileged_without_host_devices_all_devices_allowed&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;runtime_type&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;io.containerd.kata-qemu.v2&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;pod_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nv"&gt;container_annotations&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;*&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;Note&lt;/strong&gt;: for AWS Firecracker, the only supported snapshotter is &lt;code&gt;devmapper&lt;/code&gt;.
+Make sure you &lt;a href="/posts/kata-build-configure-fc/#devmapper-snapshotter"&gt;follow the
+instructions&lt;/a&gt; to setup
+it correctly in &lt;code&gt;containerd&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Restart &lt;code&gt;containerd&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;systemctl restart containerd
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;You should now be able to spawn a stock kata-container using one of the VMM configurations above:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo nerdctl run --rm -it --runtime io.containerd.kata-fc.v2 --snapshotter devmapper ubuntu:latest uname -a
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Linux d13db14b0c9a 5.15.26 #2 SMP Fri Apr 21 05:05:44 BST 2023 aarch64 aarch64 aarch64 GNU/Linux
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id="enable-vaccel-on-the-kata-runtime"&gt;Enable vAccel on the kata runtime&lt;/h4&gt;
+&lt;p&gt;To enable vAccel, we need to add a custom kata runtime binary that instantiates
+the &lt;code&gt;vaccel-agent&lt;/code&gt; alongside the container spawn.&lt;/p&gt;
+&lt;p&gt;For now, we build binaries for &lt;code&gt;x86_64&lt;/code&gt; and &lt;code&gt;aarch64&lt;/code&gt;:&lt;/p&gt;
+&lt;h5 id="go-runtime"&gt;Go runtime&lt;/h5&gt;
+&lt;p&gt;For the go runtime (&lt;code&gt;kata-fc&lt;/code&gt;):&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccel-go-lib/aarch64/containerd-shim-kata-v2 -O /opt/kata/bin/containerd-shim-kata-vaccel-v2
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;chmod +x /opt/kata/bin/containerd-shim-kata-vaccel-v2
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccel-go-lib/toml/configuration-fc-vaccel.toml -O /opt/kata/share/defaults/kata-containers/configuration-fc-vaccel.toml
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The next step is to setup helper scripts like above.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-fc-vaccel-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-fc-vaccel.toml /opt/kata/bin/containerd-shim-kata-vaccel-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and add the runtime to &lt;code&gt;/etc/containerd/config.toml&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; [plugins.&amp;#34;io.containerd.grpc.v1.cri&amp;#34;.containerd.runtimes.kata-fc-vaccel]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices = true
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices_all_devices_allowed = true
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtime_type = &amp;#34;io.containerd.kata-fc-vaccel.v2&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; snapshotter = &amp;#34;devmapper&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; pod_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; container_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h5 id="rust-runtime"&gt;Rust runtime&lt;/h5&gt;
+&lt;p&gt;For the rust runtime (&lt;code&gt;kata-rs&lt;/code&gt;)&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccel-rs-lib/shim/main/aarch64/containerd-shim-kata-v2 -O /opt/kata/runtime-rs/bin/containerd-shim-kata-vaccel-v2
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;chmod +x /opt/kata/runtime-rs/bin/containerd-shim-kata-vaccel-v2
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccel-rs-lib/toml/main/aarch64/configuration-dragonball.toml -O /opt/kata/share/defaults/kata-containers/configuration-dbs-vaccel.toml
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The next step is to setup helper scripts like above.&lt;/p&gt;
+&lt;p&gt;Dragonball with vAccel:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-rs-vaccel-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-dbs-vaccel.toml /opt/kata/runtime-rs/bin/containerd-shim-kata-vaccel-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and add the runtime to &lt;code&gt;/etc/containerd/config.toml&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; [plugins.&amp;#34;io.containerd.grpc.v1.cri&amp;#34;.containerd.runtimes.kata-rs-vaccel]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices = false
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; privileged_without_host_devices_all_devices_allowed = false
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; runtime_type = &amp;#34;io.containerd.kata-rs-vaccel.v2&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; #snapshotter = &amp;#34;devmapper&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; pod_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; container_annotations = [&amp;#34;*&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We should now be able to spawn a vAccel-enabled kata container with both go and rust runtimes:&lt;/p&gt;
+&lt;p&gt;Go:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ nerdctl run --runtime io.containerd.kata-fc-vaccel.v2 --rm -it --snapshotter devmapper harbor.nbfc.io/nubificus/test-vaccel:latest /bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;root@bce78aa7d1b4:/#
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Rust:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ nerdctl run --runtime io.containerd.kata-rs-vaccel.v2 --rm -it harbor.nbfc.io/nubificus/test-vaccel:latest /bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;root@2ce045d042bc:/#
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="install-and-setup-vaccel-and-the-jetson-inference-plugin-on-the-host"&gt;Install and Setup vAccel and the &lt;code&gt;jetson-inference&lt;/code&gt; plugin on the host&lt;/h3&gt;
+&lt;h4 id="setup-vaccel"&gt;Setup vAccel&lt;/h4&gt;
+&lt;p&gt;To install vAccel on the Orin we need to download the core runtime library, the
+agent and setup the jetson plugin. For a binary install, you can use the following snippet:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/main/aarch64/Release-deb/vaccel-0.5.0-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/agent/main/aarch64/Release-deb/vaccelrt-agent-0.3.6-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/plugins/jetson_inference/main/aarch64/Release-deb/vaccelrt-plugin-jetson-0.1.0-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;dpkg -i vaccel-0.5.0-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;dpkg -i vaccelrt-agent-0.3.6-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;dpkg -i vaccelrt-plugin-jetson-0.1.0-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;To be able to use the vAccel &lt;code&gt;jetson-inference&lt;/code&gt; plugin, we need to install the
+&lt;code&gt;jetson-inference&lt;/code&gt; framework on the host system.&lt;/p&gt;
+&lt;h4 id="setup-jetson-inference-on-the-orin"&gt;Setup &lt;code&gt;jetson-inference&lt;/code&gt; on the Orin&lt;/h4&gt;
+&lt;p&gt;We follow the installation instructions from
+&lt;a href="https://github.com/dusty-nv/jetson-inference" target="_blank" rel="noopener"&gt;dusty-nv/jetson-inference&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;TL;DR:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/dusty-nv/jetson-inference --depth &lt;span class="m"&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; jetson-inference
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git submodule update --init
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mkdir build &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="nb"&gt;cd&lt;/span&gt; build
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cmake ../ -DBUILD_INTERACTIVE&lt;span class="o"&gt;=&lt;/span&gt;OFF
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; make install
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Make sure you link the models to a directory in
+&lt;code&gt;/usr/local/share/imagenet-models&lt;/code&gt;, as this is the default path where the
+vAccel jetson plugin looks for them:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mkdir /usr/local/share/imagenet-models
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ln -s &lt;span class="nv"&gt;$PWD&lt;/span&gt;/../data/networks /usr/local/share/imagenet-models/
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;For more info on a full &lt;code&gt;jetson-inference&lt;/code&gt; vaccel example, have a look at the &lt;a href="https://docs.vaccel.org/quickstart/#jetson-example" target="_blank" rel="noopener"&gt;vAccel docs&lt;/a&gt;.&lt;/p&gt;
+&lt;h4 id="configure-the-container-runtime-to-use-vaccel"&gt;Configure the container runtime to use vAccel&lt;/h4&gt;
+&lt;p&gt;Now that we have kata containers setup and vAccel installed, let&amp;rsquo;s configure the runtime!&lt;/p&gt;
+&lt;p&gt;Make sure you specify the relevant vaccel backend/plugins in the kata
+configuration file. As mentioned above, there are two modes of operation
+supported in the kata runtime for the &lt;code&gt;vaccelrt-agent&lt;/code&gt;:&lt;/p&gt;
+&lt;p&gt;(a) &lt;em&gt;external&lt;/em&gt;: the kata runtime spawns the &lt;code&gt;vaccelrt-agent&lt;/code&gt; binary, as an external
+application. The setup for the host vAccel plugins is done in the kata
+configuration file.&lt;/p&gt;
+&lt;p&gt;(b) &lt;em&gt;integrated&lt;/em&gt;: the kata runtime includes the &lt;code&gt;vaccelrt-agent&lt;/code&gt; functionality,
+embedded in the runtime code. The setup for the host vAccel plugins is done in
+the helper script, as an environment variable (&lt;code&gt;VACCEL_BACKENDS&lt;/code&gt;).&lt;/p&gt;
+&lt;p&gt;To configure the system for mode (a), for the go runtime we edit
+&lt;code&gt;/opt/kata/share/defaults/kata-containers/configuration-fc-vaccel.toml&lt;/code&gt; and add
+the &lt;code&gt;jetson&lt;/code&gt; plugin before &lt;code&gt;noop&lt;/code&gt; (default/debug) plugin:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;@@ -54,7 +54,7 @@
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # vaccel_guest_backend can be one of &amp;#34;virtio&amp;#34; or &amp;#34;vsock&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # Your distribution recommends: vaccel_host_backend = noop
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # Your distribution recommends: vaccel_guest_backend = vsock
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;-vaccel_host_backends = &amp;#34;noop&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;+vaccel_host_backends = &amp;#34;jetson,noop&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; vaccel_guest_backend = &amp;#34;vsock&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; # If vaccel_guest_backend=vsock specify the vAccel Agent vsock port
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;For the rust runtime, we edit the &lt;code&gt;/opt/kata/share/defaults/kata-containers/configuration-dbs-vaccel.toml&lt;/code&gt; file as follows:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;...
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;agent_path= &amp;#34;/usr/local/bin/vaccelrt-agent&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;debug= &amp;#34;1&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;backends= &amp;#34;jetson,noop&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;backends_library= &amp;#34;/usr/local/lib/&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;endpoint_port= &amp;#34;2048&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;execution_type= &amp;#34;exec&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;...
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;For mode (b), we do:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;agent_path= &amp;#34;&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;debug= &amp;#34;1&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;backends= &amp;#34;&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;backends_library= &amp;#34;/usr/local/lib/&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;endpoint_port= &amp;#34;2048&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;execution_type= &amp;#34;integrated&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and edit the helper script to specify the plugins:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat &amp;gt; /usr/local/bin/containerd-shim-kata-rs-vaccel-v2 &lt;span class="s"&gt;&amp;lt;&amp;lt; EOF
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;#!/bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;VACCEL_BACKENDS=/usr/local/lib/libvaccel-jetson.so:/usr/local/lib/libvaccel-noop.so KATA_CONF_FILE=/opt/kata/share/defaults/kata-containers/configuration-dbs-vaccel.toml /opt/kata/runtime-rs/bin/containerd-shim-kata-vaccel-v2 $@
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="s"&gt;EOF&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="spawn-a-vaccel-enabled-sandboxed-container"&gt;Spawn a vAccel-enabled sandboxed container&lt;/h3&gt;
+&lt;p&gt;We are now ready to spawn a vAccel-enabled container. We already have a test container image,
+but if you would like to build your own, the Dockerfile is the one below:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;FROM ubuntu:latest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;RUN apt update &amp;amp;&amp;amp; apt install -y wget &amp;amp;&amp;amp; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/master/aarch64/Release-deb/vaccel-0.5.0-Linux.deb &amp;amp;&amp;amp; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; wget https://s3.nbfc.io/nbfc-assets/github/vaccelrt/plugins/vsock/master/aarch64/Release-deb/vaccelrt-plugin-vsock-0.1.0-Linux.deb &amp;amp;&amp;amp; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; dpkg -i vaccel-0.5.0-Linux.deb vaccelrt-plugin-vsock-0.1.0-Linux.deb
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ENV VACCEL_DEBUG_LEVEL=4
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;ENV VACCEL_BACKENDS=/usr/local/lib/libvaccel-vsock.so
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;build like this:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker build -t vaccel-test-container:aarch64 -f Dockerfile .
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Essentially, it installs the vAccel core library, and the &lt;code&gt;vsock&lt;/code&gt; plugin that
+communicates with the vAccel agent running on the host (spawned using the modes
+described above).&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo nerdctl run --runtime io.containerd.kata-rs-vaccel.v2 --rm -it nubificus/vaccel-test-container:latest /bin/bash
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;root@23a8738e14a8:/#
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Let&amp;rsquo;s get an image:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-gdscript3" data-lang="gdscript3"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="o"&gt;$&lt;/span&gt; &lt;span class="n"&gt;wget&lt;/span&gt; &lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;upload&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wikimedia&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;wikipedia&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;commons&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;bd&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;Golden_Retriever_Dukedestiny01_drvd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;jpg&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="o"&gt;--&lt;/span&gt;&lt;span class="mi"&gt;2023&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;09&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;17&lt;/span&gt; &lt;span class="mi"&gt;17&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;48&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;09&lt;/span&gt;&lt;span class="o"&gt;--&lt;/span&gt; &lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;upload&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wikimedia&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;wikipedia&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;commons&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;bd&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;Golden_Retriever_Dukedestiny01_drvd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;jpg&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;Resolving&lt;/span&gt; &lt;span class="n"&gt;upload&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wikimedia&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;upload&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wikimedia&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;...&lt;/span&gt; &lt;span class="mf"&gt;185.15&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mf"&gt;59.240&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="n"&gt;a02&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;ec80&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;300&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;ed1a&lt;/span&gt;&lt;span class="p"&gt;::&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;b&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;Connecting&lt;/span&gt; &lt;span class="n"&gt;to&lt;/span&gt; &lt;span class="n"&gt;upload&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wikimedia&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;upload&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wikimedia&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="mf"&gt;185.15&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mf"&gt;59.240&lt;/span&gt;&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mf"&gt;443.&lt;/span&gt;&lt;span class="o"&gt;..&lt;/span&gt; &lt;span class="n"&gt;connected&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;HTTP&lt;/span&gt; &lt;span class="n"&gt;request&lt;/span&gt; &lt;span class="n"&gt;sent&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;awaiting&lt;/span&gt; &lt;span class="n"&gt;response&lt;/span&gt;&lt;span class="o"&gt;...&lt;/span&gt; &lt;span class="mi"&gt;200&lt;/span&gt; &lt;span class="n"&gt;OK&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;Length&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="mi"&gt;165000&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;161&lt;/span&gt;&lt;span class="n"&gt;K&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;image&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;jpeg&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;Saving&lt;/span&gt; &lt;span class="n"&gt;to&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;Golden_Retriever_Dukedestiny01_drvd.jpg&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;Golden_Retriever_Dukedestiny01_drvd&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;jpg&lt;/span&gt; &lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="o"&gt;%&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="o"&gt;==================================================================================================&amp;gt;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="mf"&gt;161.13&lt;/span&gt;&lt;span class="n"&gt;K&lt;/span&gt; &lt;span class="mi"&gt;701&lt;/span&gt;&lt;span class="n"&gt;KB&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;s&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="mf"&gt;0.2&lt;/span&gt;&lt;span class="n"&gt;s&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="mi"&gt;2023&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;09&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;17&lt;/span&gt; &lt;span class="mi"&gt;17&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;48&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;14&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;701&lt;/span&gt; &lt;span class="n"&gt;KB&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;s&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;Golden_Retriever_Dukedestiny01_drvd.jpg&amp;#39;&lt;/span&gt; &lt;span class="n"&gt;saved&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;165000&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="mi"&gt;165000&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and try to issue a classify operation using vAccel&amp;rsquo;s &lt;code&gt;jetson-inference&lt;/code&gt; backend:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-sh" data-lang="sh"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;root@2ce045d042bc:/# /usr/local/bin/classify Golden_Retriever_Dukedestiny01_drvd.jpg &lt;span class="m"&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Initialized session with id: &lt;span class="m"&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Image size: 165000B
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;classification tags: 86.768% golden retriever
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Awesome, right?! We are able to use hardware acceleration on a sandboxed
+container that does not have direct access to the accelerator device. Stay
+tuned for more info on our progress with &lt;code&gt;kata-containers&lt;/code&gt; and vAccel!&lt;/p&gt;</description></item></channel></rss>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Webassembly | Nubificus</title><link>/tag/webassembly/</link><atom:link href="/tag/webassembly/index.xml" rel="self" type="application/rss+xml"/><description>Webassembly</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Sun, 02 Feb 2025 09:00:00 +0000</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Webassembly</title><link>/tag/webassembly/</link></image><item><title>FOSDEM 2025: WASM Meets Unikernels - Secure and Efficient Cloud-Native Deployments</title><link>/event/fosdem2025-1/</link><pubDate>Sun, 02 Feb 2025 09:00:00 +0000</pubDate><guid>/event/fosdem2025-1/</guid><description>&lt;h2 id="further-reading"&gt;Further Reading&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://blog.cloudkernels.net/posts/wasm-urunc/" target="_blank" rel="noopener"&gt;WASM and urunc Integration&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://github.com/urunc-dev/urunc" target="_blank" rel="noopener"&gt;urunc - Container Runtime Repository&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/nubificus/bunny" target="_blank" rel="noopener"&gt;bunny - Building Tool Repository&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item></channel></rss>

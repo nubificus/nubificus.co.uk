@@ -1,0 +1,749 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Container Runtimes | Nubificus</title><link>/tag/container-runtimes/</link><atom:link href="/tag/container-runtimes/index.xml" rel="self" type="application/rss+xml"/><description>Container Runtimes</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Wed, 11 Feb 2026 00:22:12 +0000</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Container Runtimes</title><link>/tag/container-runtimes/</link></image><item><title>AI Agents? Not on my host</title><link>/blog/urunc_agent/</link><pubDate>Wed, 11 Feb 2026 00:22:12 +0000</pubDate><guid>/blog/urunc_agent/</guid><description>&lt;p&gt;Over the past few years, Large Language Models (LLMs) have changed how we
+interact with computers. Instead of navigating interfaces or reading
+documentation, we simply describe what we want in natural language.&lt;/p&gt;
+&lt;p&gt;The next step, agentic AI, goes further: Agents do not just respond to
+questions; they &lt;em&gt;act&lt;/em&gt;. They write code, build projects, run tests, and
+can execute programs directly on our systems. And that is where things become
+interesting, and risky!&lt;/p&gt;
+&lt;p&gt;An AI agent is no longer &amp;ldquo;just a chatbot&amp;rdquo;. It becomes an
+autonomous program executing arbitrary instructions on our system.
+That raises a simple but important question:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Would we run arbitrary, dynamically generated, unaudited code directly on our host system?&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Probably not. Yet this is exactly what we allow when we let agents execute
+commands without isolation.&lt;/p&gt;
+&lt;p&gt;Let&amp;rsquo;s be safe and isolate AI agent execution using microVMs, but with
+the familiar container. workflows. In this post, we will see how we can
+&lt;code&gt;docker build&lt;/code&gt; and &lt;code&gt;docker run&lt;/code&gt; a microVM and run the agent inside it.&lt;/p&gt;
+&lt;p&gt;&lt;a href="#isolating-ai-agents-execution-with-urunc"&gt;Jump to the instructions&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="the-threat-model-treat-agents-as-untrusted-code"&gt;The Threat Model: Treat Agents as Untrusted Code&lt;/h2&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/urunc/evil_agent.png" alt="" loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;p&gt;Initially, LLMs were used in a simple request-response pattern: we asked
+questions and received answers. In software development, those answers often
+included code snippets or shell commands that we manually copied from the
+browser and pasted into our editor or terminal.&lt;/p&gt;
+&lt;p&gt;AI agents remove the middle (hu)man. Instead of suggesting commands, they
+execute them. Instead of proposing code, they write it directly to disk.
+However, this also removes the audit step (if anyone was actually doing it) when
+copying commands or code from the browser.&lt;/p&gt;
+&lt;p&gt;As a result, agents can execute the instructions they receive directly.
+They can read and write
+files, execute arbitrary shell commands, create and run new applications,
+modify system configuration and even interact with external services; all
+without explicit human review. And that can turn ugly very quickly.&lt;/p&gt;
+&lt;p&gt;Agents do not rely only on user input. They also consume content from external
+sources (repositories, documentation pages, forums, blogs, etc.). They cannot
+reliably distinguish between safe and harmful instructions; they simply follow
+what appears relevant in the current context. Therefore, what an agent executes
+on our machine can be highly influenced from external (and sometimes) malicious
+sources.&lt;/p&gt;
+&lt;p&gt;An example of the above scenario is &lt;a href="https://x.com/theonejvo/status/2015892980851474595" target="_blank" rel="noopener"&gt;a recent backdoor in a Skill for
+openclaw&lt;/a&gt;. In fact, &lt;a href="https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/" target="_blank" rel="noopener"&gt;Snyk
+published research
+&lt;/a&gt; showing
+that 36.82% of AI agent &amp;ldquo;skills&amp;rdquo; contained at least one security flaw. Even
+setting aside the &lt;a href="https://www.theregister.com/2026/02/05/openclaw_skills_marketplace_leaky_security/" target="_blank" rel="noopener"&gt;security hole called
+openclaw&lt;/a&gt;,
+both &lt;a href="https://claude.com/blog/cowork-research-preview" target="_blank" rel="noopener"&gt;Anthropic&lt;/a&gt; and
+&lt;a href="https://openai.com/index/hardening-atlas-against-prompt-injection/" target="_blank" rel="noopener"&gt;OpenAI&lt;/a&gt;
+have publicly acknowledged that prompt injection attacks remain a real and
+unresolved challenge in agent security.&lt;/p&gt;
+&lt;p&gt;From a systems perspective, once an agent can execute code, it effectively
+becomes an untrusted program running on our system. This is not fundamentally
+different from the cloud model, where users submit arbitrary workloads and
+cloud providers must isolate and protect the infrastructure and other tenants
+from potentially malicious or buggy code.&lt;/p&gt;
+&lt;p&gt;Some agents attempt to mitigate this risk by restricting file access,
+limiting which commands can be executed, or running them inside some form of sandbox.
+However, these controls are often
+implemented at the application level. They may be bypassed due to bugs,
+or misconfigurations, or simply because the agent itself is closed-source and
+opaque. In practice, we are asked to trust that the agent will respect the
+boundaries we configure.&lt;/p&gt;
+&lt;p&gt;But cloud providers do not rely on trust when running untrusted workloads. They
+enforce strong isolation boundaries (from containers to VMs). If they do so,
+we should not let AI agents run freely on our host systems either.&lt;/p&gt;
+&lt;h2 id="workload-isolation"&gt;Workload isolation&lt;/h2&gt;
+&lt;p&gt;Fortunately, isolating untrusted workloads is a well-studied problem and there
+are various mechanisms we can use.&lt;/p&gt;
+&lt;h3 id="containers"&gt;Containers&lt;/h3&gt;
+&lt;p&gt;Containers have become the de facto packaging and deployment mechanism for
+cloud applications. They restrict an application&amp;rsquo;s access to the host
+using Linux kernel features such as namespaces, cgroups,
+capabilities, seccomp and others. They are lightweight, easy to use and
+distribute, and therefore a good candidate for packaging and creating a restricted
+execution environment for an AI agent.&lt;/p&gt;
+&lt;p&gt;However, all containers on a host share the same kernel.&lt;/p&gt;
+&lt;p&gt;While this may not pose a threat in some scenarios, it can be a serious risk
+under the threat model described above. A single vulnerability in the kernel or
+container runtime can potentially lead to container escapes.&lt;/p&gt;
+&lt;h3 id="virtual-machines"&gt;Virtual Machines&lt;/h3&gt;
+&lt;p&gt;Virtual Machines (VMs) provide the strongest isolation boundary available on a single
+host. Using hardware virtualization features, hypervisors create an environment
+where a separate operating system can boot. Applications inside the VM interact
+only with the guest kernel, not the host kernel. This creates a much stronger
+separation.&lt;/p&gt;
+&lt;p&gt;Traditionally, VMs came with performance overhead and slow boot times.
+but the introduction of microVMs in recent years has changed that.
+Unlike traditional VMs, microVMs make use of specific devices and configurations
+to decrease their size and overhead. This has led to the adoption of microVMs
+in serverless and multi-tenant cloud environments.&lt;/p&gt;
+&lt;p&gt;On the other hand, (micro)VMs typically increase the operational complexity and
+their day-to-day workflow does not match the container UX. (Micro)VMs require a
+kernel and a root filesystem to boot, and tasks like attaching volumes and
+setting up networking with Internet access typically involve extra steps.&lt;/p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/urunc/app_containers_vms.svg" alt="" loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;h3 id="sandboxed-containers"&gt;Sandboxed Containers&lt;/h3&gt;
+&lt;p&gt;Of course, people have recognized that containers are great for packaging and
+deploying applications, but microVMs offer stronger isolation. As a result,
+solutions that combine these technologies, as well as other software-based
+sandboxing approaches, have emerged. These solutions are referred to as
+sandboxed container runtimes and they aim to provide stronger isolation while
+preserving the familiar container workflows and tooling.&lt;/p&gt;
+&lt;p&gt;In the case of microVMs, &lt;a href="https://katacontainers.io/" target="_blank" rel="noopener"&gt;Kata Containers&lt;/a&gt; is a
+container runtime that, instead of directly spawning a container on the host,
+spins up a microVM and runs the container inside it. &lt;a href="https://katacontainers.io/" target="_blank" rel="noopener"&gt;Kata
+Containers&lt;/a&gt; provide its own Linux kernel and root
+filesystem, but users can configure the runtime to use a custom kernel and/or
+rootfs.&lt;/p&gt;
+&lt;p&gt;In the case of software-based sandboxes, &lt;a href="https://gvisor.dev/" target="_blank" rel="noopener"&gt;gVisor&lt;/a&gt; is a
+container runtime that spawns an application kernel alongside the container.
+This application kernel mediates between the container and the host system: it
+intercepts system calls from the container, implements as many as possible
+itself, and forwards the rest (for example, I/O-related calls) to the host.&lt;/p&gt;
+&lt;p&gt;In this post, we will discuss the new kid on the block in sandboxed container
+runtimes: &lt;a href="https://urunc.io/" target="_blank" rel="noopener"&gt;urunc&lt;/a&gt;. Unlike the runtimes mentioned above,
+&lt;code&gt;urunc&lt;/code&gt; is designed to isolate only the untrusted parts of a deployment. In a
+Kubernetes context, this means that instead of running the entire pod in a
+sandbox, only the untrusted parts run in a sandbox inside the pod,
+alongside trusted components that run as regular containers.&lt;/p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/urunc/runtimes.svg" alt="" loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;h2 id="the-spawning-time-of-containers-with-vm-level-isolation-and-minimal-overhead"&gt;The spawning time of containers with VM level isolation and minimal overhead&lt;/h2&gt;
+&lt;p&gt;The idea behind &lt;code&gt;urunc&lt;/code&gt; is that the sandbox should be as small as possible and
+contain only the untrusted parts of a deployment. Therefore, &lt;code&gt;urunc&lt;/code&gt; does not
+require any additional components running inside or alongside the sandbox.
+Subsequently, it can support both software- and VM-based sandboxes, along with a
+variety of guest types, from unikernels to more general-purpose kernels like
+Linux and BSD. Think of it as spawning a microVM using the container&amp;rsquo;s rootfs ,
+with the container entrypoint running as &lt;code&gt;init&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;The sandbox, that &lt;code&gt;urunc&lt;/code&gt; creates, runs as a Linux container and it
+integrates seamlessly with container workflows. We can create, start containers
+as simply as &lt;code&gt;docker run&lt;/code&gt;, get network access as a container, and
+attach volumes as with any other container.&lt;/p&gt;
+&lt;p&gt;Thanks to its design &lt;code&gt;urunc&lt;/code&gt; can achieve comparable spawn times to normal
+containers and introduces minimal overhead. Check out the past &lt;a href="https://github.com/urunc-dev/urunc?tab=readme-ov-file#publications-and-talks" target="_blank" rel="noopener"&gt;talks and
+publications&lt;/a&gt;
+for comparisons with other sandboxed container runtimes.&lt;/p&gt;
+&lt;p&gt;In the context of agents, &lt;code&gt;urunc&lt;/code&gt; can be used in two ways:
+a) as a sandbox for the entire agent. or b) as a sandbox for a
+specific application executions triggered by the agent.&lt;/p&gt;
+&lt;p&gt;In this post we will describe the first approach and run an agent inside a
+&lt;code&gt;urunc&lt;/code&gt; container. Stay tuned for the second approach.&lt;/p&gt;
+&lt;p&gt;Let&amp;rsquo;s try it out.&lt;/p&gt;
+&lt;h2 id="isolating-ai-agents-execution-with-urunc"&gt;Isolating AI agents execution with urunc&lt;/h2&gt;
+&lt;p&gt;To showcase how we can use &lt;code&gt;urunc&lt;/code&gt; to isolate an AI agent, we will use as an
+example &lt;a href="https://opencode.ai/" target="_blank" rel="noopener"&gt;opencode&lt;/a&gt;, but the instructions below can be
+adapted for any agent. Overall, we just need to set up the &lt;code&gt;urunc&lt;/code&gt; environment,
+build the container images, and run them.&lt;/p&gt;
+&lt;h3 id="step-0-setting-up-the-environment"&gt;Step 0: Setting up the environment&lt;/h3&gt;
+&lt;p&gt;Assuming we already have a working docker / containerd installation, we can install
+&lt;code&gt;urunc&lt;/code&gt; and its shim as easily as fetching the binaries from the latest release:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# or for the latest release&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;URUNC_VERSION&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;curl -L -s -o /dev/null -w &lt;span class="s1"&gt;&amp;#39;%{url_effective}&amp;#39;&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;https://github.com/urunc-dev/urunc/releases/latest&amp;#34;&lt;/span&gt; &lt;span class="p"&gt;|&lt;/span&gt; grep -oP &lt;span class="s2"&gt;&amp;#34;v\d+\.\d+\.\d+&amp;#34;&lt;/span&gt; &lt;span class="p"&gt;|&lt;/span&gt; sed &lt;span class="s1"&gt;&amp;#39;s/v//&amp;#39;&lt;/span&gt;&lt;span class="k"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;URUNC_BINARY_FILENAME&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;urunc_static_&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;dpkg --print-architecture&lt;span class="k"&gt;)&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget -q https://github.com/urunc-dev/urunc/releases/download/v&lt;span class="nv"&gt;$URUNC_VERSION&lt;/span&gt;/&lt;span class="nv"&gt;$URUNC_BINARY_FILENAME&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;chmod +x &lt;span class="nv"&gt;$URUNC_BINARY_FILENAME&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo mv &lt;span class="nv"&gt;$URUNC_BINARY_FILENAME&lt;/span&gt; /usr/local/bin/urunc
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;And for &lt;code&gt;containerd-shim-urunc-v2&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;CONTAINERD_BINARY_FILENAME&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;containerd-shim-urunc-v2_static_&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;dpkg --print-architecture&lt;span class="k"&gt;)&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget -q https://github.com/urunc-dev/urunc/releases/download/v&lt;span class="nv"&gt;$URUNC_VERSION&lt;/span&gt;/&lt;span class="nv"&gt;$CONTAINERD_BINARY_FILENAME&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;chmod +x &lt;span class="nv"&gt;$CONTAINERD_BINARY_FILENAME&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo mv &lt;span class="nv"&gt;$CONTAINERD_BINARY_FILENAME&lt;/span&gt; /usr/local/bin/containerd-shim-urunc-v2
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;For more detailed installation instructions see the &lt;a href="https://urunc.io/installation/" target="_blank" rel="noopener"&gt;installation guide of
+&lt;code&gt;urunc&lt;/code&gt;&lt;/a&gt;. The guide contains also instructions
+to download the &lt;a href="https://urunc.io/installation/#option-3-install-from-latest-artifacts-tip-of-the-main-branch" target="_blank" rel="noopener"&gt;latest build of the &lt;code&gt;main&lt;/code&gt;
+branch&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;As previously mentioned, &lt;code&gt;urunc&lt;/code&gt; supports &lt;a href="https://urunc.io/#current-support-of-unikernels-and-vmsandbox-monitors" target="_blank" rel="noopener"&gt;a variety of software- and VM-based
+sandboxes&lt;/a&gt;.
+For simplicity, this post focuses on a VM-based sandbox using Linux and QEMU.
+We will also use &lt;a href="https://virtio-fs.gitlab.io/" target="_blank" rel="noopener"&gt;virtiofs&lt;/a&gt; to share data
+between the host and the VM. As a result, we will need to install QEMU and
+virtiofsd.&lt;/p&gt;
+&lt;p&gt;We can install them either via our distribution’s package manager or by
+downloading pre-built artifacts from the
+&lt;a href="https://github.com/urunc-dev/monitors-build" target="_blank" rel="noopener"&gt;monitors-build&lt;/a&gt; repository. For
+more details, refer to the &lt;a href="https://urunc.io/installation/#step-2-install-all-supported-monitors" target="_blank" rel="noopener"&gt;respective section of the installation
+guide&lt;/a&gt;&lt;/p&gt;
+&lt;h3 id="step-1-creating-the-container-image"&gt;Step 1: Creating the Container image&lt;/h3&gt;
+&lt;p&gt;In this step, we define the environment in which the agent will run. We will
+do that with a &lt;code&gt;Containerfile&lt;/code&gt;. For example, we can create a Go dev environment
+based on the container image of opencode with the following &lt;code&gt;Containerfile&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;FROM ghcr.io/anomalyco/opencode
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;RUN apk add git go
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;WORKDIR /app
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We can build the container image with:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker build -f Containerfile -t go-dev-opencode:normal .
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;To make the container image above compatible with &lt;code&gt;urunc&lt;/code&gt;, we need to include a
+Linux kernel for the VM and set a few &lt;code&gt;urunc&lt;/code&gt; -specific OCI annotations. In
+addition, to configure the execution environment inside the VM (UID/GID, working
+directory, etc.), we will use a custom &lt;code&gt;init&lt;/code&gt; called
+&lt;a href="https://github.com/nubificus/urunit" target="_blank" rel="noopener"&gt;urunit&lt;/a&gt;.
+This is optional but recommended. As mentioned earlier, &lt;code&gt;urunc&lt;/code&gt; does not require
+any additional components inside the sandbox; however, if our workload expects
+to run in a specific setup (UID/GID, working directory, etc.), someone needs to
+set this up, and that is what &lt;code&gt;urunit&lt;/code&gt; provides.&lt;/p&gt;
+&lt;p&gt;While this may sound like a lot of work, we can handle it without installing
+extra tooling by using &lt;a href="https://github.com/nubificus/bunny" target="_blank" rel="noopener"&gt;bunny&lt;/a&gt;.
+It is a
+buildkit frontend that works directly with
+&lt;code&gt;docker build&lt;/code&gt;.
+Bunny can parse two types of files: a) the standard &lt;code&gt;Containerfile&lt;/code&gt;
+and b) a YAML-based file specific to &lt;code&gt;bunny&lt;/code&gt; called
+&lt;a href="https://github.com/nubificus/bunny?tab=readme-ov-file#the-bunnyfile" target="_blank" rel="noopener"&gt;bunnyfile&lt;/a&gt;.
+Using either type, we can add the kernel, &lt;code&gt;urunit&lt;/code&gt; and set the required annotations.&lt;/p&gt;
+&lt;h4 id="bunny-with-containerfile"&gt;Bunny with Containerfile&lt;/h4&gt;
+&lt;p&gt;For simplicity we have created a &lt;code&gt;bunny&lt;/code&gt; variant that can get an existing
+&lt;code&gt;Containerfile&lt;/code&gt; and build an image compatible with &lt;code&gt;urunc&lt;/code&gt;.
+To use it we simply need to prepend the following line in &lt;code&gt;Containerfile&lt;/code&gt;:
+&lt;code&gt;#syntax=harbor.nbfc.io/nubificus/bunny:containerfile&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;The new &lt;code&gt;Containerfile&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;#syntax=harbor.nbfc.io/nubificus/bunny:containerfile
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;FROM ghcr.io/anomalyco/opencode
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;RUN apk add git go
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;WORKDIR /app
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We can build it exactly as before with:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker build -f Containerfile -t go-dev-opencode:containerfile .
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id="bunny-with-bunnyfile"&gt;Bunny with bunnyfile&lt;/h4&gt;
+&lt;p&gt;For users who want more control over the kernel and the &lt;code&gt;init&lt;/code&gt;, we recommend
+using the &lt;code&gt;bunnyfile&lt;/code&gt; format. This approach involves two build steps, one for
+the base container and one using &lt;code&gt;bunny&lt;/code&gt; to make the image &lt;code&gt;urunc&lt;/code&gt; compatible.
+The first steps uses the standard &lt;code&gt;Containerfile&lt;/code&gt;, while the second uses a
+&lt;code&gt;bunnyfile&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;We assume that the first step has been done using the &lt;code&gt;Containerfile&lt;/code&gt;
+above. For the second build, we can use the following &lt;code&gt;bunnyfile&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;#syntax=harbor.nbfc.io/nubificus/bunny:latest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;version: v0.1
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;platforms:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; framework: linux
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; monitor: qemu
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; architecture: x86
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;rootfs:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; from: go-dev-opencode:normal
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; type: raw
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; include:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; - from: harbor.nbfc.io/nubificus/urunit:latest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; source: /urunit
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; destination: /urunit
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kernel:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; from: local
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; path: kernel
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;entrypoint: [&amp;#34;/urunit&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cmd: [&amp;#34;opencode&amp;#34;]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;In the above &lt;code&gt;bunnyfile&lt;/code&gt;, we specify:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;a &lt;code&gt;urunc&lt;/code&gt; container image targeting Linux over Qemu in x86 architecture.&lt;/li&gt;
+&lt;li&gt;with a rootfs based on the container image we created before appending the
+&lt;code&gt;urunit&lt;/code&gt; binary from the latest &lt;code&gt;urunit&lt;/code&gt; container image.&lt;/li&gt;
+&lt;li&gt;with a kernel which resides locally under the name &lt;code&gt;kernel&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;with &lt;code&gt;/urunit&lt;/code&gt; and &lt;code&gt;opencode&lt;/code&gt; as entrypoint and cmd respectively.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;We can build it simply with docker:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker build -f bunnyfile -t go-dev-opencode:bunnyfile .
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="step-2-running-the-container"&gt;Step 2: Running the container&lt;/h3&gt;
+&lt;p&gt;To run the containers we built in the previous steps, we can simply:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker run -m 1024M --rm -it go-dev-opencode:normal
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and opencode TUI will open.&lt;/p&gt;
+&lt;p&gt;Running a &lt;code&gt;urunc&lt;/code&gt; container follows the same workflow; simply add the &lt;code&gt;--runtime io.containerd.urunc.v2&lt;/code&gt; cli option when starting a container from either a
+bunnyfile-based or Containerfile-based image.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker run -m 1024M --rm --runtime io.containerd.urunc.v2 -it go-dev-opencode:bunnyfile
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;That&amp;rsquo;s it! We have created a VM that can run arbitrary workloads using the root
+filesystem we defined when building the container image.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Hint: Use &lt;a href="https://opencode.ai/docs/web/" target="_blank" rel="noopener"&gt;the web interface of opencode&lt;/a&gt; and expose
+its port to the host with &lt;code&gt;-p &amp;lt;PORT&amp;gt;:&amp;lt;PORT&amp;gt;&lt;/code&gt; to avoid issues with the console.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h3 id="step-3-sharing-data-with-the-host"&gt;Step 3: Sharing data with the host&lt;/h3&gt;
+&lt;p&gt;In a normal container we can share a host directory with the container with:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker run -m 1024M --rm -v ${PWD}/mydir:/mydir -it go-dev-opencode:bunnyfile
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;In a &lt;code&gt;urunc&lt;/code&gt; container nothing changes, except of specifying the runtime:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker run -m 1024M --rm --runtime io.containerd.urunc.v2 -v ${PWD}/mydir:/mydir -it go-dev-opencode:bunnyfile
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and now we have &lt;code&gt;mydir&lt;/code&gt; in the VM&amp;rsquo;s rootfs and everything is shared, but use
+with caution.&lt;/p&gt;
+&lt;h2 id="what-urunc-protects-us-from"&gt;What &lt;code&gt;urunc&lt;/code&gt; protects us from&lt;/h2&gt;
+&lt;p&gt;Like other sandboxed runtimes, &lt;code&gt;urunc&lt;/code&gt; isolates untrusted code from the host
+system. As a result, &lt;code&gt;urunc&lt;/code&gt; will protect our host&amp;rsquo;s filesystem, kernel and
+other processes, making a container escape to the host significantly more difficult.&lt;/p&gt;
+&lt;p&gt;However, isolation is not magic. If we explicitly share data or resources with
+a &lt;code&gt;urunc&lt;/code&gt; container, that data is no longer protected. Untrusted code can still
+delete files, leak data, or misuse whatever access we grant it.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;urunc&lt;/code&gt; provides a strong boundary, but the security policy is still controlled
+by us (the users).&lt;/p&gt;
+&lt;h2 id="hands-on-example"&gt;Hands-on example&lt;/h2&gt;
+&lt;p&gt;As an example, we captured an end-to-end execution of opencode running inside
+a QEMU VM with &lt;code&gt;urunc&lt;/code&gt;. In this demo, we use the container images built earlier
+and instruct opencode to create a Go server that responds to HTTP requests with
+random messages.We also share a directory with the &lt;code&gt;urunc&lt;/code&gt;container; within
+that directory, opencode initializes a Git repository and commits the changes.&lt;/p&gt;
+&lt;script src="https://asciinema.org/a/787412.js" id="asciicast-787412" async="true"&gt;&lt;/script&gt;
+&lt;h2 id="final-thoughts"&gt;Final Thoughts&lt;/h2&gt;
+&lt;p&gt;AI agents blur the line between &amp;ldquo;tool&amp;rdquo; and &amp;ldquo;program&amp;rdquo;. Once they execute
+code, they should be treated as untrusted workloads.&lt;/p&gt;
+&lt;p&gt;Containers made deployment easy, but for agentic execution, a shared kernel
+might not be enough. Virtual machines provide the right boundary and with
+sandboxed container runtimes like &lt;code&gt;urunc&lt;/code&gt;, they can be managed as easily as
+containers.&lt;/p&gt;
+&lt;p&gt;If agents are going to run code on our system, they should not run on our host.&lt;/p&gt;
+&lt;p&gt;Use them with caution.&lt;/p&gt;</description></item><item><title>Sandboxing WASM with Unikernels for Secure Cloud-Native Deployments</title><link>/blog/wasm-urunc/</link><pubDate>Thu, 21 Nov 2024 15:22:12 +0000</pubDate><guid>/blog/wasm-urunc/</guid><description>&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/web-assembly-logo.png#floatright" alt="" loading="lazy" data-zoomable width="30%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;a href="https://webassembly.org/" target="_blank" rel="noopener"&gt;WebAssembly (WASM)&lt;/a&gt; is rapidly emerging as a
+transformative technology in the cloud-native ecosystem. Its binary instruction
+format, designed for execution on a stack-based Virtual Machine (VM), enables WASM
+modules to run seamlessly on any platform, unlocking unprecedented portability.
+Moreover, WASM promises near-native execution performance and enhanced security
+due to its “sandboxed” execution model.&lt;/p&gt;
+&lt;p&gt;A closer examination of WASM&amp;rsquo;s sandboxing reveals certain limitations. In
+WASM, modules execute within a stack-based VM that isolates them from direct
+interaction with the external environment. Communication with the outside world
+is mediated through imports and exports, with no direct access to system calls
+or underlying resources. Instead, the WebAssembly System Interface (WASI)
+employs a capability-based system to grant controlled access to external
+resources. Simply put, the WASM sandbox is essentially a software construct
+that enforces controlled interactions between the module and its environment.&lt;/p&gt;
+&lt;p&gt;While this sandboxing model offers strong software-based isolation, it still
+raises questions about the robustness of security, particularly given the
+findings of several research papers on WASM’s security vulnerabilities. To
+achieve stronger isolation, a more robust mechanism, such as hardware-based
+virtualization, is necessary. By executing each WASM module within its own VM,
+in the event of a WASM runtime escape, an attacker would also need to breach
+the VM — a significantly more challenging exercise.&lt;/p&gt;
+&lt;p&gt;On the other hand, VMs have the reputation of being heavyweight and unsuitable
+for lightweight workloads, such as running individual WASM modules. The
+overhead in terms of memory and CPU makes traditional virtualization
+impractical for this purpose.&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://dl.acm.org/doi/10.1145/2451116.2451167" target="_blank" rel="noopener"&gt;Unikernels&lt;/a&gt;, a technology
+introduced in 2013 that has quietly matured over the years, could provide a
+viable alternative to minimize this overhead. Unikernels are highly
+specialized, lightweight operating system kernels designed to run a single
+application efficiently, eliminating the overhead of general-purpose OSes. They
+feature a minimal footprint, extremely fast boot times, and robust isolation.
+However, unikernels have historically faced criticism for being difficult to
+use, with application porting requiring significant effort.&lt;/p&gt;
+&lt;p&gt;This is where WASM complements unikernels beautifully. WASM’s portable binary
+representation is designed to execute on any compatible environment, including
+unikernels. This means WASM modules can run on unikernels with minimal
+adaptation, unlocking a powerful combination: the portability and flexibility
+of WASM, paired with the lightweight, fast-booting, and hardware-isolated
+properties of unikernel-based VMs.&lt;/p&gt;
+&lt;p&gt;By combining these technologies, we achieve a compelling solution: WASM modules
+running within small, fast, and truly isolated unikernel-powered VMs. This
+approach delivers the best of both worlds: strong isolation through
+virtualization and efficient resource utilization.&lt;/p&gt;
+&lt;p&gt;Fortunately, we are not alone in this vision. Several projects have already
+begun exploring this intersection of WASM, unikernels, and virtualization,
+demonstrating the potential of this powerful synergy. Specifically:&lt;/p&gt;
+&lt;p&gt;In particular:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://github.com/mewz-project/mewz" target="_blank" rel="noopener"&gt;Mewz&lt;/a&gt; is a unikernel framework designed
+to only run WASM applications.&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/unikraft" target="_blank" rel="noopener"&gt;Unikraft&lt;/a&gt;, an active unikernel project,
+provides support for &lt;a href="https://github.com/unikraft/app-wamr" target="_blank" rel="noopener"&gt;WAMR&lt;/a&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/cloudius-systems/osv" target="_blank" rel="noopener"&gt;OSv&lt;/a&gt;, one of the most well known
+unikernel framework supports the well known &lt;a href="https://github.com/cloudius-systems/osv-apps/tree/2347c09a7fb55e6e13474a83339d6f4e26e43c85/webassembly" target="_blank" rel="noopener"&gt;wasmer
+runtime&lt;/a&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/flavio/hermit-wasm" target="_blank" rel="noopener"&gt;Hermit-Wasm&lt;/a&gt; used
+&lt;a href="https://github.com/ahmedelashouti/rusty-hermit" target="_blank" rel="noopener"&gt;RustyHermit&lt;/a&gt;, a unikernel
+written in Rust to execute WebAssembly applications.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;So, we can already execute WASM applications in unikernels. But how do we
+manage these unikernels efficiently? Enter
+&lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;&lt;code&gt;urunc&lt;/code&gt;&lt;/a&gt;, a container runtime tailored
+specifically for unikernels. As explained in a &lt;a href="/posts/urunc"&gt;previous post&lt;/a&gt;,
+&lt;code&gt;urunc&lt;/code&gt; functions as the &lt;code&gt;runc&lt;/code&gt; equivalent for unikernels. With &lt;code&gt;urunc&lt;/code&gt;, we can
+deploy, execute, and manage unikernels as seamlessly as managing typical
+containerized workloads.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/urunc/urunc-logo.png#floatleft" alt="" loading="lazy" data-zoomable width="20%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+Building on this foundation, we explored combining WASM, unikernels, and
+&lt;code&gt;urunc&lt;/code&gt; to create a cohesive system stack that allows us to deploy, execute,
+and manage WASM applications running on unikernels as easily as traditional
+containers. To achieve this, we extended &lt;code&gt;urunc&lt;/code&gt; to support additional
+unikernel frameworks, including &lt;a href="https://github.com/mewz-project/mewz" target="_blank" rel="noopener"&gt;Mewz&lt;/a&gt;
+and &lt;a href="https://github.com/cloudius-systems/osv" target="_blank" rel="noopener"&gt;OSv&lt;/a&gt;, alongside its existing
+support for Unikraft. This diversity of unikernel frameworks gives us
+flexibility in running WASM applications on top of various unikernel
+environments, each offering unique advantages.&lt;/p&gt;
+&lt;p&gt;Let&amp;rsquo;s take a closer look at each one of them.&lt;/p&gt;
+&lt;h2 id="mewz"&gt;Mewz&lt;/h2&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/mewz-logo.png#floatright" alt="" loading="lazy" data-zoomable width="30%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;a href="https://github.com/mewz-project/mewz" target="_blank" rel="noopener"&gt;Mewz&lt;/a&gt; is a unikernel framework designed
+to support ultra-lightweight, high-performance workloads. In contrast to other
+WASM runtimes that execute on top of general purpose operating systems, Mewz is
+designed as a specialized kernel where WASM applications can execute. In
+addition, every WASM application executes on a separate Mewz instance,
+maintaining the single-purpose notion of unikernels. This makes Mewz
+particularly well-suited for scenarios where low latency and efficiency are
+critical.&lt;/p&gt;
+&lt;p&gt;According to the design of Mewz, the WASM application is transformed to an object
+file which is directly linked against the Mewz kernel. Therefore, when the Mewz
+kernel boots, it executes the linked WASM application. Mewz has partial
+support for &lt;a href="https://github.com/WebAssembly/WASI" target="_blank" rel="noopener"&gt;WASI&lt;/a&gt; and it provides support
+for networking and an in-memory, read-only filesystem. In addition, Mewz has
+socket compatibility with
+&lt;a href="https://github.com/WasmEdge/WasmEdge" target="_blank" rel="noopener"&gt;WasmEdge&lt;/a&gt;,&lt;/p&gt;
+&lt;h3 id="mewz-and-urunc"&gt;Mewz and urunc&lt;/h3&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Note: Adding support for Mewz in &lt;code&gt;urunc&lt;/code&gt; is a straightforward task. Essentially,
+to boot Mewz unikernels, we need to tweak a few parameters in the Qemu command.
+This functionality will be available in the next planned release of &lt;code&gt;urunc&lt;/code&gt;. Until then,
+we use the &lt;a href="https://github.com/nubificus/urunc/tree/mewz" target="_blank" rel="noopener"&gt;&lt;code&gt;mewz&lt;/code&gt; branch&lt;/a&gt; in &lt;code&gt;urunc&lt;/code&gt; when building it.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;We build &lt;code&gt;urunc&lt;/code&gt; with Mewz support with the following commands:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/nubificus/urunc.git -b mewz
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker run --rm -ti -v &lt;span class="nv"&gt;$PWD&lt;/span&gt;/urunc:/urunc -w /urunc golang:1.23 bash -c &lt;span class="s2"&gt;&amp;#34;git config --global --add safe.directory /urunc &amp;amp;&amp;amp; make&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo make -C urunc install
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
+&lt;p&gt;Note: Please refer to &lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;urunc&lt;/a&gt; for more details
+on installation and any relevant dependencies.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h3 id="building-mewz-unikernels-with-a-wasm-module"&gt;Building Mewz unikernels with a WASM module&lt;/h3&gt;
+&lt;p&gt;Mewz is built using &lt;a href="https://ziglang.org/" target="_blank" rel="noopener"&gt;Zig&lt;/a&gt; and it also requires
+&lt;a href="https://github.com/mewz-project/wasker#how-to-run-wasker" target="_blank" rel="noopener"&gt;wasker&lt;/a&gt; to transform
+a WASM binary in an elf object. Mewz will link the WASM binary along with
+its kernel and it will produce the unikernel. First step in this process is to create
+the wasm app. We use the &lt;code&gt;app.wasm&lt;/code&gt; file built from the &lt;a href="https://github.com/mewz-project/mewz/tree/main/examples/hello_world" target="_blank" rel="noopener"&gt;Mewz hello world
+example&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;In order to make the whole
+process a bit simpler, we use the following Dockerfile to build the Mewz unikernel:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-gdscript3" data-lang="gdscript3"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;FROM&lt;/span&gt; &lt;span class="n"&gt;debian&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;bookworm&lt;/span&gt; &lt;span class="n"&gt;as&lt;/span&gt; &lt;span class="n"&gt;builder&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;ARG&lt;/span&gt; &lt;span class="n"&gt;ZIG_VERSION&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mf"&gt;0.12&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;RUN&lt;/span&gt; &lt;span class="n"&gt;apt&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt; &lt;span class="n"&gt;update&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;apt&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt; &lt;span class="n"&gt;install&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;y&lt;/span&gt; &lt;span class="n"&gt;curl&lt;/span&gt; &lt;span class="n"&gt;xz&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;utils&lt;/span&gt; &lt;span class="n"&gt;git&lt;/span&gt; &lt;span class="n"&gt;cmake&lt;/span&gt; &lt;span class="n"&gt;libstdc&lt;/span&gt;&lt;span class="o"&gt;++&lt;/span&gt;&lt;span class="mi"&gt;6&lt;/span&gt; &lt;span class="n"&gt;build&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;essential&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;apt&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt; &lt;span class="n"&gt;clean&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;rm&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;rf&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="k"&gt;var&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;lib&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;apt&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;lists&lt;/span&gt;&lt;span class="o"&gt;/*&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;RUN&lt;/span&gt; &lt;span class="n"&gt;curl&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;SL&lt;/span&gt; &lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;ziglang&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;download&lt;/span&gt;&lt;span class="o"&gt;/$&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="n"&gt;ZIG_VERSION&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;zig&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;linux&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;x86_64&lt;/span&gt;&lt;span class="o"&gt;-$&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="n"&gt;ZIG_VERSION&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;tar&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;xz&lt;/span&gt; &lt;span class="o"&gt;|&lt;/span&gt; &lt;span class="n"&gt;tar&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;xJC&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;tmp&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;mv&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;tmp&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;zig&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;linux&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;x86_64&lt;/span&gt;&lt;span class="o"&gt;-$&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="n"&gt;ZIG_VERSION&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;usr&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;bin&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;zig&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;RUN&lt;/span&gt; &lt;span class="n"&gt;curl&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;sSfL&lt;/span&gt; &lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;github&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;com&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;project&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;wasker&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;releases&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;download&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;v0&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mf"&gt;1.1&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;wasker&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mf"&gt;0.1&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;linux&lt;/span&gt;&lt;span class="o"&gt;-$&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;uname&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;m&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;gnu&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;tar&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;gz&lt;/span&gt; &lt;span class="o"&gt;|&lt;/span&gt; &lt;span class="n"&gt;tar&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;xzvC&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;usr&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;bin&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt; &lt;span class="n"&gt;wasker&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;git&lt;/span&gt; &lt;span class="n"&gt;clone&lt;/span&gt; &lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;github&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;com&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;project&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;git&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="n"&gt;cd&lt;/span&gt; &lt;span class="n"&gt;mewz&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;git&lt;/span&gt; &lt;span class="n"&gt;submodule&lt;/span&gt; &lt;span class="n"&gt;update&lt;/span&gt; &lt;span class="o"&gt;--&lt;/span&gt;&lt;span class="n"&gt;init&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;./&lt;/span&gt;&lt;span class="n"&gt;scripts&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;build&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;newlib&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sh&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;./&lt;/span&gt;&lt;span class="n"&gt;scripts&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;build&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;lwip&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sh&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;WORKDIR&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;ENV&lt;/span&gt; &lt;span class="n"&gt;PATH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;/usr/bin/zig:${PATH}&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;COPY&lt;/span&gt; &lt;span class="n"&gt;app&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wasm&lt;/span&gt; &lt;span class="o"&gt;.&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;RUN&lt;/span&gt; &lt;span class="n"&gt;wasker&lt;/span&gt; &lt;span class="n"&gt;app&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wasm&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;zig&lt;/span&gt; &lt;span class="n"&gt;build&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;Dapp&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;obj&lt;/span&gt;&lt;span class="o"&gt;=./&lt;/span&gt;&lt;span class="n"&gt;wasm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;o&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;FROM&lt;/span&gt; &lt;span class="n"&gt;scratch&lt;/span&gt; &lt;span class="n"&gt;as&lt;/span&gt; &lt;span class="n"&gt;artifacts&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;COPY&lt;/span&gt; &lt;span class="o"&gt;--&lt;/span&gt;&lt;span class="n"&gt;from&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;builder&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;zig&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;out&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;bin&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;elf&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;elf&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We can use the above Dockerfile to generate the Mewz unikernel binary with the
+following command:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker build -f Dockerfile -t mewz/builder --target artifacts --output type=local,dest=./out .
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The above command will build the Mewz unikernel and use the &lt;code&gt;app.wasm&lt;/code&gt; file in
+our current directory as the WASM module for the unikernel.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Note: As &lt;code&gt;app.wasm&lt;/code&gt; file, we used the &lt;a href="https://github.com/mewz-project/wasker/blob/main/helloworld.wat" target="_blank" rel="noopener"&gt;helloworld.wat&lt;/a&gt; file from wasker.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;However, Mewz produces an x86-64 image which Qemu refuses to load. For that
+purpose, we can perform the following trick, where we overwrite the &lt;code&gt;e_machine&lt;/code&gt;
+field of the Elf header to &lt;code&gt;EM_386&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;printf &amp;#39;\x03\x00&amp;#39; | dd of=out/mewz.elf bs=1 seek=18 count=2 conv=notrunc
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="packaging-mewz-unikernels-for-urunc"&gt;Packaging Mewz unikernels for &lt;code&gt;urunc&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;After building the Mewz unikernel, we need to package it as an OCI image in
+order to deploy it over &lt;code&gt;urunc&lt;/code&gt;. For that purpose, we will use
+&lt;a href="https://github.com/nubificus/pun" target="_blank" rel="noopener"&gt;pun&lt;/a&gt;, a tool we develop that uses &lt;a href="https://github.com/moby/buildkit" target="_blank" rel="noopener"&gt;buildkit&lt;/a&gt;
+to package unikernels in OCI images.&lt;/p&gt;
+&lt;p&gt;Let&amp;rsquo;s create the &lt;code&gt;Containerfile&lt;/code&gt; with all the information for &lt;code&gt;pun&lt;/code&gt; to
+package the Mewz unikernel.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;#syntax=harbor.nbfc.io/nubificus/pun:latest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;FROM scratch
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;COPY out/mewz.elf /unikernel/mewz.elf
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.binary&amp;#34;=&amp;#34;/unikernel/mewz.elf&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.cmdline&amp;#34;=&amp;#34;hello&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.unikernelType&amp;#34;=&amp;#34;mewz&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.hypervisor&amp;#34;=&amp;#34;qemu&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We can now build and package our mewz unikernel with:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker build -f Containerfile -t harbor.nbfc.io/nubificus/urunc/hello-mewz-qemu:test .
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="running-wasm-over-mewz-unikernels-with-urunc"&gt;Running WASM over Mewz unikernels with &lt;code&gt;urunc&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;Finally, we can run the Mewz unikernel we created as any other container:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker run -m 512m --rm -ti --runtime io.containerd.urunc.v2 harbor.nbfc.io/nubificus/urunc/hello-mewz-qemu:test
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="unikraft"&gt;Unikraft&lt;/h2&gt;
+&lt;p&gt;Unikraft is one of the most active unikernel projects. It allows the users to
+create lightweight, highly customizable and efficient unikernel images. Unikraft
+provides a POSIX-friendly environment, reducing the engineering effort of
+porting existing applications and libraries. Furthermore, Unikraft aims for
+binary compatibility with Linux, allowing the direct execution of Linux binaries
+on top of Unikraft.&lt;/p&gt;
+&lt;p&gt;However, in the case of WASM, the most interesting part in Unikraft is the
+&lt;a href="https://github.com/unikraft/app-wamr/tree/stable" target="_blank" rel="noopener"&gt;support of wamr&lt;/a&gt;. Using
+&lt;a href="https://github.com/bytecodealliance/wasm-micro-runtime" target="_blank" rel="noopener"&gt;wamr&lt;/a&gt; Unikraft is able
+to execute WASM modules.&lt;/p&gt;
+&lt;h3 id="unikraft-and-urunc"&gt;Unikraft and &lt;code&gt;urunc&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;In the case of Unikraft &lt;code&gt;urunc&lt;/code&gt; already has support and therefore no changes or
+different branches are required. We can directly use the main branch.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ git clone https://github.com/nubificus/urunc.git
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ docker run --rm -ti -v &lt;span class="nv"&gt;$PWD&lt;/span&gt;/urunc:/urunc -w /urunc golang:1.23 bash -c &lt;span class="s2"&gt;&amp;#34;git config --global --add safe.directory /urunc &amp;amp;&amp;amp; make&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo make -C urunc install
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Please refer to &lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;urunc&lt;/a&gt; for more detailed
+installation instructions.&lt;/p&gt;
+&lt;h3 id="packaging-unikraft-unikernels-for-urunc"&gt;Packaging Unikraft unikernels for &lt;code&gt;urunc&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;Similarly with Mewz, we will use &lt;a href="https://github.com/nubificus/pun" target="_blank" rel="noopener"&gt;pun&lt;/a&gt; to
+package the Unikraft unikernel for &lt;code&gt;urunc&lt;/code&gt;. However, we need to build the
+Unikraft unikernel by ourselves and then package it with &lt;code&gt;pun&lt;/code&gt;. We can build the
+Unikraft unikernel with the following commands:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/unikraft/app-wamr.git
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cd app-wamr
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mkdir workdir
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;pushd workdir
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/unikraft/unikraft.git -b RELEASE-0.15.0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mkdir libs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/unikraft/lib-lwip.git -b RELEASE-0.15.0 libs/lwip
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/unikraft/lib-musl.git -b RELEASE-0.15.0 libs/musl
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/unikraft/lib-wamr.git -b RELEASE-0.15.0 libs/wamr
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;popd
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cp defconfigs/qemu-x86_64-initrd .config
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make olddefconfig
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;If everything goes well, the unikernel binary should be placed in
+&lt;code&gt;${PWD}/workdir/build/wamr_qemu-x86_64&lt;/code&gt;. In the case of Unikraft the WASM module
+can be a typical WASM file and it should be placed in the initrd. In
+the &lt;code&gt;app-wamr&lt;/code&gt; example, Unikraft already has a hello world WASM module, under
+the &lt;code&gt;rootfs&lt;/code&gt; directory. Therefore, we will transform the contents of this
+directory to a initrd. We can do that with the following commands:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;pushd rootfs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;find -depth -print | tac | bsdcpio -o --format newc &amp;gt; ../rootfs.cpio
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;popd
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The initrd file will be saved in the &lt;code&gt;rootfs.cpio&lt;/code&gt; file.&lt;/p&gt;
+&lt;p&gt;At last, we can package the Unikraft unikernel with &lt;code&gt;pun&lt;/code&gt;. For that purpose, we
+will use the following &lt;code&gt;Containerfile&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;#syntax=harbor.nbfc.io/nubificus/pun:latest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;FROM scratch
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;COPY workdir/build/wamr_qemu-x86_64 /unikernel/wamr_qemu-x86_64
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;COPY rootfs.cpio /unikernel/initrd
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL com.urunc.unikernel.binary=&amp;#34;/unikernel/wamr_qemu-x86_64&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.cmdline&amp;#34;=&amp;#34;/main.wasm&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.initrd&amp;#34;=&amp;#34;/unikernel/initrd&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.unikernelType&amp;#34;=&amp;#34;unikraft&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.hypervisor&amp;#34;=&amp;#34;qemu&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.version&amp;#34;=&amp;#34;0.15.0&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We can now build and package our Unikraft unikernel with:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker build -f Containerfile -t nubificus/urunc/hello-wasm-unikraft-qemu:test .
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="running-wasm-over-unikraft-unikernels-with-urunc"&gt;Running WASM over Unikraft unikernels with &lt;code&gt;urunc&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;At last we can run the Unikraft unikernel we created as any other container:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker run --rm -ti --runtime io.containerd.urunc.v2 harbor.nbfc.io/nubificus/urunc/hello-wasm-unikraft-qemu:test
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="summary-and-next-steps"&gt;Summary and next steps&lt;/h2&gt;
+&lt;p&gt;WASM offers unparalleled portability and near-native execution,
+establishing itself as a key evolutionary technology in the cloud-native
+ecosystem. However, despite its sandboxed execution model, security
+vulnerabilities highlight the need for stronger isolation between workloads. In
+this context, we explore the potential of using unikernels to isolate WASM
+applications within VMs. By combining WASM’s portability with the
+fast boot times and robust isolation offered by unikernels, we can create a
+highly efficient and secure execution environment.&lt;/p&gt;
+&lt;p&gt;Furthermore, the ability of &lt;code&gt;urunc&lt;/code&gt; to act as a container runtime for
+unikernels, streamlines the deployment and management of WASM applications
+running on unikernels. This enables us to deploy WASM applications with the same
+ease as containers, while simultaneously ensuring strong isolation with minimal
+overhead.&lt;/p&gt;
+&lt;p&gt;In this post, we reviewed two unikernel frameworks that already support WASM.
+Looking ahead, we plan to also provide more info regarding OSv as well.
+Additionally, we identified the need for a unified approach to &lt;em&gt;building&lt;/em&gt; and
+&lt;em&gt;packaging&lt;/em&gt; WASM unikernels as OCI images; for now, &lt;code&gt;pun&lt;/code&gt; only addresses the
+latter. To address the former, we intend to complement &lt;code&gt;pun&lt;/code&gt; with a new tool
+that will streamline the process of building and bundling all the binary
+artifacts into a single application kernel, ready to be deployed.&lt;/p&gt;
+&lt;p&gt;Stay tuned for more updates! In the meantime, please share your
+comments/suggestions/findings on &lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;github&lt;/a&gt;.&lt;/p&gt;</description></item><item><title>urunc: Introducing a unikernel container runtime</title><link>/blog/urunc/</link><pubDate>Tue, 14 Nov 2023 15:22:12 +0000</pubDate><guid>/blog/urunc/</guid><description>
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/urunc/urunc-logo.png#floatleft" alt="" loading="lazy" data-zoomable width="18%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;p&gt;This post is about &lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;&lt;code&gt;urunc&lt;/code&gt;&lt;/a&gt;, a tool that
+we build to treat unikernels as containers and properly introduce unikernels to
+the cloud-native world! Essentially, &lt;code&gt;urunc&lt;/code&gt; is a container runtime able to
+spawn unikernels that reside in container images. Before digging into the gory
+details, let us walk through some required concepts: unikernels, containers,
+and container runtimes.&lt;/p&gt;
+&lt;h2 id="what-are-unikernels"&gt;What are unikernels&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://dl.acm.org/doi/10.1145/2451116.2451167" target="_blank" rel="noopener"&gt;Unikernels&lt;/a&gt; is a technology that was introduced in 2013 and has been quietly evolving for some years now. They can be seen as highly specialized, lightweight operating systems. Unlike traditional general purpose operating systems, unikernels are tailored for the singular purpose of running a specific application with efficiency, eliminating unnecessary overhead and minimizing footprint. A unikernel contains all the essential components needed for running a particular application, including the application code and the necessary portions of the operating system code. Additionally, everything that is not required for running the app is stripped out of the unikernel. That results in a self-contained, portable and minimal unit of software that can be run anywhere with virtually no overhead and significantly decreased attack surface.&lt;/p&gt;
+&lt;h2 id="unikernels-use-cases"&gt;Unikernels use cases&lt;/h2&gt;
+&lt;p&gt;Due to their inherent design simplicity, low footprint and near-instant spawn
+times, unikernels seem suitable for a number of interesting use-cases:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Serverless functions&lt;/strong&gt;:
+With ultra-fast boot times and efficient execution unikernels are a great fit for the dynamic environment of serverless functions.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;SaaS/microservices&lt;/strong&gt;:
+In SaaS and microservices environments, unikernels provide a tailored solution by isolating individual applications, minimizing interference, and enhancing security in multi-tenant scenarios.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Edge deployments for resource-constrained devices&lt;/strong&gt;:
+Due to their minimal footprint, unikernels can shine in edge computing by efficiently utilizing limited resources, ensuring optimal performance for deployment in edge devices.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="comparing-unikernels-and-containers"&gt;Comparing unikernels and containers&lt;/h2&gt;
+&lt;p&gt;How do unikernels compare to containers, the current standard of software delivery and execution? In our experience, there are some benefits and some drawbacks when it comes to adopting unikernels. We present the basic criteria and some comments on each technology below:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Lightweight&lt;/strong&gt;:
+While containers are known for their lightweight nature, unikernels take this to the next level, offering an even more streamlined and specialized environment. By eliminating non-essential components, unikernels minimize their footprint to an extent beyond what traditional containers achieve.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Portable&lt;/strong&gt;:
+Both containers and unikernels maintain a similar level of portability, allowing applications to run consistently across various environments.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Efficient Resource Consumption&lt;/strong&gt;:
+Efficiency in resource consumption is a shared strength between containers and unikernels. Both excel in optimizing resource usage, but unikernels, with their minimalistic design, stand out in resource-constrained environments, ensuring optimal performance with minimal overhead.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Scalable&lt;/strong&gt;:
+The scalability factor remains comparable between containers and unikernels. Both can be scaled horizontally to meet increased demand, providing a responsive and adaptable infrastructure for dynamic workloads.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Isolated&lt;/strong&gt;:
+Containers provide a certain level of isolation using mechanisms like cgroups and namespaces. However, unikernels benefit from hardware isolation, offering the same security as traditional VMs.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Easy to Use&lt;/strong&gt;:
+Containers boast a wide and well-defined ecosystem of tools designed to package, distribute, execute and orchestrate application. Unikernels, while powerful, are not as intuitive or as easy to use for those accustomed to the simplicity of container technologies. They require a more specialized understanding of application architecture and deployment. Furthermore, there are some missing tools required to elevate unikernels to the status of a first-class citizen in the cloud-native landscape.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="what-is-missing"&gt;What is missing?&lt;/h2&gt;
+&lt;p&gt;The technology behind unikernels is a good candidate for cloud deployments,
+especially in the case of Microservices and FaaS. However, an important
+component is missing; the tool that will spawn unikernels and manage their
+lifecycle. At the same time, industry standards, such as the Open Container
+Initiative create specific requirements for such a tool. &lt;code&gt;urunc&lt;/code&gt; aspires to
+fill this gap, enabling the use of unikernels in cloud-native environments as
+simply as containers.&lt;/p&gt;
+&lt;p&gt;Unikernels are not a drop-in replacement for containers. First off, there&amp;rsquo;s no simple and user-friendly way to build unikernels for specific applications (more on this coming soon). Then, there is no way to package and distribute unikernels like OCI images. Additionally, there&amp;rsquo;s no tooling to run unikernels in a way that is compatible with OCI standards.&lt;/p&gt;
+&lt;p&gt;The closest tools we have for deploying unikernels are the ones made for VMs: typical sandboxed container runtimes such as &lt;a href="https://github.com/kata-containers/kata-containers" target="_blank" rel="noopener"&gt;&lt;code&gt;kata-containers&lt;/code&gt;&lt;/a&gt;, or VM management tools like &lt;a href="https://github.com/libvirt/libvirt" target="_blank" rel="noopener"&gt;&lt;code&gt;libvirt&lt;/code&gt;&lt;/a&gt;. However, since unikernels are not typical VMs (there&amp;rsquo;s no operating system, no agent to communicate with the container runtime to setup a container in the sandbox etc.), they fall short of being real substitute for sandboxed containers.&lt;/p&gt;
+&lt;p&gt;To this end, after experimenting with the tools available (essentially &lt;code&gt;kata-containers&lt;/code&gt;), to build a simple unikernel container runtime based on &lt;a href="https://github.com/nubificus/kata-containers/tree/feat_kata_urunc" target="_blank" rel="noopener"&gt;existing functionality&lt;/a&gt;, we felt that the time has come to take a step back, follow a much simpler design and build &lt;em&gt;the&lt;/em&gt; unikernel container runtime: &lt;code&gt;urunc&lt;/code&gt;.&lt;/p&gt;
+&lt;h2 id="enter-urunc"&gt;Enter urunc&lt;/h2&gt;
+&lt;p&gt;Generic container runtimes (such as &lt;a href="https://github.com/opencontainers/runc" target="_blank" rel="noopener"&gt;&lt;code&gt;runc&lt;/code&gt;&lt;/a&gt; manage the systems stack where applications are spawned.
+A unique feature of unikernels is that they are self-contained: an application runs along with its library and OS dependencies as a single address-space VM image, combining the systems stack and application. Leveraging this feature, &lt;code&gt;urunc&lt;/code&gt; maps each application/unikernel to a single container, thus, enabling direct management of applications from the container runtime itself.&lt;/p&gt;
+&lt;p&gt;There is no notion of a VM sandbox, while at the same time, virtualization extensions ensure proper isolation between user-code (the unikernel) and the rest of the system. This is also inherent from the design of unikernels, which are, essentially, VMs.&lt;/p&gt;
+&lt;figure id="figure-figure-1-abstract-design-of-urunc"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/urunc/urunc-high-level.png#center" alt="Figure 1: Abstract design of `urunc`" loading="lazy" data-zoomable width="50%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 1: Abstract design of &lt;code&gt;urunc&lt;/code&gt;
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;The design of &lt;code&gt;urunc&lt;/code&gt; separates each individual component into go packages that
+can be exported (and exposed) to other components if needed. Moreover, &lt;code&gt;urunc&lt;/code&gt;
+follows the
+&lt;a href="https://www.ianlewis.org/en/container-runtimes-part-2-anatomy-low-level-contai" target="_blank" rel="noopener"&gt;standard&lt;/a&gt;
+container runtime design; mainly for maintainability, but for easier debugging
+and extensibility as well.&lt;/p&gt;
+&lt;h3 id="oci-artifacts"&gt;OCI artifacts&lt;/h3&gt;
+&lt;p&gt;Unikernel images for &lt;code&gt;urunc&lt;/code&gt; adhere to the Open Container Initiative (OCI) standards, making them easily shareable and deployable across compatible platforms. To facilitate the building and packaging of container images for &lt;code&gt;urunc&lt;/code&gt;, we build &lt;a href="https://github.com/nubificus/bima" target="_blank" rel="noopener"&gt;&lt;code&gt;bima&lt;/code&gt;&lt;/a&gt;, a simple tool that adds unikernel binaries to container image layers, and packages the artifacts as OCI-compatible images with metadata. An example of a &lt;code&gt;Containerfile&lt;/code&gt; we use to package an nginx unikernel, built with the &lt;a href="https://github.com/rumprun/rumprun" target="_blank" rel="noopener"&gt;rumprun&lt;/a&gt; toolstack, over &lt;a href="https://github.com/solo5/solo5" target="_blank" rel="noopener"&gt;solo5&lt;/a&gt;, along with its accompanying files is shown below:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-Dockerfile" data-lang="Dockerfile"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# the FROM instruction will not be parsed&lt;/span&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="k"&gt;FROM&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s"&gt;scratch&lt;/span&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="k"&gt;COPY&lt;/span&gt; nginx.hvt /unikernel/nginx.hvt&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="k"&gt;COPY&lt;/span&gt; data /&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="k"&gt;LABEL&lt;/span&gt; com.urunc.unikernel.binary&lt;span class="o"&gt;=&lt;/span&gt;/unikernel/nginx.hvt&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="k"&gt;LABEL&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;com.urunc.unikernel.cmdline&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&amp;#39;&lt;/span&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="k"&gt;LABEL&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;com.urunc.unikernel.unikernelType&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;rumprun&amp;#34;&lt;/span&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="k"&gt;LABEL&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;com.urunc.unikernel.hypervisor&amp;#34;&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;hvt&amp;#34;&lt;/span&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="container-unikernel-spawning"&gt;Container (Unikernel) spawning&lt;/h3&gt;
+&lt;p&gt;Leveraging the power of underlying hypervisors, &lt;code&gt;urunc&lt;/code&gt; spawns unikernel virtual machines (VMs), facilitating the deployment process. Furthermore, it is designed to be extensible making really easy to support multiple hypervisors and unikernel types.&lt;/p&gt;
+&lt;figure id="figure-figure-2-urunc-execution-flow"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/urunc/urunc-flow.png#center" alt="Figure 2: `urunc` execution flow" loading="lazy" data-zoomable width="50%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 2: &lt;code&gt;urunc&lt;/code&gt; execution flow
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;The high-level execution flow is as follows:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;containerd&lt;/code&gt; pulls the image from a container registry, unpacks it and
+prepares the storage backend with the container rootfs (eg. a block device
+for the &lt;code&gt;devmapper&lt;/code&gt; snapshotter).&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;containerd&lt;/code&gt; invokes &lt;code&gt;urunc&lt;/code&gt; with the bundle &amp;amp; storage backend&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;urunc&lt;/code&gt; parses the annotations in the bundle and extracts the unikernel binary&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;urunc&lt;/code&gt; constructs the appropriate command-line parameters for the respective hypervisor and spawns the unikernel&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Regarding network handling, &lt;code&gt;urunc&lt;/code&gt; creates a new &lt;code&gt;tap&lt;/code&gt; device inside the container netns (&lt;code&gt;tap0_urunc&lt;/code&gt;). &lt;code&gt;urunc&lt;/code&gt; maps all incoming traffic from the CNI &lt;code&gt;veth&lt;/code&gt; endpoint to the &lt;code&gt;tap&lt;/code&gt; interface and all outgoing traffic to the &lt;code&gt;veth&lt;/code&gt; endpoint. This process is shown in Figure 3.&lt;/p&gt;
+&lt;figure id="figure-figure-3-urunc-network-flow"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/urunc/urunc-network.png#center" alt="Figure 3: `urunc` network flow" loading="lazy" data-zoomable width="50%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 3: &lt;code&gt;urunc&lt;/code&gt; network flow
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;Regarding storage, &lt;code&gt;urunc&lt;/code&gt; extracts the unikernel binary from the container image. Then, it extracts any additional files present in the container image rootfs, to be used as additional storage for the unikernel. &lt;code&gt;urunc&lt;/code&gt; prepares and attaches the storage backend to the unikernel via the relevant command line directives of each hypervisor and unikernel type. This process is shown in Figure 4.&lt;/p&gt;
+&lt;figure id="figure-figure-4-urunc-storage-handling"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/urunc/urunc-storage.png#center" alt="Figure 4: `urunc` storage handling" loading="lazy" data-zoomable width="80%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 4: &lt;code&gt;urunc&lt;/code&gt; storage handling
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;h3 id="k8s-integration"&gt;k8s integration&lt;/h3&gt;
+&lt;p&gt;One of our initial goals was to bring unikernels to the cloud-native world. With &lt;code&gt;urunc&lt;/code&gt; we are finally able to spawn unikernels in k8s, without the burden of &lt;code&gt;libvirt&lt;/code&gt; and its complicated integration with container runtimes and tools. &lt;code&gt;urunc&lt;/code&gt;&amp;rsquo;s integration with k8s is as smooth as any other Container Runtime Interface (CRI)-compatible container runtime.&lt;/p&gt;
+&lt;p&gt;We achieved this through a minor workaround: Kubernetes primarily focuses on pods as its core abstraction, housing containers within them. To ensure resource sharing among containers within the same pod, Kubernetes initializes a container that remains idle (sleeping) to sustain active namespaces for the other containers within the pod to connect to.&lt;/p&gt;
+&lt;p&gt;So we had two options: (a) either include the handling of a generic container in &lt;code&gt;urunc&lt;/code&gt; or (b) delegate this handling to &lt;code&gt;runc&lt;/code&gt;.&lt;/p&gt;
+&lt;figure id="figure-figure-5-urunc-in-k8s"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/urunc/urunc-k8s.png#center" alt="Figure 5: `urunc` in k8s" loading="lazy" data-zoomable width="50%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 5: &lt;code&gt;urunc&lt;/code&gt; in k8s
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;We chose option (b). Figure 5 visualizes the process to spawn a unikernel container in k8s using &lt;code&gt;urunc&lt;/code&gt;.&lt;/p&gt;
+&lt;h3 id="urunc-in-action"&gt;urunc in action&lt;/h3&gt;
+&lt;p&gt;Below you can see how we can deploy a &lt;a href="https://redis.io" target="_blank" rel="noopener"&gt;redis&lt;/a&gt; key-value store
+server as a rumprun unikernel on &lt;a href="https://github.com/solo5/solo5" target="_blank" rel="noopener"&gt;solo5&lt;/a&gt; using
+&lt;code&gt;urunc&lt;/code&gt; and &lt;code&gt;nerdctl&lt;/code&gt;.&lt;/p&gt;
+&lt;figure id="figure-figure-6-a-redis-rumprun-unikernel-over-solo5-spawned-with-nerdctl-and-urunc"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/urunc/urunc-nerdctl-example.gif#center" alt="Figure 6: A redis rumprun unikernel over solo5 spawned with `nerdctl` and `urunc` " loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 6: A redis rumprun unikernel over solo5 spawned with &lt;code&gt;nerdctl&lt;/code&gt; and &lt;code&gt;urunc&lt;/code&gt;
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;&lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;&lt;code&gt;urunc&lt;/code&gt;&lt;/a&gt; is open-source software, licensed
+under &lt;a href="https://github.com/nubificus/urunc/blob/main/LICENSE" target="_blank" rel="noopener"&gt;Apache-2.0&lt;/a&gt;. &lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;Get
+the code&lt;/a&gt; and start hacking!&lt;/p&gt;
+&lt;p&gt;Stay tuned for a hands-on post on how to run your own unikernel using &lt;code&gt;urunc&lt;/code&gt;!&lt;/p&gt;</description></item></channel></rss>

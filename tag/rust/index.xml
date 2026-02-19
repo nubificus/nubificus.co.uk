@@ -1,0 +1,579 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Rust | Nubificus</title><link>/tag/rust/</link><atom:link href="/tag/rust/index.xml" rel="self" type="application/rss+xml"/><description>Rust</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Sun, 22 Jun 2025 08:02:51 +0100</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Rust</title><link>/tag/rust/</link></image><item><title>“It’s just localhost. How slow could it be?”</title><link>/blog/ttrpc-tcp/</link><pubDate>Sun, 22 Jun 2025 08:02:51 +0100</pubDate><guid>/blog/ttrpc-tcp/</guid><description>&lt;p&gt;That’s what we thought when setting up a BERT-based hate speech classifier.
+This was part of a broader experiment using
+&lt;a href="https://github.com/nubificus/vaccel" target="_blank" rel="noopener"&gt;&lt;code&gt;vAccel&lt;/code&gt;&lt;/a&gt;, our hardware acceleration
+abstraction for AI inference across the Cloud-Edge-IoT continuum.&lt;/p&gt;
+&lt;p&gt;We had offloading working locally (on the same physical host &amp;amp; OS),
+and started experimenting with our &lt;a href="https://docs.vaccel.org/latest/plugins/available-plugins/transport-plugins/rpc-plugin" target="_blank" rel="noopener"&gt;transport
+plugins&lt;/a&gt;
+to make sure everything works smoothly so that we can deploy that as part of a
+distributed kubernetes setup. First thing to try was localhost, and we expected
+communication to be lightning fast. Instead, we got&amp;hellip; surprises.&lt;/p&gt;
+&lt;h2 id="the-original-experiment"&gt;The original experiment&lt;/h2&gt;
+&lt;h3 id="how-bert-works"&gt;How BERT works&lt;/h3&gt;
+&lt;p&gt;The BERT model (Bidirectional Encoder Representations from Transformers) is a
+transformer-based architecture that maps input text to contextual embeddings.
+In this example, we’re using a distilled BERT checkpoint, traced via
+TorchScript (&lt;code&gt;cnn_trace.pt&lt;/code&gt;), to classify short tweets into three categories:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;offensive-language&lt;/li&gt;
+&lt;li&gt;hate-speech&lt;/li&gt;
+&lt;li&gt;neither&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Each line of input (a tweet) goes through the following stages:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;em&gt;Tokenization&lt;/em&gt;
+The tweet is split into word/subword tokens using a predefined vocabulary and
+tokenizer (e.g. WordPiece). Each token is mapped to an integer ID.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;em&gt;Embedding + Encoding&lt;/em&gt;
+These token IDs are passed through BERT’s embedding layer and several
+transformer encoder blocks, generating context-aware representations of each
+token.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;em&gt;Classification Head&lt;/em&gt;
+For classification, we only use the embedding of the special [CLS] token (added
+at the start). This vector is fed into a small feed forward layer that outputs
+logits for each class.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;em&gt;Prediction&lt;/em&gt;
+The class with the highest logit is selected as the prediction.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The model is serialized with TorchScript so that it can be loaded and run from
+C++ or via runtime frameworks like vAccel. This avoids Python overhead and
+allows seamless execution across backends (CPU, CUDA, remote offload, etc.).&lt;/p&gt;
+&lt;p&gt;So if we run this on a subset of an &lt;a href="https://www.kaggle.com/datasets/mrmorj/hate-speech-and-offensive-language-dataset" target="_blank" rel="noopener"&gt;example
+dataset&lt;/a&gt;
+and see the following:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; ./build-stock-cpu/classifier -m build-local/cnn_trace.pt -v bert_cased_vocab.txt -f build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Processing 100 lines from: build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;== [Vocab Loaded] ==
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 5: Duration: 141.214 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 6: Duration: 115.528 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 7: Duration: 117.649 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 10: Duration: 69.3163 ms Prediction: neither
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 99: Duration: 117.06 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 100: Duration: 110.692 ms Prediction: hate-speech
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Average (after 4rd iteration): 92.07 ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;CPU execution on such models seems to take quite some time. If you enable GPU execution we get something really better:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; ./build-stock/classifier -m build-local/cnn_trace.pt -v bert_cased_vocab.txt -f build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Processing 100 lines from: build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;== [Vocab Loaded] ==
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;== [Using GPU] ==
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 5: Duration: 7.98571 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 6: Duration: 7.81541 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 7: Duration: 7.76802 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 10: Duration: 8.22414 ms Prediction: neither
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 99: Duration: 7.76586 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 100: Duration: 7.8277 ms Prediction: hate-speech
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Average (after 4rd iteration): 7.88 ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="how-vaccel-facilitates-the-execution"&gt;How vAccel facilitates the execution&lt;/h3&gt;
+&lt;p&gt;vAccel enables seamless interchange between &lt;a href="https://docs.vaccel.org/latest/plugins/available-plugins/acceleration-plugins/" target="_blank" rel="noopener"&gt;hardware&lt;/a&gt; and &lt;a href="https://docs.vaccel.org/latest/plugins/available-plugins/transport-plugins/rpc-plugin/" target="_blank" rel="noopener"&gt;transport&lt;/a&gt; plugins at
+runtime. So given a port of this classifier to consume the vAccel API, all we
+need to do is configure vAccel to use the CPU or the GPU plugin at runtime.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;VACCEL_LOG_LEVEL&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;3&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;VACCEL_PLUGINS&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$HOME&lt;/span&gt;/vaccel-plugin-torch/build-cpu/src/libvaccel-torch.so
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; ./build-local/classifier -m build-local/cnn_trace.pt -v bert_cased_vocab.txt -f build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-13:44:38.82 - &amp;lt;info&amp;gt; vAccel 0.7.0-7-e67e52b6
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-13:44:38.82 - &amp;lt;info&amp;gt; Registered plugin torch 0.2.0-2-f80dd939-dirty
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Processing 100 lines from: build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;== [Vocab Loaded] ==
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-13:44:38.86 - &amp;lt;warn&amp;gt; Path does not seem to have a `&amp;lt;prefix&amp;gt;://`
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-13:44:38.86 - &amp;lt;warn&amp;gt; Assuming build-local/cnn_trace.pt is a local path
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Created new model resource 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Initialized vAccel session 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 5: Duration: 142.267 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 6: Duration: 116.333 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 7: Duration: 117.776 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 10: Duration: 69.8447 ms Prediction: neither
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 99: Duration: 118.195 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 100: Duration: 111.499 ms Prediction: hate-speech
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Average (after 4rd iteration): 92.41 ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and the equivalent GPU execution by just tweaking an environment variable:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;VACCEL_LOG_LEVEL&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;3&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;VACCEL_PLUGINS&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$HOME&lt;/span&gt;/vaccel-plugin-torch/build-gpu/src/libvaccel-torch.so
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; ./build-local/classifier -m build-local/cnn_trace.pt -v bert_cased_vocab.txt -f build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-13:50:09.38 - &amp;lt;info&amp;gt; vAccel 0.7.0-7-e67e52b6
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-13:50:09.39 - &amp;lt;info&amp;gt; Registered plugin torch 0.2.0-2-f80dd939
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Processing 100 lines from: build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;== [Vocab Loaded] ==
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-13:50:09.43 - &amp;lt;warn&amp;gt; Path does not seem to have a `&amp;lt;prefix&amp;gt;://`
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-13:50:09.43 - &amp;lt;warn&amp;gt; Assuming build-local/cnn_trace.pt is a local path
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Created new model resource 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Initialized vAccel session 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;CUDA is available, switching to GPU mode
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 5: Duration: 8.38249 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 6: Duration: 8.20436 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 7: Duration: 8.13868 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 10: Duration: 8.22329 ms Prediction: neither
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 99: Duration: 8.17031 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 100: Duration: 8.1666 ms Prediction: hate-speech
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Average (after 4rd iteration): 8.27 ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="table-summary-of-results"&gt;Table Summary of Results:&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Configuration&lt;/th&gt;
+&lt;th&gt;First inference (cold start)&lt;/th&gt;
+&lt;th&gt;Average inference time [*]&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Stock PyTorch (CPU)&lt;/td&gt;
+&lt;td&gt;531.083 ms&lt;/td&gt;
+&lt;td&gt;92.07 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel (CPU)&lt;/td&gt;
+&lt;td&gt;532.026 ms&lt;/td&gt;
+&lt;td&gt;92.41 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Stock PyTorch (GPU)&lt;/td&gt;
+&lt;td&gt;507.915 ms&lt;/td&gt;
+&lt;td&gt;7.88 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel (GPU)&lt;/td&gt;
+&lt;td&gt;643.077 ms&lt;/td&gt;
+&lt;td&gt;8.27 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;[*] &lt;em&gt;Excludes the first 4 lines to avoid cold-start effects.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;So far so good. The overhead is specific, and relevant to the library calls we
+do under the hood in vAccel and the actual copy of data when needed.&lt;/p&gt;
+&lt;h3 id="remote-execution"&gt;Remote execution&lt;/h3&gt;
+&lt;p&gt;Given we can run this remotely over vAccel, we first test the execution on a
+single node, for the sake of debugging.&lt;/p&gt;
+&lt;p&gt;First we spawn the agent:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;VACCEL_PLUGINS&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$HOME&lt;/span&gt;/vaccel-plugin-torch/build-cpu/src/libvaccel-torch.so
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; vaccel-rpc-agent -a unix:///tmp/bert.sock
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:01:10Z INFO ttrpc::sync::server] server listen started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:01:10Z INFO ttrpc::sync::server] server started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:01:10Z INFO vaccel_rpc_agent] vAccel RPC agent started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:01:10Z INFO vaccel_rpc_agent] Listening on &amp;#39;unix:///tmp/bert.sock&amp;#39;, press Ctrl+C to exit
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Then we specify the &lt;code&gt;RPC&lt;/code&gt; plugin and point it to where the agent listens:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;VACCEL_PLUGINS&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;libvaccel-rpc.so
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;VACCEL_RPC_ADDRESS&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;unix:///tmp/bert.sock
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; ./build-local/classifier -m build-local/cnn_trace.pt -v bert_cased_vocab.txt -f build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:02:36.25 - &amp;lt;info&amp;gt; vAccel 0.7.0-7-e67e52b6
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:02:36.27 - &amp;lt;info&amp;gt; Registered plugin rpc 0.2.0-1-eca9e440
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Processing 100 lines from: build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;== [Vocab Loaded] ==
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:02:36.31 - &amp;lt;warn&amp;gt; Path does not seem to have a `&amp;lt;prefix&amp;gt;://`
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:02:36.31 - &amp;lt;warn&amp;gt; Assuming build-local/cnn_trace.pt is a local path
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Created new model resource 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Initialized vAccel session 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 5: Duration: 147.155 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 6: Duration: 115.631 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 7: Duration: 124.443 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 10: Duration: 68.7716 ms Prediction: neither
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 99: Duration: 123.694 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 100: Duration: 112.011 ms Prediction: hate-speech
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Average (after 4rd iteration): 92.29 ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and the GPU equivalent execution:&lt;/p&gt;
+&lt;p&gt;Agent:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;VACCEL_PLUGINS&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$HOME&lt;/span&gt;/vaccel-plugin-torch/build-gpu/src/libvaccel-torch.so
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; vaccel-rpc-agent -a unix:///tmp/bert.sock
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:27:16Z INFO ttrpc::sync::server] server listen started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:27:16Z INFO ttrpc::sync::server] server started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:27:16Z INFO vaccel_rpc_agent] vAccel RPC agent started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:27:16Z INFO vaccel_rpc_agent] Listening on &amp;#39;unix:///tmp/bert.sock&amp;#39;, press Ctrl+C to exit
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;And the classifier:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; ./build-local/classifier -m build-local/cnn_trace.pt -v bert_cased_vocab.txt -f build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:27:28.47 - &amp;lt;info&amp;gt; vAccel 0.7.0-7-e67e52b6
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:27:28.49 - &amp;lt;info&amp;gt; Registered plugin rpc 0.2.0-1-eca9e440
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Processing 100 lines from: build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;== [Vocab Loaded] ==
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:27:28.53 - &amp;lt;warn&amp;gt; Path does not seem to have a `&amp;lt;prefix&amp;gt;://`
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:27:28.53 - &amp;lt;warn&amp;gt; Assuming build-local/cnn_trace.pt is a local path
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Created new model resource 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Initialized vAccel session 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 5: Duration: 8.62251 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 6: Duration: 8.18224 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 7: Duration: 8.40555 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 10: Duration: 8.74234 ms Prediction: neither
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 99: Duration: 8.26042 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 100: Duration: 8.38511 ms Prediction: hate-speech
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Average (after 4rd iteration): 8.36 ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We can see the overhead is negligible, almost identical to the local execution.
+This is expected.&lt;/p&gt;
+&lt;p&gt;When we do that over a &lt;code&gt;TCP&lt;/code&gt; socket though, we see a completely different result.&lt;/p&gt;
+&lt;p&gt;Again, we spawn the agent:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; vaccel-rpc-agent -a tcp://0.0.0.0:8192
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:06:45Z INFO ttrpc::sync::server] server listen started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:06:45Z INFO ttrpc::sync::server] server started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:06:45Z INFO vaccel_rpc_agent] vAccel RPC agent started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:06:45Z INFO vaccel_rpc_agent] Listening on &amp;#39;tcp://0.0.0.0:8192&amp;#39;, press Ctrl+C to exit
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and point the &lt;code&gt;RPC&lt;/code&gt; plugin to the &lt;code&gt;TCP&lt;/code&gt; endpoint:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;VACCEL_RPC_ADDRESS&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;tcp://localhost:8192
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; ./build-local/classifier -m build-local/cnn_trace.pt -v bert_cased_vocab.txt -f build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:07:29.84 - &amp;lt;info&amp;gt; vAccel 0.7.0-7-e67e52b6
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:07:29.90 - &amp;lt;info&amp;gt; Registered plugin rpc 0.2.0-1-eca9e440
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Processing 100 lines from: build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;== [Vocab Loaded] ==
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:07:29.95 - &amp;lt;warn&amp;gt; Path does not seem to have a `&amp;lt;prefix&amp;gt;://`
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:07:29.95 - &amp;lt;warn&amp;gt; Assuming build-local/cnn_trace.pt is a local path
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Created new model resource 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Initialized vAccel session 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 5: Duration: 187.425 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 6: Duration: 156.973 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 7: Duration: 164.083 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 10: Duration: 109.588 ms Prediction: neither
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 99: Duration: 159.926 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 100: Duration: 149.851 ms Prediction: hate-speech
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Average (after 4rd iteration): 131.94 ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We see some overhead, which we could easily account to the network stack
+(~130ms vs 90ms). Still a bit high, but one could mistake that for TCP/IP stack
+traversals. However, if we do that using the GPU plugin, things get really
+weird!&lt;/p&gt;
+&lt;p&gt;Agent spawn:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;VACCEL_PLUGINS&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nv"&gt;$HOME&lt;/span&gt;/vaccel-plugin-torch/build-gpu/src/libvaccel-torch.so
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; vaccel-rpc-agent -a tcp://0.0.0.0:8192
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:09:56Z INFO ttrpc::sync::server] server listen started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:09:56Z INFO ttrpc::sync::server] server started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:09:56Z INFO vaccel_rpc_agent] vAccel RPC agent started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:09:56Z INFO vaccel_rpc_agent] Listening on &amp;#39;tcp://0.0.0.0:8192&amp;#39;, press Ctrl+C to exit
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nb"&gt;export&lt;/span&gt; &lt;span class="nv"&gt;VACCEL_RPC_ADDRESS&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;tcp://localhost:8192
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; ./build-local/classifier -m build-local/cnn_trace.pt -v bert_cased_vocab.txt -f build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:10:00.40 - &amp;lt;info&amp;gt; vAccel 0.7.0-7-e67e52b6
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:10:00.42 - &amp;lt;info&amp;gt; Registered plugin rpc 0.2.0-1-eca9e440
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Processing 100 lines from: build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;== [Vocab Loaded] ==
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:10:00.46 - &amp;lt;warn&amp;gt; Path does not seem to have a `&amp;lt;prefix&amp;gt;://`
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:10:00.46 - &amp;lt;warn&amp;gt; Assuming build-local/cnn_trace.pt is a local path
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Created new model resource 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Initialized vAccel session 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 5: Duration: 1598.79 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 6: Duration: 50.5106 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 7: Duration: 1896.81 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 10: Duration: 90.4444 ms Prediction: neither
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 99: Duration: 90.4848 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 100: Duration: 90.3126 ms Prediction: hate-speech
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Average (after 4rd iteration): 124.18 ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="updated-table-summary-of-results"&gt;Updated Table Summary of Results:&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Configuration&lt;/th&gt;
+&lt;th&gt;Average inference time [*]&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Stock PyTorch (CPU)&lt;/td&gt;
+&lt;td&gt;92.07 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel (CPU)&lt;/td&gt;
+&lt;td&gt;92.41 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Stock PyTorch (GPU)&lt;/td&gt;
+&lt;td&gt;7.88 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel (GPU)&lt;/td&gt;
+&lt;td&gt;8.27 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel remote &lt;code&gt;UNIX&lt;/code&gt; (CPU)&lt;/td&gt;
+&lt;td&gt;92.29 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel remote &lt;code&gt;UNIX&lt;/code&gt; (GPU)&lt;/td&gt;
+&lt;td&gt;8.36 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel remote &lt;code&gt;TCP&lt;/code&gt; (CPU)&lt;/td&gt;
+&lt;td&gt;131.94 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel remote &lt;code&gt;TCP&lt;/code&gt; (GPU)&lt;/td&gt;
+&lt;td&gt;124.18 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;How would that be even possible? 124 ms vs 8.36 ms for the GPU execution?&lt;/p&gt;
+&lt;h2 id="a-curious-latency-bump"&gt;A Curious Latency Bump&lt;/h2&gt;
+&lt;p&gt;When calling the BERT classifier from the client via &lt;code&gt;ttrpc&lt;/code&gt;, we saw minimal
+overhead for &lt;code&gt;UNIX&lt;/code&gt; sockets (&amp;lt;~5%) compared to native execution. This is
+expected as the data path for RPC in vAccel uses copies. When running over TCP
+sockets, we saw an almost &lt;strong&gt;10x difference&lt;/strong&gt; (~100ms vs ~10ms). This got us
+thinking what could have gone wrong in the plugin&amp;hellip; The code is identical, the
+only thing that is different is the kind of socket&amp;hellip;&lt;/p&gt;
+&lt;p&gt;The classifier code itself was fast (inference ~7-9ms), over &lt;code&gt;UNIX&lt;/code&gt; sockets it
+was almost the same (~9-10ms); but with TCP sockets we were getting ~100ms.&lt;/p&gt;
+&lt;h2 id="setting-the-stage"&gt;Setting the Stage&lt;/h2&gt;
+&lt;p&gt;We isolated the issue to the transport mechanism (&lt;code&gt;ttrpc-rust&lt;/code&gt;) so we wrote a
+small microbenchmark: a &lt;code&gt;ttrpc&lt;/code&gt; program exchanging empty &lt;code&gt;protobuf&lt;/code&gt; messages in a
+tight loop.&lt;/p&gt;
+&lt;p&gt;The goal was to measure raw round-trip latency—no ML, no I/O, just the
+transport.&lt;/p&gt;
+&lt;p&gt;You can find the benchmark here:
+&lt;a href="https://github.com/nubificus/ttrpc-rs-benchmark" target="_blank" rel="noopener"&gt;ttrpc-rs-benchmark&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="reproducing-the-problem"&gt;Reproducing the Problem&lt;/h2&gt;
+&lt;p&gt;Here&amp;rsquo;s how we tested:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; git clone https://github.com/nubificus/ttrpc-rs-benchmark
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nb"&gt;cd&lt;/span&gt; ttrpc-rs-benchmark
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; cargo build --release
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; ./target/release/ttrpc-benchmark
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Running ttrpc-rust latency benchmark with 1000 iterations...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Testing Unix sockets...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Unix Socket Results:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Min: 58.029µs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Average: 73.217µs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Max: 887.728µs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; P99: 116.979µs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Testing TCP sockets...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;TCP Socket Results:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Min: 81.40514ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Average: 82.004085ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Max: 83.021974ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; P99: 82.465309ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Comparison:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Unix sockets are 1120.01x faster than TCP
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;That’s even worse that what we&amp;rsquo;ve seen with vAccel.&lt;/p&gt;
+&lt;h2 id="the-nagle-surprise"&gt;The Nagle Surprise&lt;/h2&gt;
+&lt;p&gt;We generated flamegraphs for both paths, and one thing stood out: &lt;code&gt;send()&lt;/code&gt; was
+stalling on the TCP path.&lt;/p&gt;
+&lt;p&gt;Digging deeper, we figured out the culprit: &lt;strong&gt;Nagle&amp;rsquo;s algorithm&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Nagle tries to reduce small-packet overhead by coalescing writes; but that’s
+poison for latency-sensitive communication over TCP. Especially when the
+protocol uses small messages.&lt;/p&gt;
+&lt;h2 id="disabling-nagle--without-touching-code"&gt;Disabling Nagle — Without Touching Code&lt;/h2&gt;
+&lt;p&gt;Unfortunately, &lt;code&gt;ttrpc-rust&lt;/code&gt; does not expose a socket config option. But we
+prefer not to patch the library.&lt;/p&gt;
+&lt;p&gt;So we wrote a preloadable shared object, &lt;code&gt;nodelay.so&lt;/code&gt;, that intercepts &lt;code&gt;socket()&lt;/code&gt; and &lt;code&gt;setsockopt()&lt;/code&gt; to enforce &lt;code&gt;TCP_NODELAY&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;You can get it from &lt;a href="https://github.com/nubificus/nodelay" target="_blank" rel="noopener"&gt;here&lt;/a&gt;, build it like this:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/nubificus/nodelay
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; nodelay
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and preload it like this:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;LD_PRELOAD&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;./nodelay.so ./target/release/ttrpc-benchmark
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;This reduces the TCP latency and brings it in par with &lt;code&gt;UNIX&lt;/code&gt;-socket latency.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nv"&gt;LD_PRELOAD&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;../nodelay/nodelay.so ./target/release/ttrpc-benchmark
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Running ttrpc-rust latency benchmark with 1000 iterations...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Testing Unix sockets...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Unix Socket Results:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Min: 55.985µs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Average: 69.387µs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Max: 373.772µs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; P99: 101.441µs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Testing TCP sockets...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[hook] TCP_NODELAY enabled on socket 16
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[hook] TCP_NODELAY enabled on socket 12
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;TCP Socket Results:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Min: 81.323µs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Average: 92.432µs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Max: 420.38µs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; P99: 126.688µs
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="err"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Comparison:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt; Unix sockets are 1.33x faster than TCP
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="running-the-original-example-using-the-nodelayso-hack"&gt;Running the original example using the &lt;code&gt;nodelay.so&lt;/code&gt; hack&lt;/h2&gt;
+&lt;p&gt;Keeping the same settings as our last execution attempt, only now using the &lt;code&gt;nodelay.so&lt;/code&gt;, we see the following:&lt;/p&gt;
+&lt;p&gt;Agent spawn:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nv"&gt;LD_PRELOAD&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;../nodelay/nodelay.so vaccel-rpc-agent -a tcp://0.0.0.0:8192
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[hook] TCP_NODELAY enabled on socket 3
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:14:49Z INFO ttrpc::sync::server] server listen started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:14:49Z INFO ttrpc::sync::server] server started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:14:49Z INFO vaccel_rpc_agent] vAccel RPC agent started
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[2025-06-22T15:14:49Z INFO vaccel_rpc_agent] Listening on &amp;#39;tcp://0.0.0.0:8192&amp;#39;, press Ctrl+C to exit
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-console" data-lang="console"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="gp"&gt;$&lt;/span&gt; &lt;span class="nv"&gt;LD_PRELOAD&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;../nodelay/nodelay.so ./build-local/classifier -m build-local/cnn_trace.pt -v bert_cased_vocab.txt -f build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:16:19.66 - &amp;lt;info&amp;gt; vAccel 0.7.0-7-e67e52b6
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:16:19.68 - &amp;lt;info&amp;gt; Registered plugin rpc 0.2.0-1-eca9e440
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Processing 100 lines from: build-local/tweets_100.txt
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;== [Vocab Loaded] ==
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:16:19.72 - &amp;lt;warn&amp;gt; Path does not seem to have a `&amp;lt;prefix&amp;gt;://`
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;2025.06.22-15:16:19.72 - &amp;lt;warn&amp;gt; Assuming build-local/cnn_trace.pt is a local path
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Created new model resource 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[hook] TCP_NODELAY enabled on socket 3
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Initialized vAccel session 1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 5: Duration: 8.61344 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 6: Duration: 8.4136 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 7: Duration: 8.69745 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 10: Duration: 8.75759 ms Prediction: neither
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;[snipped]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 99: Duration: 8.80859 ms Prediction: offensive-language
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Line 100: Duration: 8.30694 ms Prediction: hate-speech
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="go"&gt;Average (after 4rd iteration): 8.50 ms
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="final-table-summary-of-results"&gt;Final Table Summary of Results:&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Configuration&lt;/th&gt;
+&lt;th&gt;Average inference time [*]&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Stock PyTorch (CPU)&lt;/td&gt;
+&lt;td&gt;92.07 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel (CPU)&lt;/td&gt;
+&lt;td&gt;92.41 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Stock PyTorch (GPU)&lt;/td&gt;
+&lt;td&gt;7.88 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel (GPU)&lt;/td&gt;
+&lt;td&gt;8.27 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel remote &lt;code&gt;UNIX&lt;/code&gt; (CPU)&lt;/td&gt;
+&lt;td&gt;92.29 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel remote &lt;code&gt;UNIX&lt;/code&gt; (GPU)&lt;/td&gt;
+&lt;td&gt;8.36 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel remote &lt;code&gt;TCP&lt;/code&gt; (CPU)&lt;/td&gt;
+&lt;td&gt;131.94 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel remote &lt;code&gt;TCP&lt;/code&gt; (GPU)&lt;/td&gt;
+&lt;td&gt;124.18 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel remote &lt;code&gt;TCP_NODELAY&lt;/code&gt; (CPU)&lt;/td&gt;
+&lt;td&gt;92.55 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;vAccel remote &lt;code&gt;TCP_NODELAY&lt;/code&gt; (GPU)&lt;/td&gt;
+&lt;td&gt;8.50 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id="takeaways"&gt;Takeaways&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Even on localhost, &lt;code&gt;TCP&lt;/code&gt; can be surprisingly slow if Nagle&amp;rsquo;s algorithm is enabled.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;UNIX&lt;/code&gt; sockets avoid these issues entirely; but come with deployment trade-offs.&lt;/li&gt;
+&lt;li&gt;Flamegraphs are a powerful way to uncover unexpected bottlenecks.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;LD_PRELOAD&lt;/code&gt; is still a useful hack for tweaking behaviors without code changes.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;For AI workloads that rely on tight client-server loops (like ML inference
+offloading), these small optimizations matter.&lt;/p&gt;
+&lt;h2 id="resources"&gt;Resources&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://github.com/nubificus/ttrpc-rs-benchmark" target="_blank" rel="noopener"&gt;ttrpc-rs-benchmark&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/nubificus/nodelay" target="_blank" rel="noopener"&gt;&lt;code&gt;nodelay.so&lt;/code&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://brooker.co.za/blog/2024/05/09/nagle.html" target="_blank" rel="noopener"&gt;Dan Brooker&amp;rsquo;s excellent post on Nagle&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/nubificus/vaccel" target="_blank" rel="noopener"&gt;vAccel&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/brendangregg/Flamegraph" target="_blank" rel="noopener"&gt;flamegraph&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="appendix-i--flamegraphs"&gt;Appendix I &amp;ndash; Flamegraphs&lt;/h2&gt;
+&lt;p&gt;To produce a flamegraph follow these steps:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo apt install linux-tools-common linux-tools-&lt;span class="k"&gt;$(&lt;/span&gt;uname -r&lt;span class="k"&gt;)&lt;/span&gt; linux-tools-generic
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/brendangregg/Flamegraph
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; Flamegraph
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo perf record -F &lt;span class="m"&gt;99&lt;/span&gt; -g -- ./my-program --arg1 myarg1 etc..
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo perf script &amp;gt; out.perf
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;./stackcollapse-perf.pl out.perf &amp;gt; out.folded
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;./flamegraph.pl out.folded &amp;gt; flamegraph.svg
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="appendix-ii--hardware-testbed"&gt;Appendix II &amp;ndash; Hardware Testbed&lt;/h2&gt;
+&lt;h3 id="hardware-testbed-summary"&gt;Hardware Testbed Summary&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Component&lt;/th&gt;
+&lt;th&gt;Specification&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;OS&lt;/td&gt;
+&lt;td&gt;Ubuntu 24.04.2 LTS (noble)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;CPU&lt;/td&gt;
+&lt;td&gt;AMD Ryzen 5 2600, 6 cores / 12 threads @ 3.4 GHz&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;RAM&lt;/td&gt;
+&lt;td&gt;64 GB DDR4&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;GPU&lt;/td&gt;
+&lt;td&gt;NVIDIA GeForce RTX 2060 SUPER (8 GB GDDR6)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;CUDA Toolkit&lt;/td&gt;
+&lt;td&gt;12.0 (nvcc 12.0.140)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;CUDA Driver&lt;/td&gt;
+&lt;td&gt;12.8 (Driver Version: 570.133.20)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;GPU Usage&lt;/td&gt;
+&lt;td&gt;vaccel-rpc-agent (228 MiB GPU memory used during tests)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id="description"&gt;Description&lt;/h3&gt;
+&lt;p&gt;All benchmarks were executed on a modern workstation equipped with a 6-core AMD
+Ryzen CPU and 64 GB of system memory. For GPU-accelerated runs, the machine
+used an NVIDIA RTX 2060 SUPER with 8 GB of VRAM, running CUDA 12.8. The vAccel
+RPC agent utilized a small portion of GPU memory during execution. Tests were
+conducted under Ubuntu 24.04.2 with minimal background processes to ensure
+measurement consistency.&lt;/p&gt;
+&lt;h2 id="appendix-iii--ttrpc-rust--tiny-transport-rpc-in-rust"&gt;Appendix III &amp;ndash; &lt;code&gt;ttrpc-rust&lt;/code&gt; – Tiny Transport RPC in Rust&lt;/h2&gt;
+&lt;p&gt;As part of the latency benchmarking setup, we used
+&lt;a href="https://github.com/containerd/ttrpc-rust" target="_blank" rel="noopener"&gt;&lt;code&gt;ttrpc-rust&lt;/code&gt;&lt;/a&gt;, a minimalist
+transport abstraction for low-latency RPC-style communication. &lt;code&gt;ttrpc-rust&lt;/code&gt; is
+the &lt;code&gt;Rust&lt;/code&gt; version of &lt;a href="https://github.com/containerd/ttrpc" target="_blank" rel="noopener"&gt;&lt;code&gt;ttrpc&lt;/code&gt;&lt;/a&gt;. &lt;code&gt;ttrpc&lt;/code&gt;
+is &lt;a href="https://grpc.io/" target="_blank" rel="noopener"&gt;GRPC&lt;/a&gt; for low-memory environments.&lt;/p&gt;
+&lt;p&gt;By default, ttrpc-rust supports:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Unix domain sockets (fast, local IPC)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;AF_VSOCK&lt;/code&gt; sockets&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;For our experiments, we extended it in a &lt;a href="https://github.com/nubificus/ttrpc-rust/tree/0.8.0%2Bvaccel" target="_blank" rel="noopener"&gt;downstream
+fork&lt;/a&gt; to also
+support &lt;code&gt;TCP&lt;/code&gt; sockets. In addition to this, we also added an environment
+variable to control the &lt;code&gt;TCP_NODELAY&lt;/code&gt; feature, so that we don&amp;rsquo;t have to do the
+&lt;code&gt;nodelay.so&lt;/code&gt; hack. Use with the following variable set:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-gdscript3" data-lang="gdscript3"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="k"&gt;export&lt;/span&gt; &lt;span class="n"&gt;TTRPC_TCP_NODELAY_ENABLED&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;</description></item></channel></rss>

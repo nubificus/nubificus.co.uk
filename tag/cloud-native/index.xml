@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Cloud-Native | Nubificus</title><link>/tag/cloud-native/</link><atom:link href="/tag/cloud-native/index.xml" rel="self" type="application/rss+xml"/><description>Cloud-Native</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Sun, 02 Feb 2025 09:00:00 +0000</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Cloud-Native</title><link>/tag/cloud-native/</link></image><item><title>FOSDEM 2025: WASM Meets Unikernels - Secure and Efficient Cloud-Native Deployments</title><link>/event/fosdem2025-1/</link><pubDate>Sun, 02 Feb 2025 09:00:00 +0000</pubDate><guid>/event/fosdem2025-1/</guid><description>&lt;h2 id="further-reading"&gt;Further Reading&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://blog.cloudkernels.net/posts/wasm-urunc/" target="_blank" rel="noopener"&gt;WASM and urunc Integration&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://github.com/urunc-dev/urunc" target="_blank" rel="noopener"&gt;urunc - Container Runtime Repository&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/nubificus/bunny" target="_blank" rel="noopener"&gt;bunny - Building Tool Repository&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>Cloud-Native IoT: Redefining Device Management with k8s</title><link>/blog/cloud-native-iot_v2/</link><pubDate>Sat, 23 Nov 2024 09:28:46 +0000</pubDate><guid>/blog/cloud-native-iot_v2/</guid><description>&lt;p&gt;The world of IoT is expanding rapidly, bringing with it a growing demand for
+scalable, secure, and efficient device management solutions. Traditional
+approaches often struggle with the complexities of managing heterogeneous
+fleets of devices while ensuring secure operations and reliable software
+delivery. Our Cloud-Native IoT project addresses these challenges by leveraging
+k8s to provide a unified, highly automated, and secure ecosystem
+tailored for IoT environments.&lt;/p&gt;
+&lt;p&gt;At the core of this architecture is &lt;a href="https://docs.akri.sh/" target="_blank" rel="noopener"&gt;&lt;code&gt;Akri&lt;/code&gt;&lt;/a&gt;, which acts
+as the critical bridge between k8s and the diverse array of IoT devices in a
+fleet. &lt;code&gt;Akri&lt;/code&gt; enables seamless discovery and management of IoT devices,
+treating them as integral components of the k8s ecosystem. This integration
+eliminates many of the manual steps traditionally required in IoT deployments,
+allowing developers to deploy and manage applications across devices with the
+same ease as managing containerized workloads in the cloud.&lt;/p&gt;
+&lt;h2 id="understanding-akris-architecture"&gt;Understanding &lt;code&gt;Akri&lt;/code&gt;’s Architecture&lt;/h2&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/akri-logo.png#floatright" alt="" loading="lazy" data-zoomable width="30%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;code&gt;Akri&lt;/code&gt;’s architecture is designed to extend k8s’ capabilities to IoT devices,
+creating a unified interface for managing workloads across cloud, edge, and IoT
+layers. It achieves this through three core components: &lt;code&gt;Akri&lt;/code&gt; Controllers, &lt;code&gt;Akri&lt;/code&gt;
+Brokers, and k8s Custom Resources.&lt;/p&gt;
+&lt;p&gt;The &lt;code&gt;Akri&lt;/code&gt; Controller operates within the k8s control plane, continuously
+monitoring for available IoT devices by interacting with various device
+plugins. These plugins are responsible for identifying devices such as cameras,
+sensors, or other hardware endpoints, which might be connected via USB, network
+protocols, or proprietary interfaces. When a device is detected, the &lt;code&gt;Akri&lt;/code&gt;
+Controller registers it as a k8s resource by creating a corresponding custom
+resource (&lt;code&gt;CR&lt;/code&gt;). These &lt;code&gt;CR&lt;/code&gt;s make IoT devices discoverable and manageable using
+k8s-native tools, enabling seamless integration with containerized workloads.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure id="figure-figure-1-akris-architecture"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/akri-arch.png" alt="Figure 1: `Akri`&amp;#39;s Architecture" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 1: &lt;code&gt;Akri&lt;/code&gt;&amp;rsquo;s Architecture
+&lt;/figcaption&gt;&lt;/figure&gt;
+Once devices are discovered, &lt;code&gt;Akri&lt;/code&gt; Brokers come into play. Brokers are
+lightweight, containerized components deployed as k8s pods to manage the
+interaction between k8s workloads and the IoT devices they rely on. For
+instance, if an application requires access to a specific camera or sensor, the
+&lt;code&gt;Akri&lt;/code&gt; Broker ensures the application receives the appropriate connection and
+data from the device. Multiple brokers can run simultaneously, each tailored to
+specific device types, ensuring scalability and flexibility across diverse
+environments.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;Akri&lt;/code&gt;’s architecture enables dynamic device discovery and usage. Whether a
+device is added or removed, &lt;code&gt;Akri&lt;/code&gt; automatically updates the cluster’s state,
+reflecting the current device inventory. This dynamic nature makes it
+particularly well-suited for environments where IoT devices may frequently
+change, such as smart factories or mobile deployments. By abstracting the
+complexities of device management, &lt;code&gt;Akri&lt;/code&gt; allows developers to focus on building
+and deploying IoT applications rather than wrestling with the nuances of device
+connectivity. For more information on our engagement with &lt;code&gt;Akri&lt;/code&gt; please have a
+look at our &lt;a href="/posts/cloud-native-iot"&gt;previous experiments&lt;/a&gt;.&lt;/p&gt;
+&lt;figure id="figure-figure-2-akris-steady-state-iot-device-handling"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/akri-workflow1.png" alt="Figure 2: `Akri`&amp;#39;s steady state IoT device handling" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 2: &lt;code&gt;Akri&lt;/code&gt;&amp;rsquo;s steady state IoT device handling
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;h2 id="beyond-application-management-secure--efficient-ota-updates"&gt;Beyond Application Management: Secure &amp;amp; Efficient &lt;code&gt;OTA&lt;/code&gt; Updates&lt;/h2&gt;
+&lt;p&gt;While &lt;code&gt;Akri&lt;/code&gt; provides a robust foundation for integrating IoT devices with k8s,
+our architecture goes further to address critical challenges like simplified
+software delivery, trusted execution and secure on-boarding.&lt;/p&gt;
+&lt;h3 id="flashjob-operator--crd"&gt;&lt;code&gt;FlashJob&lt;/code&gt; Operator &amp;amp; CRD&lt;/h3&gt;
+&lt;p&gt;First, we build a simplified operator and CRD to handle application deployment
+on IoT devices. We follow the same principles as &lt;code&gt;Akri&lt;/code&gt; (and our previous
+attempts), but we decouple the firmware flashing operation from the inventory
+setup and discovery of devices: essentially, we let &lt;code&gt;Akri&lt;/code&gt; do the heavy lifting
+of populating the k8s-related structures with device info, and use this
+information to initiate a firmware flash operation.&lt;/p&gt;
+&lt;p&gt;The operator subscribes to &lt;code&gt;Akri&lt;/code&gt; instances (the device entries in the k8s
+database) and, when needed, is able to retrieve information about each device.
+For instance, the operator is able to query the database for the device unique
+ID, its network endpoint, firmware version, application type etc.&lt;/p&gt;
+&lt;figure id="figure-figure-3-flashjob-spawn-and-iot-device-update"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/akri-workflow2.png" alt="Figure 3: FlashJob spawn and IoT device update " loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 3: FlashJob spawn and IoT device update
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;When a request reaches the operator for a firmware flash on a set of devices,
+the operator fetches the relevant information from the database and spawns a
+&lt;code&gt;FlashJob&lt;/code&gt; Pod with this information that initiates the &lt;code&gt;OTA&lt;/code&gt; mechanism for the
+specific devices. The IoT devices are updated, and, in turn, re-discovered by
+the relevant discovery handler of &lt;code&gt;Akri&lt;/code&gt;. For instance, if the update refers to
+device re-purposing (running a different application than previously), the
+relevant discovery handler will detect new devices, whereas the former
+discovery handler will update that the old device is not reachable, and it will
+be removed from the specific inventory entry.&lt;/p&gt;
+&lt;p&gt;To facilitate software delivery, the &lt;code&gt;FlashJob&lt;/code&gt; Pod fetches the firmware blob
+that will be flashed onto the device from a container registry.&lt;/p&gt;
+&lt;h3 id="oci-firmware-packaging"&gt;OCI firmware packaging&lt;/h3&gt;
+&lt;p&gt;Firmware blobs are packaged as OCI artifacts, which can be stored in any
+OCI-compliant registry. These artifacts are designed to support multiple
+devices and configurations, minimizing the burden of managing diverse hardware
+across a fleet. The &lt;code&gt;FlashJob&lt;/code&gt; operator that orchestrates updates, fetches only
+the relevant parts of the artifact for each device, reducing bandwidth usage
+and streamlining the delivery process.&lt;/p&gt;
+&lt;p&gt;To further optimize the workflow, we build a &lt;a href="https://github.com/nubificus/esp32-build" target="_blank" rel="noopener"&gt;simple
+pipeline&lt;/a&gt; that, given the source code
+of an application ported to an IoT device framework (such as &lt;code&gt;ESP32&lt;/code&gt;-based
+devices, with &lt;code&gt;esp-idf&lt;/code&gt;), builds the binary blob, packages it as an OCI image
+and creates an image manifest, annotating each OCI image with the relevant
+architecture/platform. These images and manifests are pushed to a generic
+container registry.&lt;/p&gt;
+&lt;p&gt;On the &lt;code&gt;FlashJob&lt;/code&gt; side, we use generic tooling and mechanisms to fetch the
+relevant firmware blob that matches the device to be updated.&lt;/p&gt;
+&lt;h3 id="zero-touch-and-zero-trust-security-considerations"&gt;Zero-touch and Zero-trust security considerations&lt;/h3&gt;
+&lt;p&gt;Integrating a secure device on-boarding and over-the-air (&lt;code&gt;OTA&lt;/code&gt;) update
+framework, ensures that only authenticated devices join the cluster, and that
+software updates are delivered optimally, with minimum overhead, without
+compromising security.&lt;/p&gt;
+&lt;p&gt;The secure on-boarding and &lt;code&gt;OTA&lt;/code&gt; update framework is built on
+&lt;a href="https://https://github.com/google/open-dice" target="_blank" rel="noopener"&gt;&lt;code&gt;OpenDICE&lt;/code&gt;&lt;/a&gt;, a lightweight
+attestation and identity management solution. This framework leverages
+device-specific secrets to derive cryptographic keys, which are used to
+generate unique device certificates. These certificates play a pivotal role in
+signing &lt;a href="https://datatracker.ietf.org/doc/draft-ietf-rats-eat/" target="_blank" rel="noopener"&gt;&lt;code&gt;EAT&lt;/code&gt; (Entity Attestation
+Tokens)&lt;/a&gt;, embedding
+critical device metadata such as the application type, firmware version, and
+other relevant attributes.&lt;/p&gt;
+&lt;p&gt;Devices send these signed EATs to key system components, such as the discovery
+handler, enabling robust device attestation. This process verifies device
+authenticity and enforces strict access control policies, ensuring that only
+authorized devices can communicate and interact within the system.&lt;/p&gt;
+&lt;figure id="figure-figure-4-iot-device-ota-update-workflow"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/iot-dice-workflow.png" alt="Figure 4: IoT device `OTA` update workflow" loading="lazy" data-zoomable width="60%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 4: IoT device &lt;code&gt;OTA&lt;/code&gt; update workflow
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;For &lt;code&gt;OTA&lt;/code&gt; updates, the framework issues updates exclusively to trusted platform
+components, maintaining integrity and security throughout the update process.
+When paired with a secure boot mechanism, the framework ensures that devices
+start in a trusted state immediately upon powering on. Together, these features
+establish a strong foundation for trust, security, and reliability across the
+entire lifecycle of the device—from initialization to operational updates.&lt;/p&gt;
+&lt;h3 id="use-cases"&gt;Use Cases&lt;/h3&gt;
+&lt;p&gt;Our Cloud-Native IoT framework has applications in a wide range of industries,
+each with unique requirements that benefit from the architecture’s flexibility,
+security, and scalability.&lt;/p&gt;
+&lt;p&gt;In manufacturing, smart factories can leverage this architecture to manage
+fleets of sensors, robotic arms, and edge devices. With &lt;code&gt;Akri&lt;/code&gt;’s dynamic device
+discovery and k8s’ orchestration capabilities, factories can deploy multi-tier
+applications that span cloud-based analytics, edge-based processing, and
+IoT-based data collection. Secure on-boarding and trusted &lt;code&gt;OTA&lt;/code&gt; updates ensure
+that only authorized devices operate in these environments, minimizing risks
+associated with counterfeit hardware or outdated firmware.&lt;/p&gt;
+&lt;p&gt;In healthcare, where compliance and data integrity are critical, our framework
+enables secure deployment and management of medical IoT devices, such as
+patient monitors or diagnostic equipment. By packaging software updates as OCI
+artifacts, healthcare providers can ensure consistency across devices while
+adhering to strict regulatory standards. &lt;code&gt;Akri&lt;/code&gt;’s ability to dynamically discover
+and manage devices also simplifies the deployment of new technologies in
+hospital settings.&lt;/p&gt;
+&lt;p&gt;The retail industry can benefit from deploying smart shelves, cameras, and
+IoT-enabled inventory systems using this architecture. The ability to deliver
+targeted &lt;code&gt;OTA&lt;/code&gt; updates based on device-specific requirements ensures that
+software upgrades don’t disrupt operations, even during peak business hours.
+Additionally, secure on-boarding mechanisms guarantee that only authorized
+devices interact with sensitive business systems.&lt;/p&gt;
+&lt;p&gt;In addition to traditional IoT applications, device re-purposing opens new
+opportunities for innovation by enabling the same hardware to perform entirely
+different functions depending on operational needs. For example, devices
+running &lt;code&gt;tinyML&lt;/code&gt; applications, can be dynamically re-purposed to execute a
+different model, or even application, bringing flexible and adaptable machine
+learning inference at the edge.&lt;/p&gt;
+&lt;p&gt;In the case of a smart camera in a retail environment, deployed for security
+purposes &amp;ndash; the same device can be repurposed to run a &lt;code&gt;tinyML&lt;/code&gt;-powered model for
+customer analytics, such as tracking foot traffic or identifying
+high-engagement areas within a store.&lt;/p&gt;
+&lt;p&gt;In agriculture, an IoT sensor initially configured to monitor soil moisture
+could be repurposed to run a &lt;code&gt;tinyML&lt;/code&gt; model detecting crop diseases based on
+image data captured by an attached camera.&lt;/p&gt;
+&lt;p&gt;Similarly, in industrial settings, robotic arms used for assembly line tasks
+can be reprogrammed to perform quality assurance using &lt;code&gt;tinyML&lt;/code&gt; models for
+anomaly detection.&lt;/p&gt;
+&lt;p&gt;This flexibility eliminates downtime and minimizes costs associated with
+dedicated hardware for each task. Re-purposing is not only secure and
+efficient, but also highly adaptable, enabling a single fleet of devices to
+cater to multiple use cases across industries. Users can easily transition
+devices to support various &lt;code&gt;tinyML&lt;/code&gt; workloads or other specialized applications
+as required.&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;By combining k8s with IoT-specific innovations, our Cloud-Native IoT project
+provides a scalable, secure, and efficient solution for managing IoT devices.
+&lt;code&gt;Akri&lt;/code&gt;’s architecture brings dynamic device discovery and integration into the
+k8s ecosystem, while the secure on-boarding and &lt;code&gt;OTA&lt;/code&gt; update framework ensures
+that devices operate reliably and securely throughout their lifecycle. The
+OCI-compliant process of packaging the firmware blob facilitates the
+cloud-native integration of IoT device re-purposing.&lt;/p&gt;
+&lt;p&gt;This approach empowers end-users to deploy complex applications across cloud,
+edge, and IoT layers with ease, opening up new possibilities for automation,
+intelligence, and operational efficiency. As IoT continues to reshape
+industries, adopting a cloud-native framework will be essential for staying
+ahead in this rapidly evolving space.&lt;/p&gt;
+&lt;p&gt;Stay tuned as we push the boundaries of what’s possible with Cloud-native IoT!&lt;/p&gt;</description></item><item><title>Cloud-native IoT deployments with Akri</title><link>/blog/cloud-native-iot/</link><pubDate>Thu, 08 Aug 2024 14:28:46 +0000</pubDate><guid>/blog/cloud-native-iot/</guid><description>&lt;p&gt;As the Internet of Things (IoT) continues to expand, managing a large number of
+heterogeneous devices with diverse requirements and characteristics has become
+essential. The Cloud computing ecosystem has provided a vast amount of tools to
+efficiently manage workload deployments. However, there is a huge gap between
+the requirements of Cloud infrastructure as opposed to Edge or IoT
+infrastructure. One crucial difference is the diversity and resource
+constraints of IoT devices. As billions of devices become part of our
+environment, the need for secure, robust device management and seamless
+integration into higher-level orchestration frameworks becomes increasingly
+critical.&lt;/p&gt;
+&lt;p&gt;Kubernetes (K8s) has emerged as the standard for container orchestration but
+dealing with resource-constrained edge devices poses significant challenges.
+This blog post explores the challenges and proposed solutions for managing IoT
+device firmware in the context of cloud-native orchestration.&lt;/p&gt;
+&lt;h3 id="challenges-in-iot-device-management"&gt;Challenges in IoT Device Management&lt;/h3&gt;
+&lt;p&gt;Managing IoT devices presents unique challenges due to the diversity of IoT
+ecosystems, the scale of deployments, and the necessity for secure and
+efficient operations. These challenges are categorized into three main areas:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;em&gt;Firmware Management&lt;/em&gt;: Ensuring that all IoT devices are running the latest
+firmware versions securely and efficiently.&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;Orchestration&lt;/em&gt;: Integrating IoT devices into existing orchestration
+frameworks without overburdening their limited resources.&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;Security and On-boarding&lt;/em&gt;: Securely on-boarding new devices and managing the
+security of existing devices throughout their lifecycle .&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="the-cloud-native-ecosystem"&gt;The Cloud-native Ecosystem&lt;/h3&gt;
+&lt;p&gt;The cloud-native concept has revolutionized the design, development,
+deployment, and management of applications by leveraging cloud computing
+principles such as scalability, resilience, automation, and agility.&lt;/p&gt;
+&lt;p&gt;Containerization and micro-services are essential to this approach, providing
+flexibility, efficient resource utilization, and consistency across diverse
+environments.&lt;/p&gt;
+&lt;p&gt;However, deploying containers on IoT devices is not entirely feasible, due to
+their limited processing power, memory, and storage. To address these
+constraints, the community has proposed alternative solutions, including
+cloud-native management frameworks running as micro-services on edge devices
+close to the IoT infrastructure. These edge devices act as proxies or gateways,
+facilitating communication with the IoT devices.&lt;/p&gt;
+&lt;h3 id="iot-device-management-frameworks"&gt;IoT Device Management Frameworks&lt;/h3&gt;
+&lt;p&gt;Two popular cloud-native management frameworks for Edge/IoT devices are
+&lt;a href="https://kubeedge.io/" target="_blank" rel="noopener"&gt;&lt;code&gt;KubeEdge&lt;/code&gt;&lt;/a&gt; and &lt;a href="https://docs.akri.sh/" target="_blank" rel="noopener"&gt;&lt;code&gt;Akri&lt;/code&gt;&lt;/a&gt;. These
+frameworks integrate with the cloud-native ecosystem, offering various benefits
+and facing certain limitations:&lt;/p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/kube-edge-logo.webp#floatleft" alt="" loading="lazy" data-zoomable width="12%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;em&gt;&lt;code&gt;KubeEdge&lt;/code&gt;&lt;/em&gt;: Extends Kubernetes to the edge, providing infrastructure support
+for edge computing applications. It enables centralized management of edge
+nodes and devices, offering features like device management, data
+synchronization, and edge application deployment.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/akri-logo.png#floatright" alt="" loading="lazy" data-zoomable width="25%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;em&gt;&lt;code&gt;Akri&lt;/code&gt;&lt;/em&gt;: Focuses on edge device discovery and management, simplifying the
+integration of IoT devices into Kubernetes clusters. &lt;code&gt;Akri&lt;/code&gt; automatically
+detects and registers IoT devices, making them available to applications
+running in the cluster.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;None of the above frameworks, however, provide a pure cloud-native approach to
+firmware updating. Specifically, both use custom containers that can fetch the
+firmware from specific locations available either locally or publicly, and
+use custom tools to flash the firmware directly to the device. This means that
+none of these frameworks take advantage of the unique characteristics of the
+OCI spec to leverage software delivery benefits seamlessly.&lt;/p&gt;
+&lt;h3 id="enhancements-to-akri"&gt;Enhancements to &lt;code&gt;Akri&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;Earlier this year, we shared our take on how to tackle these challenges in a
+&lt;a href="https://dl.acm.org/doi/10.1145/3642975.3678967" target="_blank" rel="noopener"&gt;research paper&lt;/a&gt; presented at
+the &lt;a href="https://meccworkshop.github.io/" target="_blank" rel="noopener"&gt;&lt;code&gt;MECC&lt;/code&gt; workshop&lt;/a&gt; in &lt;a href="https://2024.eurosys.org/" target="_blank" rel="noopener"&gt;&lt;code&gt;EuroSys&lt;/code&gt;
+2024&lt;/a&gt;. In this work, we introduce enhancements to
+the &lt;code&gt;Akri&lt;/code&gt; framework to reduce resource utilization on edge gateways, moving
+towards a fully unified infrastructure management solution based on
+cloud-native concepts. These enhancements aim to simplify IoT device firmware
+management and improve the efficiency of IoT device firmware upgrades across
+the Cloud-Edge-IoT continuum.&lt;/p&gt;
+&lt;figure id="figure-figure-1-stock-akri-workflow"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/akri-workflow.png" alt="Figure 1: Stock `Akri` workflow" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 1: Stock &lt;code&gt;Akri&lt;/code&gt; workflow
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;Essentially, &lt;code&gt;Akri&lt;/code&gt; is a fully-featured, modular framework to &lt;em&gt;manage&lt;/em&gt; IoT device
+&lt;em&gt;applications&lt;/em&gt;. When it comes to firmware flashing (e.g. &lt;code&gt;OTA&lt;/code&gt; updates), &lt;code&gt;Akri&lt;/code&gt;
+relies on the user to provide a custom container image that is responsible for
+fetching the firmware, communicating with the device and eventually flashing
+the firmware on the device. Our approach is to leverage &lt;code&gt;Akri&lt;/code&gt; for the device
+identification and mapping, while at the same time add the functionality to
+define which devices we would like to upgrade / re-purpose. A proof of concept
+has been implemented and the &lt;a href="https://github.com/project-akri/akri/compare/main...nubificus:akri:akri-nubis" target="_blank" rel="noopener"&gt;code
+changes&lt;/a&gt;
+are minimal.&lt;/p&gt;
+&lt;p&gt;In essence, we add an extra type of job in the &lt;code&gt;Akri&lt;/code&gt; Controller logic.
+Initially, the &lt;code&gt;Akri&lt;/code&gt; Configuration must include additional values such as the
+&lt;code&gt;FirmwareJobSpec&lt;/code&gt;, responsible for managing the firmware of the leaf device.
+Additionally, the internal structures holding the fields of the Configuration
+&lt;code&gt;CRD&lt;/code&gt; need to be expanded. More importantly, the Controller needs another piece
+of logic to check whether there is a &lt;code&gt;firmwareJobSpec&lt;/code&gt; field in the
+configuration, and if positive, deploy the firmware jobs accordingly.&lt;/p&gt;
+&lt;figure id="figure-figure-2-updated-akri-workflow"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/akri-workflow-updated.png" alt="Figure 2: Updated `Akri` workflow" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 2: Updated &lt;code&gt;Akri&lt;/code&gt; workflow
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;The only difference in terms of action compared to vanilla &lt;code&gt;Akri&lt;/code&gt; is
+the scheduling of the &lt;code&gt;firmwareJob&lt;/code&gt;, which is handled by the Controller.&lt;/p&gt;
+&lt;p&gt;In more detail, the &lt;code&gt;Akri&lt;/code&gt; Configuration &lt;code&gt;CRD&lt;/code&gt; needs additional fields to hold the
+values of &lt;code&gt;firmwareJob&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# deployment/helm/crds/akri-configuration-crd.yaml&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;type&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;object&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;properties&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;firmwareJobSpec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="c"&gt;# {{JobSpec}&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;x-kubernetes-preserve-unknown-fields&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;type&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;object&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;nullable&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;discoveryHandler&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="c"&gt;# {{DiscoveryHandlerInfo}}&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;type&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;object&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;properties&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;type&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;string&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;discoveryDetails&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;type&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;string&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;discoveryProperties&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;nullable&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;type&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;array&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The logic to handle the extra configuration field resides in &lt;a href="https://github.com/nubificus/akri/blob/215c44530e5b839231b19c331a9c953e6a1eab13/controller/src/util/instance_action.rs#L447" target="_blank" rel="noopener"&gt;&lt;code&gt;controller/src/util/instance_action.rs&lt;/code&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;controller/src/util/instance_action.rs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; if let Some(firmweare_job_spec) = &amp;amp;configuration.spec.firmware_job_spec {
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; trace!(&amp;#34;about to handle the firmware job spec {:?}&amp;#34;, firmweare_job_spec);
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; let firmware_change_result = handle_instance_change_job(
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; instance,
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; *configuration.metadata.generation.as_ref().unwrap(),
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &amp;amp;firmweare_job_spec,
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; action,
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; kube_interface,
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; ).await;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Essentially this part checks if &lt;code&gt;firmwareJobSpec&lt;/code&gt; exists in the configuration
+given and then calls &lt;code&gt;handle_instance_job&lt;/code&gt; a function responsible for handling
+k8s Jobs in &lt;code&gt;Akri&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;A firmware flash can be triggered by applying a new Configuration or updating
+an existing one. When we apply a new configuration the discovery handler is
+spawned and is responsible for finding devices attached to nodes (virtually or
+physically). When the detection is over, it&amp;rsquo;s time for the &lt;code&gt;brokerPods&lt;/code&gt; and
+&lt;code&gt;firmwareJobs&lt;/code&gt; to be deployed. The &lt;code&gt;brokerPod&lt;/code&gt; holds the load / application
+utilizing the device. The &lt;code&gt;firmwareJob&lt;/code&gt; is responsible for checking the
+firmware version, of the device and if a newer version is specified then the
+firmware update is triggered.&lt;/p&gt;
+&lt;p&gt;When updating a configuration the old one is deleted along with the linked
+instances and &lt;code&gt;brokerPods&lt;/code&gt; or &lt;code&gt;firmwareJobs&lt;/code&gt; and a new set of Configuration
+with the additional pods or &lt;code&gt;firmwareJobs&lt;/code&gt; are deployed.&lt;/p&gt;
+&lt;p&gt;When we add a new device type, if the device is discoverable from the discovery
+handler, &lt;code&gt;brokerPods&lt;/code&gt; and &lt;code&gt;brokerJobs&lt;/code&gt; will be deployed utilizing the device.&lt;/p&gt;
+&lt;p&gt;We are currently working on a refactor of our approach and we will provide an
+update once we have something concrete.&lt;/p&gt;
+&lt;h3 id="conclusion"&gt;Conclusion&lt;/h3&gt;
+&lt;p&gt;In conclusion, the management of IoT devices within a cloud-native ecosystem is
+crucial for leveraging the full potential of IoT technology. By addressing the
+challenges posed by resource constraints at the edge and proposing enhancements
+to existing frameworks like &lt;code&gt;Akri&lt;/code&gt;, this work contributes to more accessible and
+efficient orchestration solutions for IoT environments. Future efforts will
+focus on further refining these solutions and integrating them into mainstream
+IoT management practices.&lt;/p&gt;
+&lt;p&gt;Leveraging cloud-native principles and addressing the unique challenges of
+IoT device management, we can create a more cohesive and efficient continuum
+for the deployment and management of applications in IoT environments.&lt;/p&gt;
+&lt;p&gt;Stay tuned for updates on this front!&lt;/p&gt;</description></item></channel></rss>

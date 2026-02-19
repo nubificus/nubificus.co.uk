@@ -1,0 +1,272 @@
+<!doctype html><!-- This site was created with Hugo Blox. https://hugoblox.com --><!-- Last Published: February 19, 2026 --><html lang=en-us><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=generator content="Hugo Blox Builder 5.9.7"><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link rel=preload as=style href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Roboto+Mono&family=Roboto:wght@400;700&display=swap"><link rel=stylesheet href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Roboto+Mono&family=Roboto:wght@400;700&display=swap" media=print onload='this.media="all"'><link rel=stylesheet href=/css/vendor-bundle.min.26c458e6907dc03073573976b7f4044e.css media=print onload='this.media="all"'><link rel=stylesheet href=https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1.9.4/css/academicons.min.css integrity="sha512-IW0nhlW5MgNydsXJO40En2EoCkTTjZhI3yuODrZIc8cQ4h1XcF53PsqDHa09NqnkXuIe0Oiyyj171BqZFwISBw==" crossorigin=anonymous media=print onload='this.media="all"'><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.min.css integrity crossorigin=anonymous media=print onload='this.media="all"'><link rel=stylesheet href=/css/wowchemy.0a92100ca9cf271dc93dd61885c3d747.css><link rel=stylesheet href=/css/libs/chroma/github-light.min.css title=hl-light media=print onload='this.media="all"'><link rel=stylesheet href=/css/libs/chroma/dracula.min.css title=hl-dark media=print onload='this.media="all"' disabled><meta name=author content="Charalampos Mainas"><meta name=description content="[UPDATE: Revise instructions to reflect upstream nabla changes.]
+
+"><link rel=alternate hreflang=en-us href=/blog/example-rumprun-solo5-on-aarch64/><link rel=canonical href=/blog/example-rumprun-solo5-on-aarch64/><link rel=manifest href=/manifest.webmanifest><link rel=icon type=image/png href=/media/icon_hu_76f04f0ed4ada794.png><link rel=apple-touch-icon type=image/png href=/media/icon_hu_bbf9ba2454448482.png><meta name=theme-color content="#1565c0"><meta property="twitter:card" content="summary"><meta property="twitter:site" content="@GetResearchDev"><meta property="twitter:creator" content="@GetResearchDev"><meta property="twitter:image" content="/media/logo_hu_866fdf07312224c.png"><meta property="og:type" content="website"><meta property="og:site_name" content="Nubificus"><meta property="og:url" content="/blog/example-rumprun-solo5-on-aarch64/"><meta property="og:title" content="Run a rumprun unikernel on a `RPi3` | Nubificus"><meta property="og:description" content="[UPDATE: Revise instructions to reflect upstream nabla changes.]
+
+"><meta property="og:image" content="/media/logo_hu_866fdf07312224c.png"><meta property="og:locale" content="en-us"><meta property="article:published_time" content="2019-01-24T00:09:27+02:00"><meta property="article:modified_time" content="2019-01-24T00:09:27+02:00"><script src=https://cdn.jsdelivr.net/gh/osano/cookieconsent@3.1.1/build/cookieconsent.min.js integrity="sha512-yXXqOFjdjHNH1GND+1EO0jbvvebABpzGKD66djnUfiKlYME5HGMUJHoCaeE4D5PTG2YsSJf6dwqyUUvQvS0vaA==" crossorigin=anonymous></script><link rel=stylesheet href=https://cdn.jsdelivr.net/gh/osano/cookieconsent@3.1.1/build/cookieconsent.min.css integrity="sha512-LQ97camar/lOliT/MqjcQs5kWgy6Qz/cCRzzRzUCfv0fotsCTC9ZHXaPQmJV8Xu/PVALfJZ7BDezl5lW3/qBxg==" crossorigin=anonymous><script>window.addEventListener("load",function(){window.cookieconsent.initialise({palette:{popup:{background:"#1565c0",text:"rgb(255, 255, 255)"},button:{background:"rgb(255, 255, 255)",text:"#1565c0"}},theme:"classic",content:{message:"This website uses cookies to ensure you get the best experience on our website.",dismiss:"Got it!",link:"Learn more",href:"https://www.cookiesandyou.com"}})})</script><title>Run a rumprun unikernel on a `RPi3` | Nubificus</title></head><body id=top data-spy=scroll data-offset=70 data-target=#TableOfContents class=page-wrapper data-wc-page-id=509e30e9a5a8bf32058c7c2b0d175567><script src=/js/wowchemy-init.min.9e4214442a7711d35691acd58f6f6361.js></script><div class="page-header header--fixed"><style>.navbar-logo{height:50px;display:flex;align-items:center}.navbar-logo img{max-height:45px;width:auto;display:block}.navbar-logo .logo-dark{display:none}body.colorscheme-dark .navbar-logo .logo-light,body.dark .navbar-logo .logo-light{display:none}body.colorscheme-dark .navbar-logo .logo-dark,body.dark .navbar-logo .logo-dark{display:block}.navbar-logo.logo-nubis,.navbar-logo.logo-nubificus{display:none}</style><script>document.addEventListener("DOMContentLoaded",function(){var e=window.location.hostname,t=e==="nubis-pc.eu"||e==="www.nubis-pc.eu",n=t?"logo-nubis":"logo-nubificus";document.querySelectorAll(".navbar-logo."+n).forEach(function(e){e.style.display="flex"}),document.querySelectorAll("[data-brand]").forEach(function(e){var n=e.getAttribute("data-brand");t?e.textContent=n==="primary"?"Nubis":"Nubificus":e.textContent=n==="primary"?"Nubificus":"Nubis"})})</script><header><nav class="navbar navbar-expand-lg navbar-light compensate-for-scrollbar" id=navbar-main><div class=container-xl><div class="d-none d-lg-inline-flex"><a class=navbar-brand href=/><div class="navbar-logo logo-nubificus"><img class=logo-light src=/media/logo-nubificus_hu_7be4fa6b19286a64.png alt=Nubificus>
+<img class=logo-dark src=/media/logo-nubificus-dark_hu_bd80a6d6121ee2ff.png alt=Nubificus></div><div class="navbar-logo logo-nubis"><img class=logo-light src=/media/logo-nubis.png alt="Nubis PC">
+<img class=logo-dark src=/media/logo-nubis-dark.png alt="Nubis PC"></div></a></div><button type=button class=navbar-toggler data-toggle=collapse data-target=#navbar-content aria-controls=navbar-content aria-expanded=false aria-label="Toggle navigation">
+<span><i class="fas fa-bars"></i></span></button><div class="navbar-brand-mobile-wrapper d-inline-flex d-lg-none"><a class=navbar-brand href=/><div class="navbar-logo logo-nubificus"><img class=logo-light src=/media/logo-nubificus_hu_7be4fa6b19286a64.png alt=Nubificus>
+<img class=logo-dark src=/media/logo-nubificus-dark_hu_bd80a6d6121ee2ff.png alt=Nubificus></div><div class="navbar-logo logo-nubis"><img class=logo-light src=/media/logo-nubis.png alt="Nubis PC">
+<img class=logo-dark src=/media/logo-nubis-dark.png alt="Nubis PC"></div></a></div><div class="navbar-collapse main-menu-item collapse justify-content-end" id=navbar-content><ul class="navbar-nav d-md-inline-flex"><li class=nav-item><a class=nav-link href=/><span>Home</span></a></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>Research</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/projects/><span>Projects</span></a>
+<a class=dropdown-item href=/publication><span>Publications</span></a></div></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>Solutions</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/solutions/edgelink/><span>edgeLink</span></a>
+<a class=dropdown-item href=/solutions/urunc/><span>urunc</span></a>
+<a class=dropdown-item href=/solutions/vaccel/><span>vAccel</span></a></div></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>Feed</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/post><span>News</span></a>
+<a class=dropdown-item href=/event><span>Events</span></a></div></li><li class=nav-item><a class="nav-link active" href=/blog><span>Blog</span></a></li><li class="nav-item dropdown"><a href=# class="nav-link dropdown-toggle" data-toggle=dropdown aria-haspopup=true><span>About</span><span class=caret></span></a><div class=dropdown-menu><a class=dropdown-item href=/people><span>People</span></a>
+<a class=dropdown-item href=/contact><span>Contact</span></a></div></li></ul></div><ul class="nav-icons navbar-nav flex-row ml-auto d-flex pl-md-2"><li class="nav-item dropdown theme-dropdown"><a href=# class=nav-link data-toggle=dropdown aria-haspopup=true aria-label="Display preferences"><i class="fas fa-moon" aria-hidden=true></i></a><div class=dropdown-menu><a href=# class="dropdown-item js-set-theme-light"><span>Light</span>
+</a><a href=# class="dropdown-item js-set-theme-dark"><span>Dark</span>
+</a><a href=# class="dropdown-item js-set-theme-auto"><span>Automatic</span></a></div></li></ul></div></nav></header><script>document.addEventListener("DOMContentLoaded",function(){var e=document.querySelectorAll(".navbar-nav .nav-item.dropdown");e.forEach(function(t){t.addEventListener("mouseenter",function(){e.forEach(function(e){if(e!==t){e.classList.remove("show");var n=e.querySelector(".dropdown-menu");n&&n.classList.remove("show")}}),t.classList.add("show");var n=t.querySelector(".dropdown-menu");n&&n.classList.add("show")}),t.addEventListener("mouseleave",function(){t.classList.remove("show");var e=t.querySelector(".dropdown-menu");e&&e.classList.remove("show")})})})</script></div><div class=page-body><article class=article><div class=article-container><a class=blog-back-link href=javascript:void(0) onclick=blogGoBack()><i class="fas fa-arrow-left"></i> Back to Blog</a></div><div class="article-container pt-3"><h1>Run a rumprun unikernel on a `RPi3`</h1><div class=article-metadata><span class=article-date>Jan 24, 2019</span></div></div><div class=article-container><div class=article-style><p>[<strong>UPDATE:</strong> Revise instructions to reflect upstream nabla changes.]<br><br></p><p>In this post, we will walk through the steps of compiling, baking, and running an
+application as a rumprun unikernel on a Raspberry Pi 3.</p><p>In our <a href=/blog/nabla-containers-aarch64/>previous post</a>, we
+provided some background for <a href=https://github.com/rumpkernel/rumprun target=_blank rel=noopener>Rumprun</a>/<a href=http://rumpkernel.org target=_blank rel=noopener>rump kernels</a> and
+<a href=https://github.com/Solo5/solo5 target=_blank rel=noopener>Solo5</a>. In short, Rumprun provides the necessary components to run a <code>POSIX</code>
+compatible application as a unikernel. Solo5 is, essentially, a hardware
+abstraction layer that provides a very thin interface, or else a <em>minimal
+attack surface</em>.</p><p><figure><div class="d-flex justify-content-center"><div class=w-100><img src=/images/rumprun-solo5-high.png alt="Rumprun High-level stack" loading=lazy data-zoomable></div></div></figure></p><p>The <a href=https://nabla-containers.github.io target=_blank rel=noopener>Nabla Containers</a> fork of Rumprun provides a solo5 target for the rump
+kernel unikernel stack. Additionally, they provide a Docker runtime that spawns
+unikernel images as containers. We will be talking about Nabla Containers in
+more detail in future posts. Stay tuned :)</p><p>For this tutorial, we will use our current <a href=/blog/nabla-containers-aarch64/><code>aarch64</code> port</a>. We will show you how to build and run a
+unikernel application on a <code>RPi3</code>. Keep in mind, that our port should work
+without issues on any <code>aarch64</code> platform. Feel free to run this tutorial on your
+favourite ARM board and let us know about your experience!</p><p>However, enough with the boring theory, let&rsquo;s get our hands dirty.</p><h3 id=hands-on>Hands-on</h3><p>First of all, we need the rumprun toolchain to bake our unikernel image. One
+option is to use our <a href=https://hub.docker.com/r/cloudkernels/debian-rumprun-build target=_blank rel=noopener>docker image</a> with the toolchain preinstalled.</p><p>Another option is to build the rumprun toolchain from source. We will provide
+the necessary information on how to build all components for <code>aarch64</code> in the
+coming days.</p><p>So, log in to your <code>RPi3</code> and, after you&rsquo;ve <a href=https://docs.docker.com/install/linux/docker-ce/ubuntu target=_blank rel=noopener>installed docker-ce</a>, try running
+the following command:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>docker run -ti --rm -v /build:/build cloudkernels/debian-rumprun-build:aarch64 /bin/bash
+</span></span></code></pre></div><p>you should be presented with something like the following:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-gdscript3 data-lang=gdscript3><span class=line><span class=cl><span class=n>Unable</span> <span class=n>to</span> <span class=n>find</span> <span class=n>image</span> <span class=s1>&#39;cloudkernels/debian-rumprun-build:aarch64&#39;</span> <span class=n>locally</span>
+</span></span><span class=line><span class=cl><span class=n>aarch64</span><span class=p>:</span> <span class=n>Pulling</span> <span class=n>from</span> <span class=n>cloudkernels</span><span class=o>/</span><span class=n>debian</span><span class=o>-</span><span class=n>rumprun</span><span class=o>-</span><span class=n>build</span>
+</span></span><span class=line><span class=cl><span class=n>e10919c546c2</span><span class=p>:</span> <span class=n>Pull</span> <span class=n>complete</span> 
+</span></span><span class=line><span class=cl><span class=mi>6</span><span class=n>b3f0a4d7b10</span><span class=p>:</span> <span class=n>Pull</span> <span class=n>complete</span> 
+</span></span><span class=line><span class=cl><span class=mf>473e207</span><span class=n>e8cf0</span><span class=p>:</span> <span class=n>Pull</span> <span class=n>complete</span> 
+</span></span><span class=line><span class=cl><span class=mi>0</span><span class=n>deecc1ceca2</span><span class=p>:</span> <span class=n>Pull</span> <span class=n>complete</span> 
+</span></span><span class=line><span class=cl><span class=mi>628025</span><span class=n>a81431</span><span class=p>:</span> <span class=n>Pull</span> <span class=n>complete</span> 
+</span></span><span class=line><span class=cl><span class=mi>25</span><span class=n>fd95c63d4f</span><span class=p>:</span> <span class=n>Pull</span> <span class=n>complete</span> 
+</span></span><span class=line><span class=cl><span class=n>Digest</span><span class=p>:</span> <span class=n>sha256</span><span class=p>:</span><span class=mi>0221</span><span class=n>ba1c3a120bde1fd83b6d9c267fb4379c33d8f0012b9a64826afd476faf72</span>
+</span></span><span class=line><span class=cl><span class=n>Status</span><span class=p>:</span> <span class=n>Downloaded</span> <span class=n>newer</span> <span class=n>image</span> <span class=k>for</span> <span class=n>cloudkernels</span><span class=o>/</span><span class=n>debian</span><span class=o>-</span><span class=n>rumprun</span><span class=o>-</span><span class=n>build</span><span class=p>:</span><span class=n>aarch64</span>
+</span></span><span class=line><span class=cl><span class=n>root</span><span class=err>@</span><span class=mi>184</span><span class=n>fa9ecd15d</span><span class=p>:</span><span class=o>/</span><span class=c1>#</span>
+</span></span></code></pre></div><p>now move to the build directory, and clone the rumprun-packages repo:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>root@184fa9ecd15d:/# cd build
+</span></span><span class=line><span class=cl>root@184fa9ecd15d:/build# git clone https://github.com/cloudkernels/rumprun-packages
+</span></span></code></pre></div><p>Make sure your <code>config.mk</code> file contains the correct toolchain tuple:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>root@184fa9ecd15d:/build# cd rumprun-packages
+</span></span><span class=line><span class=cl>root@184fa9ecd15d:/build/rumprun-packages# echo RUMPRUN_TOOLCHAIN_TUPLE=aarch64-rumprun-netbsd &gt; config.mk
+</span></span></code></pre></div><p>and go to an example package, say hello, and type make</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>root@184fa9ecd15d:/build/rumprun-packages# cd hello
+</span></span><span class=line><span class=cl>root@184fa9ecd15d:/build/rumprun-packages# make
+</span></span></code></pre></div><p>The output should be the following:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl># make
+</span></span><span class=line><span class=cl>mkdir -p build
+</span></span><span class=line><span class=cl>cp src/* build
+</span></span><span class=line><span class=cl>make -C build hello.spt
+</span></span><span class=line><span class=cl>make[1]: Entering directory &#39;/build/rumprun-packages/hello/build&#39;
+</span></span><span class=line><span class=cl>aarch64-rumprun-netbsd-gcc hello.c -o hello-rumprun
+</span></span><span class=line><span class=cl>rumprun-bake solo5_spt hello.spt hello-rumprun
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>!!!
+</span></span><span class=line><span class=cl>!!! NOTE: rumprun-bake is experimental. syntax may change in the future
+</span></span><span class=line><span class=cl>!!!
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>make[1]: Leaving directory &#39;/build/rumprun-packages/hello/build&#39;
+</span></span><span class=line><span class=cl>mkdir -p bin
+</span></span><span class=line><span class=cl>cp build/hello.spt bin/hello.spt
+</span></span><span class=line><span class=cl>rumprun-bake solo5_hvt hello.hvt hello-rumprun
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>!!!
+</span></span><span class=line><span class=cl>!!! NOTE: rumprun-bake is experimental. syntax may change in the future
+</span></span><span class=line><span class=cl>!!!
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>make[1]: Leaving directory &#39;/build/rumprun-packages/hello/build&#39;
+</span></span><span class=line><span class=cl>mkdir -p bin
+</span></span><span class=line><span class=cl>cp build/hello.hvt bin/hello.hvt
+</span></span></code></pre></div><p>Now, exit the container (<code>Ctrl-D</code>) and cd into this directory:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>root@rpi3:~# cd /build/rumprun-packages/hello
+</span></span><span class=line><span class=cl>root@rpi3:/build/rumprun-packages/hello# 
+</span></span></code></pre></div><p>Make sure there&rsquo;s a dummy file for the disk image, and a tap interface:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>root@rpi3:/build/rumprun-packages/hello# dd if=/dev/zero of=dummy count=1 bs=512
+</span></span><span class=line><span class=cl>root@rpi3:/build/rumprun-packages/hello# ip tuntap add tap0 mode tap
+</span></span><span class=line><span class=cl>root@rpi3:/build/rumprun-packages/hello# ip link set dev tap0 up
+</span></span></code></pre></div><p>And make sure you&rsquo;ve got the <code>solo5-hvt</code>/<code>spt</code> binaries (solo5). If not, do the following:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>root@rpi3:/build# git clone https://github.com/solo5/solo5
+</span></span><span class=line><span class=cl>root@rpi3:/build# cd solo5
+</span></span><span class=line><span class=cl>root@rpi3:/build/solo5# apt-get install libseccomp-dev &amp;&amp; make
+</span></span></code></pre></div><p>If everything was successful, you should have two binaries: <code>solo5-spt</code> (<code>seccomp</code> tender) and <code>solo5-hvt</code> (<code>KVM</code> tender) at:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>/build/solo5/tenders/spt/solo5-spt
+</span></span><span class=line><span class=cl>/build/solo5/tenders/hvt/solo5-hvt
+</span></span></code></pre></div><p>So, returning to the previous dir / environment, you can execute the hello unikernel:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>root@rpi3:/build/rumprun-packages/hello# /build/solo5/tenders/spt/solo5-spt --mem=32 --net=tap0 --disk=dummy ./bin/hello.spt
+</span></span><span class=line><span class=cl>            |      ___|
+</span></span><span class=line><span class=cl>  __|  _ \  |  _ \ __ \
+</span></span><span class=line><span class=cl>\__ \ (   | | (   |  ) |
+</span></span><span class=line><span class=cl>____/\___/ _|\___/____/
+</span></span><span class=line><span class=cl>Solo5: Memory map: 32 MB addressable:
+</span></span><span class=line><span class=cl>Solo5:     unused @ (0x0 - 0xfffff)
+</span></span><span class=line><span class=cl>Solo5:       text @ (0x100000 - 0x30dfff)
+</span></span><span class=line><span class=cl>Solo5:     rodata @ (0x30e000 - 0x356fff)
+</span></span><span class=line><span class=cl>Solo5:       data @ (0x357000 - 0x3c3fff)
+</span></span><span class=line><span class=cl>Solo5:       heap &gt;= 0x3c4000 &lt; stack &lt; 0x2000000
+</span></span><span class=line><span class=cl>rump kernel bare metal bootstrap
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>[   1.0000000] Copyright (c) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+</span></span><span class=line><span class=cl>[   1.0000000]     2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017,
+</span></span><span class=line><span class=cl>[   1.0000000]     2018 The NetBSD Foundation, Inc.  All rights reserved.
+</span></span><span class=line><span class=cl>[   1.0000000] Copyright (c) 1982, 1986, 1989, 1991, 1993
+</span></span><span class=line><span class=cl>[   1.0000000]     The Regents of the University of California.  All rights reserved.
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>[   1.0000000] NetBSD 8.99.25 (RUMP-ROAST)
+</span></span><span class=line><span class=cl>[   1.0000000] total memory = 14328 KB
+</span></span><span class=line><span class=cl>[   1.0000000] timecounter: Timecounters tick every 10.000 msec
+</span></span><span class=line><span class=cl>[   1.0000080] timecounter: Timecounter &#34;clockinterrupt&#34; frequency 100 Hz quality 0
+</span></span><span class=line><span class=cl>[   1.0000090] cpu0 at thinair0: rump virtual cpu
+</span></span><span class=line><span class=cl>[   1.0000090] root file system type: rumpfs
+</span></span><span class=line><span class=cl>[   1.0000090] kern.module.path=/stand/evbarm/8.99.25/modules
+</span></span><span class=line><span class=cl>[   1.0200090] mainbus0 (root)
+</span></span><span class=line><span class=cl>[   1.0200090] timecounter: Timecounter &#34;bmktc&#34; frequency 1000000000 Hz quality 100
+</span></span><span class=line><span class=cl>rumprun: could not find start of json.  no config?
+</span></span><span class=line><span class=cl>mounted tmpfs on /tmp
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>=== calling &#34;rumprun&#34; main() ===
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>This is the Rumprun Hello World ...
+</span></span><span class=line><span class=cl>... using the Solo5 framework ...
+</span></span><span class=line><span class=cl>... in a Nabla container via runnc!
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>=== main() of &#34;rumprun&#34; returned 0 ===
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>=== _exit(0) called ===
+</span></span><span class=line><span class=cl>[   3.0285155] rump kernel halting...
+</span></span><span class=line><span class=cl>[   3.0285155] syncing disks... done
+</span></span><span class=line><span class=cl>[   3.0285155] unmounting file systems...
+</span></span><span class=line><span class=cl>[   3.0412055] unmounted tmpfs on /tmp type tmpfs
+</span></span><span class=line><span class=cl>[   3.0412055] unmounted rumpfs on / type rumpfs
+</span></span><span class=line><span class=cl>[   3.0412055] unmounting done
+</span></span><span class=line><span class=cl>halted
+</span></span><span class=line><span class=cl>Solo5: solo5_exit(0) called
+</span></span></code></pre></div><p>In case you want to run the non-<code>seccomp</code> tender (<code>KVM_RUN</code>), then all you need to
+do is bake the <code>hello-rumprun</code> binary with <code>solo5_hvt</code>. Return to the docker environment
+and bake the file accordingly:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>docker run -ti --rm -v /build:/build cloudkernels/debian-rumprun-build:aarch64 /bin/bash
+</span></span><span class=line><span class=cl>root@184fa9ecd15d:/# cd /build/rumprun-packages/hello
+</span></span><span class=line><span class=cl>root@184fa9ecd15d:/build/rumprun-packages/hello# rumprun-bake solo5-hvt ./bin/hello.hvt ./build/hello-rumprun
+</span></span></code></pre></div><p>and now, exit the docker environment (<code>Ctrl-D</code>) and run the <code>hello.hvt</code> unikernel image with the <code>solo5-hvt</code> binary:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>root@rpi3:~# cd /build/rumprun-packages/hello
+</span></span><span class=line><span class=cl>root@rpi3:~/build/rumprun-packages/hello# /build/solo5/tenders/hvt/solo5-hvt --mem=32 --net=tap0 --disk=dummy ./bin/hello.hvt
+</span></span><span class=line><span class=cl>solo5-hvt: ./bin/hello.hvt: Warning: phdr[0] requests WRITE and EXEC permissions
+</span></span><span class=line><span class=cl>            |      ___|
+</span></span><span class=line><span class=cl>  __|  _ \  |  _ \ __ \
+</span></span><span class=line><span class=cl>\__ \ (   | | (   |  ) |
+</span></span><span class=line><span class=cl>____/\___/ _|\___/____/
+</span></span><span class=line><span class=cl>Solo5: Memory map: 32 MB addressable:
+</span></span><span class=line><span class=cl>Solo5:     unused @ (0x0 - 0xfffff)
+</span></span><span class=line><span class=cl>Solo5:       text @ (0x100000 - 0x30ffff)
+</span></span><span class=line><span class=cl>Solo5:     rodata @ (0x310000 - 0x359fff)
+</span></span><span class=line><span class=cl>Solo5:       data @ (0x35a000 - 0x3c6fff)
+</span></span><span class=line><span class=cl>Solo5:       heap &gt;= 0x3c7000 &lt; stack &lt; 0x2000000
+</span></span><span class=line><span class=cl>rump kernel bare metal bootstrap
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>[   1.0000000] Copyright (c) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+</span></span><span class=line><span class=cl>[   1.0000000]     2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017,
+</span></span><span class=line><span class=cl>[   1.0000000]     2018 The NetBSD Foundation, Inc.  All rights reserved.
+</span></span><span class=line><span class=cl>[   1.0000000] Copyright (c) 1982, 1986, 1989, 1991, 1993
+</span></span><span class=line><span class=cl>[   1.0000000]     The Regents of the University of California.  All rights reserved.
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>[   1.0000000] NetBSD 8.99.25 (RUMP-ROAST)
+</span></span><span class=line><span class=cl>[   1.0000000] total memory = 14322 KB
+</span></span><span class=line><span class=cl>[   1.0000000] timecounter: Timecounters tick every 10.000 msec
+</span></span><span class=line><span class=cl>[   1.0000080] timecounter: Timecounter &#34;clockinterrupt&#34; frequency 100 Hz quality 0
+</span></span><span class=line><span class=cl>[   1.0000090] cpu0 at thinair0: rump virtual cpu
+</span></span><span class=line><span class=cl>[   1.0000090] root file system type: rumpfs
+</span></span><span class=line><span class=cl>[   1.0000090] kern.module.path=/stand/evbarm/8.99.25/modules
+</span></span><span class=line><span class=cl>[   1.0200090] mainbus0 (root)
+</span></span><span class=line><span class=cl>[   1.0200090] timecounter: Timecounter &#34;bmktc&#34; frequency 1000000000 Hz quality 100
+</span></span><span class=line><span class=cl>rumprun: could not find start of json.  no config?
+</span></span><span class=line><span class=cl>mounted tmpfs on /tmp
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>=== calling &#34;rumprun&#34; main() ===
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>This is the Rumprun Hello World ...
+</span></span><span class=line><span class=cl>... using the Solo5 framework ...
+</span></span><span class=line><span class=cl>... in a Nabla container via runnc!
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>=== main() of &#34;rumprun&#34; returned 0 ===
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>=== _exit(0) called ===
+</span></span><span class=line><span class=cl>[   3.0408694] rump kernel halting...
+</span></span><span class=line><span class=cl>[   3.0408694] syncing disks... done
+</span></span><span class=line><span class=cl>[   3.0408694] unmounting file systems...
+</span></span><span class=line><span class=cl>[   3.0548072] unmounted tmpfs on /tmp type tmpfs
+</span></span><span class=line><span class=cl>[   3.0548072] unmounted rumpfs on / type rumpfs
+</span></span><span class=line><span class=cl>[   3.0548072] unmounting done
+</span></span><span class=line><span class=cl>halted
+</span></span><span class=line><span class=cl>Solo5: solo5_exit(0) called
+</span></span></code></pre></div><p>Now, to run an end-to-end example, take a look at <a href=https://github.com/cloudkernels/runnc target=_blank rel=noopener>runnc</a>, the
+runtime container environment to spawn Nabla containers.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>root@rpi3:/build# git clone https://github.com/cloudkernels/runnc
+</span></span><span class=line><span class=cl>root@rpi3:/build# cd runnc
+</span></span><span class=line><span class=cl>root@rpi3:/build/runnc# make container-build
+</span></span><span class=line><span class=cl>root@rpi3:/build/runnc# make container-install
+</span></span></code></pre></div><p>Now setup the daemon.json file and restart docker</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>root@rpi3:~# cat &gt;&gt; /etc/docker/daemon.json &lt;&lt; EOF
+</span></span><span class=line><span class=cl>{
+</span></span><span class=line><span class=cl>    &#34;runtimes&#34;: {
+</span></span><span class=line><span class=cl>        &#34;runnc&#34;: {
+</span></span><span class=line><span class=cl>                &#34;path&#34;: &#34;/usr/local/bin/runnc&#34;
+</span></span><span class=line><span class=cl>        }
+</span></span><span class=line><span class=cl>    }
+</span></span><span class=line><span class=cl>}
+</span></span><span class=line><span class=cl>EOF
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>root@rpi3:~# systemctl restart docker
+</span></span></code></pre></div><p>And spawn an example nabla container via the docker cli:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-gdscript3 data-lang=gdscript3><span class=line><span class=cl><span class=n>root</span><span class=err>@</span><span class=n>rpi3</span><span class=p>:</span><span class=o>~</span><span class=c1># docker run --rm --runtime=runnc cloudkernels/hello-nabla:aarch64</span>
+</span></span><span class=line><span class=cl><span class=n>Unable</span> <span class=n>to</span> <span class=n>find</span> <span class=n>image</span> <span class=s1>&#39;cloudkernels/hello-nabla:aarch64&#39;</span> <span class=n>locally</span>
+</span></span><span class=line><span class=cl><span class=n>aarch64</span><span class=p>:</span> <span class=n>Pulling</span> <span class=n>from</span> <span class=n>cloudkernels</span><span class=o>/</span><span class=n>hello</span><span class=o>-</span><span class=n>nabla</span>
+</span></span><span class=line><span class=cl><span class=mi>271</span><span class=n>c6521e5a2</span><span class=p>:</span> <span class=n>Pull</span> <span class=n>complete</span> 
+</span></span><span class=line><span class=cl><span class=n>Digest</span><span class=p>:</span> <span class=n>sha256</span><span class=p>:</span><span class=mi>309</span><span class=n>f8cd277a833958ec5055c0e7b0c7ca84c0b0413c691b8bd6392e30fbd9b71</span>
+</span></span><span class=line><span class=cl><span class=n>Status</span><span class=p>:</span> <span class=n>Downloaded</span> <span class=n>newer</span> <span class=n>image</span> <span class=k>for</span> <span class=n>cloudkernels</span><span class=o>/</span><span class=n>hello</span><span class=o>-</span><span class=n>nabla</span><span class=p>:</span><span class=n>aarch64</span>
+</span></span><span class=line><span class=cl><span class=n>Running</span> <span class=n>with</span> <span class=n>args</span><span class=p>:</span> <span class=p>[</span><span class=o>/</span><span class=n>opt</span><span class=o>/</span><span class=n>runnc</span><span class=o>/</span><span class=n>bin</span><span class=o>/</span><span class=n>runnc</span><span class=o>-</span><span class=n>cont</span> <span class=o>-</span><span class=n>k8s</span> <span class=o>-</span><span class=n>nabla</span><span class=o>-</span><span class=n>run</span> <span class=o>/</span><span class=n>opt</span><span class=o>/</span><span class=n>runnc</span><span class=o>/</span><span class=n>bin</span><span class=o>/</span><span class=n>nabla</span><span class=o>-</span><span class=n>run</span> <span class=o>-</span><span class=n>tap</span> <span class=n>tap5cc88ff904a1</span> <span class=o>-</span><span class=n>cwd</span> <span class=o>/</span> <span class=o>-</span><span class=n>volume</span> <span class=o>/</span><span class=k>var</span><span class=o>/</span><span class=n>run</span><span class=o>/</span><span class=n>docker</span><span class=o>/</span><span class=n>runtime</span><span class=o>-</span><span class=n>runnc</span><span class=o>/</span><span class=n>moby</span><span class=o>/</span><span class=mi>5</span><span class=n>cc88ff904a1f97eaea9b0cb590575e57fce5227854ef77ecd</span><span class=p>[</span>
+</span></span><span class=line><span class=cl>            <span class=o>|</span>      <span class=n>___</span><span class=o>|</span>
+</span></span><span class=line><span class=cl>  <span class=n>__</span><span class=o>|</span>  <span class=n>_</span> \  <span class=o>|</span>  <span class=n>_</span> \ <span class=n>__</span> \
+</span></span><span class=line><span class=cl>\<span class=n>__</span> \ <span class=p>(</span>   <span class=o>|</span> <span class=o>|</span> <span class=p>(</span>   <span class=o>|</span>  <span class=p>)</span> <span class=o>|</span>
+</span></span><span class=line><span class=cl><span class=n>____</span><span class=o>/</span>\<span class=n>___</span><span class=o>/</span> <span class=n>_</span><span class=o>|</span>\<span class=n>___</span><span class=o>/</span><span class=n>____</span><span class=o>/</span>
+</span></span><span class=line><span class=cl><span class=n>Solo5</span><span class=p>:</span> <span class=n>Memory</span> <span class=n>map</span><span class=p>:</span> <span class=mi>512</span> <span class=n>MB</span> <span class=n>addressable</span><span class=p>:</span>
+</span></span><span class=line><span class=cl><span class=n>Solo5</span><span class=p>:</span>     <span class=n>unused</span> <span class=err>@</span> <span class=p>(</span><span class=mh>0x0</span> <span class=o>-</span> <span class=mh>0xfffff</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=n>Solo5</span><span class=p>:</span>       <span class=n>text</span> <span class=err>@</span> <span class=p>(</span><span class=mh>0x100000</span> <span class=o>-</span> <span class=mh>0x30dfff</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=n>Solo5</span><span class=p>:</span>     <span class=n>rodata</span> <span class=err>@</span> <span class=p>(</span><span class=mh>0x30e000</span> <span class=o>-</span> <span class=mh>0x356fff</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=n>Solo5</span><span class=p>:</span>       <span class=n>data</span> <span class=err>@</span> <span class=p>(</span><span class=mh>0x357000</span> <span class=o>-</span> <span class=mh>0x3c3fff</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=n>Solo5</span><span class=p>:</span>       <span class=n>heap</span> <span class=o>&gt;=</span> <span class=mh>0x3c4000</span> <span class=o>&lt;</span> <span class=n>stack</span> <span class=o>&lt;</span> <span class=mh>0x20000000</span>
+</span></span><span class=line><span class=cl><span class=n>rump</span> <span class=n>kernel</span> <span class=n>bare</span> <span class=n>metal</span> <span class=n>bootstrap</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0000000</span><span class=p>]</span> <span class=n>Copyright</span> <span class=p>(</span><span class=n>c</span><span class=p>)</span> <span class=mi>1996</span><span class=p>,</span> <span class=mi>1997</span><span class=p>,</span> <span class=mi>1998</span><span class=p>,</span> <span class=mi>1999</span><span class=p>,</span> <span class=mi>2000</span><span class=p>,</span> <span class=mi>2001</span><span class=p>,</span> <span class=mi>2002</span><span class=p>,</span> <span class=mi>2003</span><span class=p>,</span> <span class=mi>2004</span><span class=p>,</span> <span class=mi>2005</span><span class=p>,</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0000000</span><span class=p>]</span>     <span class=mi>2006</span><span class=p>,</span> <span class=mi>2007</span><span class=p>,</span> <span class=mi>2008</span><span class=p>,</span> <span class=mi>2009</span><span class=p>,</span> <span class=mi>2010</span><span class=p>,</span> <span class=mi>2011</span><span class=p>,</span> <span class=mi>2012</span><span class=p>,</span> <span class=mi>2013</span><span class=p>,</span> <span class=mi>2014</span><span class=p>,</span> <span class=mi>2015</span><span class=p>,</span> <span class=mi>2016</span><span class=p>,</span> <span class=mi>2017</span><span class=p>,</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0000000</span><span class=p>]</span>     <span class=mi>2018</span> <span class=n>The</span> <span class=n>NetBSD</span> <span class=n>Foundation</span><span class=p>,</span> <span class=n>Inc</span><span class=o>.</span>  <span class=n>All</span> <span class=n>rights</span> <span class=n>reserved</span><span class=o>.</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0000000</span><span class=p>]</span> <span class=n>Copyright</span> <span class=p>(</span><span class=n>c</span><span class=p>)</span> <span class=mi>1982</span><span class=p>,</span> <span class=mi>1986</span><span class=p>,</span> <span class=mi>1989</span><span class=p>,</span> <span class=mi>1991</span><span class=p>,</span> <span class=mi>1993</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0000000</span><span class=p>]</span>     <span class=n>The</span> <span class=n>Regents</span> <span class=n>of</span> <span class=n>the</span> <span class=n>University</span> <span class=n>of</span> <span class=n>California</span><span class=o>.</span>  <span class=n>All</span> <span class=n>rights</span> <span class=n>reserved</span><span class=o>.</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0000000</span><span class=p>]</span> <span class=n>NetBSD</span> <span class=mf>8.99</span><span class=o>.</span><span class=mi>25</span> <span class=p>(</span><span class=n>RUMP</span><span class=o>-</span><span class=n>ROAST</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0000000</span><span class=p>]</span> <span class=n>total</span> <span class=n>memory</span> <span class=o>=</span> <span class=mi>253</span> <span class=n>MB</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0000000</span><span class=p>]</span> <span class=n>timecounter</span><span class=p>:</span> <span class=n>Timecounters</span> <span class=n>tick</span> <span class=n>every</span> <span class=mf>10.000</span> <span class=n>msec</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0000080</span><span class=p>]</span> <span class=n>timecounter</span><span class=p>:</span> <span class=n>Timecounter</span> <span class=s2>&#34;clockinterrupt&#34;</span> <span class=n>frequency</span> <span class=mi>100</span> <span class=n>Hz</span> <span class=n>quality</span> <span class=mi>0</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0000090</span><span class=p>]</span> <span class=n>cpu0</span> <span class=n>at</span> <span class=n>thinair0</span><span class=p>:</span> <span class=n>rump</span> <span class=n>virtual</span> <span class=n>cpu</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0000090</span><span class=p>]</span> <span class=n>root</span> <span class=n>file</span> <span class=n>system</span> <span class=n>type</span><span class=p>:</span> <span class=n>rumpfs</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0000090</span><span class=p>]</span> <span class=n>kern</span><span class=o>.</span><span class=n>module</span><span class=o>.</span><span class=n>path</span><span class=o>=/</span><span class=n>stand</span><span class=o>/</span><span class=n>evbarm</span><span class=o>/</span><span class=mf>8.99</span><span class=o>.</span><span class=mi>25</span><span class=o>/</span><span class=n>modules</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0200090</span><span class=p>]</span> <span class=n>mainbus0</span> <span class=p>(</span><span class=n>root</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0200090</span><span class=p>]</span> <span class=n>timecounter</span><span class=p>:</span> <span class=n>Timecounter</span> <span class=s2>&#34;bmktc&#34;</span> <span class=n>frequency</span> <span class=mi>1000000000</span> <span class=n>Hz</span> <span class=n>quality</span> <span class=mi>100</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0200090</span><span class=p>]</span> <span class=n>ukvmif0</span><span class=p>:</span> <span class=n>Ethernet</span> <span class=n>address</span> <span class=mi>02</span><span class=p>:</span><span class=mi>42</span><span class=p>:</span><span class=n>ac</span><span class=p>:</span><span class=mi>11</span><span class=p>:</span><span class=mi>00</span><span class=p>:</span><span class=mi>02</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>1.0695796</span><span class=p>]</span> <span class=o>/</span><span class=n>dev</span><span class=o>//</span><span class=n>dev</span><span class=o>/</span><span class=n>ld0a</span><span class=p>:</span> <span class=n>hostpath</span> <span class=n>XENBLK_</span><span class=o>/</span><span class=n>dev</span><span class=o>/</span><span class=n>ld0a</span> <span class=p>(</span><span class=mi>19710</span> <span class=n>KB</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=n>mounted</span> <span class=n>tmpfs</span> <span class=n>on</span> <span class=o>/</span><span class=n>tmp</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=o>===</span> <span class=n>calling</span> <span class=s2>&#34;/dev/shm/docker/overlay2/18f96a896573deb8de0883c46ea1b077be4dceeec10aaa00fb1d75565c642d47/merged/hello.nabla&#34;</span> <span class=n>main</span><span class=p>()</span> <span class=o>===</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>This</span> <span class=n>is</span> <span class=n>the</span> <span class=n>Rumprun</span> <span class=n>Hello</span> <span class=ne>World</span> <span class=o>...</span>
+</span></span><span class=line><span class=cl><span class=o>...</span> <span class=n>using</span> <span class=n>the</span> <span class=n>Solo5</span> <span class=n>framework</span> <span class=o>...</span>
+</span></span><span class=line><span class=cl><span class=o>...</span> <span class=ow>in</span> <span class=n>a</span> <span class=n>Nabla</span> <span class=n>container</span> <span class=n>via</span> <span class=n>runnc</span><span class=o>!</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=o>===</span> <span class=n>main</span><span class=p>()</span> <span class=n>of</span> <span class=s2>&#34;/dev/shm/docker/overlay2/18f96a896573deb8de0883c46ea1b077be4dceeec10aaa00fb1d75565c642d47/merged/hello.nabla&#34;</span> <span class=n>returned</span> <span class=mi>0</span> <span class=o>===</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=o>===</span> <span class=n>_exit</span><span class=p>(</span><span class=mi>0</span><span class=p>)</span> <span class=n>called</span> <span class=o>===</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>3.0895680</span><span class=p>]</span> <span class=n>rump</span> <span class=n>kernel</span> <span class=n>halting</span><span class=o>...</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>3.0895680</span><span class=p>]</span> <span class=n>syncing</span> <span class=n>disks</span><span class=o>...</span> <span class=n>done</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>3.0895680</span><span class=p>]</span> <span class=n>unmounting</span> <span class=n>file</span> <span class=n>systems</span><span class=o>...</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>3.0895680</span><span class=p>]</span> <span class=n>unmounted</span> <span class=n>tmpfs</span> <span class=n>on</span> <span class=o>/</span><span class=n>tmp</span> <span class=n>type</span> <span class=n>tmpfs</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>3.0895680</span><span class=p>]</span> <span class=n>unmounted</span> <span class=o>/</span><span class=n>dev</span><span class=o>//</span><span class=n>dev</span><span class=o>/</span><span class=n>ld0a</span> <span class=n>on</span> <span class=o>/</span> <span class=n>type</span> <span class=n>cd9660</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>3.0895680</span><span class=p>]</span> <span class=n>unmounted</span> <span class=n>rumpfs</span> <span class=n>on</span> <span class=o>/</span> <span class=n>type</span> <span class=n>rumpfs</span>
+</span></span><span class=line><span class=cl><span class=p>[</span>   <span class=mf>3.0895680</span><span class=p>]</span> <span class=n>unmounting</span> <span class=n>done</span>
+</span></span><span class=line><span class=cl><span class=n>halted</span>
+</span></span><span class=line><span class=cl><span class=n>Solo5</span><span class=p>:</span> <span class=n>solo5_exit</span><span class=p>(</span><span class=mi>0</span><span class=p>)</span> <span class=n>called</span>
+</span></span></code></pre></div><p>Easy ? :D Let us know how it went!</p></div><div class=article-tags><a class="badge badge-light" href=/tag/unikernels/>Unikernels</a>
+<a class="badge badge-light" href=/tag/nabla/>Nabla</a>
+<a class="badge badge-light" href=/tag/containers/>Containers</a>
+<a class="badge badge-light" href=/tag/rumprun/>Rumprun</a>
+<a class="badge badge-light" href=/tag/raspberry-pi/>Raspberry Pi</a>
+<a class="badge badge-light" href=/tag/docker/>Docker</a>
+<a class="badge badge-light" href=/tag/solo5/>Solo5</a>
+<a class="badge badge-light" href=/tag/aarch64/>`Aarch64`</a></div><div class=share-box><ul class=share><li><a href="https://twitter.com/intent/tweet?url=%2Fblog%2Fexample-rumprun-solo5-on-aarch64%2F&amp;text=Run+a+rumprun+unikernel+on+a+%60RPi3%60" target=_blank rel=noopener class=share-btn-twitter aria-label=twitter><i class="fab fa-twitter"></i></a></li><li><a href="https://www.facebook.com/sharer.php?u=%2Fblog%2Fexample-rumprun-solo5-on-aarch64%2F&amp;t=Run+a+rumprun+unikernel+on+a+%60RPi3%60" target=_blank rel=noopener class=share-btn-facebook aria-label=facebook><i class="fab fa-facebook"></i></a></li><li><a href="mailto:?subject=Run%20a%20rumprun%20unikernel%20on%20a%20%60RPi3%60&amp;body=%2Fblog%2Fexample-rumprun-solo5-on-aarch64%2F" target=_blank rel=noopener class=share-btn-email aria-label=envelope><i class="fas fa-envelope"></i></a></li><li><a href="https://www.linkedin.com/shareArticle?url=%2Fblog%2Fexample-rumprun-solo5-on-aarch64%2F&amp;title=Run+a+rumprun+unikernel+on+a+%60RPi3%60" target=_blank rel=noopener class=share-btn-linkedin aria-label=linkedin-in><i class="fab fa-linkedin-in"></i></a></li><li><a href="whatsapp://send?text=Run+a+rumprun+unikernel+on+a+%60RPi3%60%20%2Fblog%2Fexample-rumprun-solo5-on-aarch64%2F" target=_blank rel=noopener class=share-btn-whatsapp aria-label=whatsapp><i class="fab fa-whatsapp"></i></a></li><li><a href="https://service.weibo.com/share/share.php?url=%2Fblog%2Fexample-rumprun-solo5-on-aarch64%2F&amp;title=Run+a+rumprun+unikernel+on+a+%60RPi3%60" target=_blank rel=noopener class=share-btn-weibo aria-label=weibo><i class="fab fa-weibo"></i></a></li></ul></div></div></article><script>function blogGoBack(){document.referrer&&document.referrer.indexOf("/blog")!==-1?history.back():window.location.href="/blog/"}</script></div><div class=page-footer><div class=container><footer class=site-footer><p class="powered-by copyright-license-text">© 2026 Nubificus LTD. This work is licensed under <a href=https://creativecommons.org/licenses/by-nc-nd/4.0 rel="noopener noreferrer" target=_blank>CC BY NC ND 4.0</a></p><p class="powered-by footer-license-icons"><a href=https://creativecommons.org/licenses/by-nc-nd/4.0 rel="noopener noreferrer" target=_blank aria-label="Creative Commons"><i class="fab fa-creative-commons fa-2x" aria-hidden=true></i>
+<i class="fab fa-creative-commons-by fa-2x" aria-hidden=true></i>
+<i class="fab fa-creative-commons-nc fa-2x" aria-hidden=true></i>
+<i class="fab fa-creative-commons-nd fa-2x" aria-hidden=true></i></a></p><p class=powered-by>Published with <a href="https://hugoblox.com/?utm_campaign=poweredby" target=_blank rel=noopener>Hugo Blox Builder</a> — the free, <a href=https://github.com/HugoBlox/hugo-blox-builder target=_blank rel=noopener>open source</a> website builder that empowers creators.</p></footer></div></div><script src=/js/vendor-bundle.min.6782e3f6a4f06ea4766df038c45ecf40.js></script><script src=https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.min.js integrity crossorigin=anonymous></script><script id=page-data type=application/json>{"use_headroom":true}</script><script src=/js/wowchemy-headroom.b95a7e109243f29d04930ae8cb49a756.js type=module></script><script src=/en/js/wowchemy.min.ed487406ecbb80985462ba7a97b6f2d2.js></script><script src=/js/wowchemy-map.a26e9d2f7238ba5b868384f1c5bc6477.js type=module></script><div id=modal class="modal fade" role=dialog><div class=modal-dialog><div class=modal-content><div class=modal-header><h5 class=modal-title>Cite</h5><button type=button class=close data-dismiss=modal aria-label=Close>
+<span aria-hidden=true>&#215;</span></button></div><div class=modal-body><pre><code></code></pre></div><div class=modal-footer><a class="btn btn-outline-primary my-1 js-copy-cite" href=# target=_blank><i class="fas fa-copy"></i> Copy
+</a><a class="btn btn-outline-primary my-1 js-download-cite" href=# target=_blank><i class="fas fa-download"></i> Download</a><div id=modal-error></div></div></div></div></div><script src=/js/wowchemy-publication.9c0e895144aef5a693008b5c5d450147.js type=module></script></body></html>

@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Mewz | Nubificus</title><link>/tag/mewz/</link><atom:link href="/tag/mewz/index.xml" rel="self" type="application/rss+xml"/><description>Mewz</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Thu, 21 Nov 2024 15:22:12 +0000</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Mewz</title><link>/tag/mewz/</link></image><item><title>Sandboxing WASM with Unikernels for Secure Cloud-Native Deployments</title><link>/blog/wasm-urunc/</link><pubDate>Thu, 21 Nov 2024 15:22:12 +0000</pubDate><guid>/blog/wasm-urunc/</guid><description>&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/web-assembly-logo.png#floatright" alt="" loading="lazy" data-zoomable width="30%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;a href="https://webassembly.org/" target="_blank" rel="noopener"&gt;WebAssembly (WASM)&lt;/a&gt; is rapidly emerging as a
+transformative technology in the cloud-native ecosystem. Its binary instruction
+format, designed for execution on a stack-based Virtual Machine (VM), enables WASM
+modules to run seamlessly on any platform, unlocking unprecedented portability.
+Moreover, WASM promises near-native execution performance and enhanced security
+due to its “sandboxed” execution model.&lt;/p&gt;
+&lt;p&gt;A closer examination of WASM&amp;rsquo;s sandboxing reveals certain limitations. In
+WASM, modules execute within a stack-based VM that isolates them from direct
+interaction with the external environment. Communication with the outside world
+is mediated through imports and exports, with no direct access to system calls
+or underlying resources. Instead, the WebAssembly System Interface (WASI)
+employs a capability-based system to grant controlled access to external
+resources. Simply put, the WASM sandbox is essentially a software construct
+that enforces controlled interactions between the module and its environment.&lt;/p&gt;
+&lt;p&gt;While this sandboxing model offers strong software-based isolation, it still
+raises questions about the robustness of security, particularly given the
+findings of several research papers on WASM’s security vulnerabilities. To
+achieve stronger isolation, a more robust mechanism, such as hardware-based
+virtualization, is necessary. By executing each WASM module within its own VM,
+in the event of a WASM runtime escape, an attacker would also need to breach
+the VM — a significantly more challenging exercise.&lt;/p&gt;
+&lt;p&gt;On the other hand, VMs have the reputation of being heavyweight and unsuitable
+for lightweight workloads, such as running individual WASM modules. The
+overhead in terms of memory and CPU makes traditional virtualization
+impractical for this purpose.&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://dl.acm.org/doi/10.1145/2451116.2451167" target="_blank" rel="noopener"&gt;Unikernels&lt;/a&gt;, a technology
+introduced in 2013 that has quietly matured over the years, could provide a
+viable alternative to minimize this overhead. Unikernels are highly
+specialized, lightweight operating system kernels designed to run a single
+application efficiently, eliminating the overhead of general-purpose OSes. They
+feature a minimal footprint, extremely fast boot times, and robust isolation.
+However, unikernels have historically faced criticism for being difficult to
+use, with application porting requiring significant effort.&lt;/p&gt;
+&lt;p&gt;This is where WASM complements unikernels beautifully. WASM’s portable binary
+representation is designed to execute on any compatible environment, including
+unikernels. This means WASM modules can run on unikernels with minimal
+adaptation, unlocking a powerful combination: the portability and flexibility
+of WASM, paired with the lightweight, fast-booting, and hardware-isolated
+properties of unikernel-based VMs.&lt;/p&gt;
+&lt;p&gt;By combining these technologies, we achieve a compelling solution: WASM modules
+running within small, fast, and truly isolated unikernel-powered VMs. This
+approach delivers the best of both worlds: strong isolation through
+virtualization and efficient resource utilization.&lt;/p&gt;
+&lt;p&gt;Fortunately, we are not alone in this vision. Several projects have already
+begun exploring this intersection of WASM, unikernels, and virtualization,
+demonstrating the potential of this powerful synergy. Specifically:&lt;/p&gt;
+&lt;p&gt;In particular:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://github.com/mewz-project/mewz" target="_blank" rel="noopener"&gt;Mewz&lt;/a&gt; is a unikernel framework designed
+to only run WASM applications.&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/unikraft" target="_blank" rel="noopener"&gt;Unikraft&lt;/a&gt;, an active unikernel project,
+provides support for &lt;a href="https://github.com/unikraft/app-wamr" target="_blank" rel="noopener"&gt;WAMR&lt;/a&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/cloudius-systems/osv" target="_blank" rel="noopener"&gt;OSv&lt;/a&gt;, one of the most well known
+unikernel framework supports the well known &lt;a href="https://github.com/cloudius-systems/osv-apps/tree/2347c09a7fb55e6e13474a83339d6f4e26e43c85/webassembly" target="_blank" rel="noopener"&gt;wasmer
+runtime&lt;/a&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/flavio/hermit-wasm" target="_blank" rel="noopener"&gt;Hermit-Wasm&lt;/a&gt; used
+&lt;a href="https://github.com/ahmedelashouti/rusty-hermit" target="_blank" rel="noopener"&gt;RustyHermit&lt;/a&gt;, a unikernel
+written in Rust to execute WebAssembly applications.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;So, we can already execute WASM applications in unikernels. But how do we
+manage these unikernels efficiently? Enter
+&lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;&lt;code&gt;urunc&lt;/code&gt;&lt;/a&gt;, a container runtime tailored
+specifically for unikernels. As explained in a &lt;a href="/posts/urunc"&gt;previous post&lt;/a&gt;,
+&lt;code&gt;urunc&lt;/code&gt; functions as the &lt;code&gt;runc&lt;/code&gt; equivalent for unikernels. With &lt;code&gt;urunc&lt;/code&gt;, we can
+deploy, execute, and manage unikernels as seamlessly as managing typical
+containerized workloads.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/urunc/urunc-logo.png#floatleft" alt="" loading="lazy" data-zoomable width="20%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+Building on this foundation, we explored combining WASM, unikernels, and
+&lt;code&gt;urunc&lt;/code&gt; to create a cohesive system stack that allows us to deploy, execute,
+and manage WASM applications running on unikernels as easily as traditional
+containers. To achieve this, we extended &lt;code&gt;urunc&lt;/code&gt; to support additional
+unikernel frameworks, including &lt;a href="https://github.com/mewz-project/mewz" target="_blank" rel="noopener"&gt;Mewz&lt;/a&gt;
+and &lt;a href="https://github.com/cloudius-systems/osv" target="_blank" rel="noopener"&gt;OSv&lt;/a&gt;, alongside its existing
+support for Unikraft. This diversity of unikernel frameworks gives us
+flexibility in running WASM applications on top of various unikernel
+environments, each offering unique advantages.&lt;/p&gt;
+&lt;p&gt;Let&amp;rsquo;s take a closer look at each one of them.&lt;/p&gt;
+&lt;h2 id="mewz"&gt;Mewz&lt;/h2&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/mewz-logo.png#floatright" alt="" loading="lazy" data-zoomable width="30%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;a href="https://github.com/mewz-project/mewz" target="_blank" rel="noopener"&gt;Mewz&lt;/a&gt; is a unikernel framework designed
+to support ultra-lightweight, high-performance workloads. In contrast to other
+WASM runtimes that execute on top of general purpose operating systems, Mewz is
+designed as a specialized kernel where WASM applications can execute. In
+addition, every WASM application executes on a separate Mewz instance,
+maintaining the single-purpose notion of unikernels. This makes Mewz
+particularly well-suited for scenarios where low latency and efficiency are
+critical.&lt;/p&gt;
+&lt;p&gt;According to the design of Mewz, the WASM application is transformed to an object
+file which is directly linked against the Mewz kernel. Therefore, when the Mewz
+kernel boots, it executes the linked WASM application. Mewz has partial
+support for &lt;a href="https://github.com/WebAssembly/WASI" target="_blank" rel="noopener"&gt;WASI&lt;/a&gt; and it provides support
+for networking and an in-memory, read-only filesystem. In addition, Mewz has
+socket compatibility with
+&lt;a href="https://github.com/WasmEdge/WasmEdge" target="_blank" rel="noopener"&gt;WasmEdge&lt;/a&gt;,&lt;/p&gt;
+&lt;h3 id="mewz-and-urunc"&gt;Mewz and urunc&lt;/h3&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Note: Adding support for Mewz in &lt;code&gt;urunc&lt;/code&gt; is a straightforward task. Essentially,
+to boot Mewz unikernels, we need to tweak a few parameters in the Qemu command.
+This functionality will be available in the next planned release of &lt;code&gt;urunc&lt;/code&gt;. Until then,
+we use the &lt;a href="https://github.com/nubificus/urunc/tree/mewz" target="_blank" rel="noopener"&gt;&lt;code&gt;mewz&lt;/code&gt; branch&lt;/a&gt; in &lt;code&gt;urunc&lt;/code&gt; when building it.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;We build &lt;code&gt;urunc&lt;/code&gt; with Mewz support with the following commands:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/nubificus/urunc.git -b mewz
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker run --rm -ti -v &lt;span class="nv"&gt;$PWD&lt;/span&gt;/urunc:/urunc -w /urunc golang:1.23 bash -c &lt;span class="s2"&gt;&amp;#34;git config --global --add safe.directory /urunc &amp;amp;&amp;amp; make&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo make -C urunc install
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
+&lt;p&gt;Note: Please refer to &lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;urunc&lt;/a&gt; for more details
+on installation and any relevant dependencies.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h3 id="building-mewz-unikernels-with-a-wasm-module"&gt;Building Mewz unikernels with a WASM module&lt;/h3&gt;
+&lt;p&gt;Mewz is built using &lt;a href="https://ziglang.org/" target="_blank" rel="noopener"&gt;Zig&lt;/a&gt; and it also requires
+&lt;a href="https://github.com/mewz-project/wasker#how-to-run-wasker" target="_blank" rel="noopener"&gt;wasker&lt;/a&gt; to transform
+a WASM binary in an elf object. Mewz will link the WASM binary along with
+its kernel and it will produce the unikernel. First step in this process is to create
+the wasm app. We use the &lt;code&gt;app.wasm&lt;/code&gt; file built from the &lt;a href="https://github.com/mewz-project/mewz/tree/main/examples/hello_world" target="_blank" rel="noopener"&gt;Mewz hello world
+example&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;In order to make the whole
+process a bit simpler, we use the following Dockerfile to build the Mewz unikernel:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-gdscript3" data-lang="gdscript3"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;FROM&lt;/span&gt; &lt;span class="n"&gt;debian&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;bookworm&lt;/span&gt; &lt;span class="n"&gt;as&lt;/span&gt; &lt;span class="n"&gt;builder&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;ARG&lt;/span&gt; &lt;span class="n"&gt;ZIG_VERSION&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mf"&gt;0.12&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;RUN&lt;/span&gt; &lt;span class="n"&gt;apt&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt; &lt;span class="n"&gt;update&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;apt&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt; &lt;span class="n"&gt;install&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;y&lt;/span&gt; &lt;span class="n"&gt;curl&lt;/span&gt; &lt;span class="n"&gt;xz&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;utils&lt;/span&gt; &lt;span class="n"&gt;git&lt;/span&gt; &lt;span class="n"&gt;cmake&lt;/span&gt; &lt;span class="n"&gt;libstdc&lt;/span&gt;&lt;span class="o"&gt;++&lt;/span&gt;&lt;span class="mi"&gt;6&lt;/span&gt; &lt;span class="n"&gt;build&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;essential&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;apt&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt; &lt;span class="n"&gt;clean&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;rm&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;rf&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="k"&gt;var&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;lib&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;apt&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;lists&lt;/span&gt;&lt;span class="o"&gt;/*&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;RUN&lt;/span&gt; &lt;span class="n"&gt;curl&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;SL&lt;/span&gt; &lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;ziglang&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;org&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;download&lt;/span&gt;&lt;span class="o"&gt;/$&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="n"&gt;ZIG_VERSION&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;zig&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;linux&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;x86_64&lt;/span&gt;&lt;span class="o"&gt;-$&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="n"&gt;ZIG_VERSION&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;tar&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;xz&lt;/span&gt; &lt;span class="o"&gt;|&lt;/span&gt; &lt;span class="n"&gt;tar&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;xJC&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;tmp&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;mv&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;tmp&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;zig&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;linux&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;x86_64&lt;/span&gt;&lt;span class="o"&gt;-$&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="n"&gt;ZIG_VERSION&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;usr&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;bin&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;zig&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;RUN&lt;/span&gt; &lt;span class="n"&gt;curl&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;sSfL&lt;/span&gt; &lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;github&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;com&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;project&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;wasker&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;releases&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;download&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;v0&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mf"&gt;1.1&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;wasker&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mf"&gt;0.1&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;linux&lt;/span&gt;&lt;span class="o"&gt;-$&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;uname&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;m&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;gnu&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;tar&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;gz&lt;/span&gt; &lt;span class="o"&gt;|&lt;/span&gt; &lt;span class="n"&gt;tar&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;xzvC&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;usr&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;bin&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt; &lt;span class="n"&gt;wasker&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;git&lt;/span&gt; &lt;span class="n"&gt;clone&lt;/span&gt; &lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;github&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;com&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;project&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;git&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="n"&gt;cd&lt;/span&gt; &lt;span class="n"&gt;mewz&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;git&lt;/span&gt; &lt;span class="n"&gt;submodule&lt;/span&gt; &lt;span class="n"&gt;update&lt;/span&gt; &lt;span class="o"&gt;--&lt;/span&gt;&lt;span class="n"&gt;init&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;./&lt;/span&gt;&lt;span class="n"&gt;scripts&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;build&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;newlib&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sh&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="o"&gt;./&lt;/span&gt;&lt;span class="n"&gt;scripts&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;build&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;lwip&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sh&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;WORKDIR&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;ENV&lt;/span&gt; &lt;span class="n"&gt;PATH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;/usr/bin/zig:${PATH}&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;COPY&lt;/span&gt; &lt;span class="n"&gt;app&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wasm&lt;/span&gt; &lt;span class="o"&gt;.&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;RUN&lt;/span&gt; &lt;span class="n"&gt;wasker&lt;/span&gt; &lt;span class="n"&gt;app&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;wasm&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;zig&lt;/span&gt; &lt;span class="n"&gt;build&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;Dapp&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;obj&lt;/span&gt;&lt;span class="o"&gt;=./&lt;/span&gt;&lt;span class="n"&gt;wasm&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;o&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;FROM&lt;/span&gt; &lt;span class="n"&gt;scratch&lt;/span&gt; &lt;span class="n"&gt;as&lt;/span&gt; &lt;span class="n"&gt;artifacts&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;COPY&lt;/span&gt; &lt;span class="o"&gt;--&lt;/span&gt;&lt;span class="n"&gt;from&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;builder&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;zig&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;out&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;bin&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;elf&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;mewz&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;elf&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We can use the above Dockerfile to generate the Mewz unikernel binary with the
+following command:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker build -f Dockerfile -t mewz/builder --target artifacts --output type=local,dest=./out .
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The above command will build the Mewz unikernel and use the &lt;code&gt;app.wasm&lt;/code&gt; file in
+our current directory as the WASM module for the unikernel.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Note: As &lt;code&gt;app.wasm&lt;/code&gt; file, we used the &lt;a href="https://github.com/mewz-project/wasker/blob/main/helloworld.wat" target="_blank" rel="noopener"&gt;helloworld.wat&lt;/a&gt; file from wasker.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;However, Mewz produces an x86-64 image which Qemu refuses to load. For that
+purpose, we can perform the following trick, where we overwrite the &lt;code&gt;e_machine&lt;/code&gt;
+field of the Elf header to &lt;code&gt;EM_386&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;printf &amp;#39;\x03\x00&amp;#39; | dd of=out/mewz.elf bs=1 seek=18 count=2 conv=notrunc
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="packaging-mewz-unikernels-for-urunc"&gt;Packaging Mewz unikernels for &lt;code&gt;urunc&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;After building the Mewz unikernel, we need to package it as an OCI image in
+order to deploy it over &lt;code&gt;urunc&lt;/code&gt;. For that purpose, we will use
+&lt;a href="https://github.com/nubificus/pun" target="_blank" rel="noopener"&gt;pun&lt;/a&gt;, a tool we develop that uses &lt;a href="https://github.com/moby/buildkit" target="_blank" rel="noopener"&gt;buildkit&lt;/a&gt;
+to package unikernels in OCI images.&lt;/p&gt;
+&lt;p&gt;Let&amp;rsquo;s create the &lt;code&gt;Containerfile&lt;/code&gt; with all the information for &lt;code&gt;pun&lt;/code&gt; to
+package the Mewz unikernel.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;#syntax=harbor.nbfc.io/nubificus/pun:latest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;FROM scratch
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;COPY out/mewz.elf /unikernel/mewz.elf
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.binary&amp;#34;=&amp;#34;/unikernel/mewz.elf&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.cmdline&amp;#34;=&amp;#34;hello&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.unikernelType&amp;#34;=&amp;#34;mewz&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.hypervisor&amp;#34;=&amp;#34;qemu&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We can now build and package our mewz unikernel with:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker build -f Containerfile -t harbor.nbfc.io/nubificus/urunc/hello-mewz-qemu:test .
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="running-wasm-over-mewz-unikernels-with-urunc"&gt;Running WASM over Mewz unikernels with &lt;code&gt;urunc&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;Finally, we can run the Mewz unikernel we created as any other container:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker run -m 512m --rm -ti --runtime io.containerd.urunc.v2 harbor.nbfc.io/nubificus/urunc/hello-mewz-qemu:test
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="unikraft"&gt;Unikraft&lt;/h2&gt;
+&lt;p&gt;Unikraft is one of the most active unikernel projects. It allows the users to
+create lightweight, highly customizable and efficient unikernel images. Unikraft
+provides a POSIX-friendly environment, reducing the engineering effort of
+porting existing applications and libraries. Furthermore, Unikraft aims for
+binary compatibility with Linux, allowing the direct execution of Linux binaries
+on top of Unikraft.&lt;/p&gt;
+&lt;p&gt;However, in the case of WASM, the most interesting part in Unikraft is the
+&lt;a href="https://github.com/unikraft/app-wamr/tree/stable" target="_blank" rel="noopener"&gt;support of wamr&lt;/a&gt;. Using
+&lt;a href="https://github.com/bytecodealliance/wasm-micro-runtime" target="_blank" rel="noopener"&gt;wamr&lt;/a&gt; Unikraft is able
+to execute WASM modules.&lt;/p&gt;
+&lt;h3 id="unikraft-and-urunc"&gt;Unikraft and &lt;code&gt;urunc&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;In the case of Unikraft &lt;code&gt;urunc&lt;/code&gt; already has support and therefore no changes or
+different branches are required. We can directly use the main branch.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ git clone https://github.com/nubificus/urunc.git
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ docker run --rm -ti -v &lt;span class="nv"&gt;$PWD&lt;/span&gt;/urunc:/urunc -w /urunc golang:1.23 bash -c &lt;span class="s2"&gt;&amp;#34;git config --global --add safe.directory /urunc &amp;amp;&amp;amp; make&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;$ sudo make -C urunc install
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Please refer to &lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;urunc&lt;/a&gt; for more detailed
+installation instructions.&lt;/p&gt;
+&lt;h3 id="packaging-unikraft-unikernels-for-urunc"&gt;Packaging Unikraft unikernels for &lt;code&gt;urunc&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;Similarly with Mewz, we will use &lt;a href="https://github.com/nubificus/pun" target="_blank" rel="noopener"&gt;pun&lt;/a&gt; to
+package the Unikraft unikernel for &lt;code&gt;urunc&lt;/code&gt;. However, we need to build the
+Unikraft unikernel by ourselves and then package it with &lt;code&gt;pun&lt;/code&gt;. We can build the
+Unikraft unikernel with the following commands:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/unikraft/app-wamr.git
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cd app-wamr
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mkdir workdir
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;pushd workdir
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/unikraft/unikraft.git -b RELEASE-0.15.0
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;mkdir libs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/unikraft/lib-lwip.git -b RELEASE-0.15.0 libs/lwip
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/unikraft/lib-musl.git -b RELEASE-0.15.0 libs/musl
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone https://github.com/unikraft/lib-wamr.git -b RELEASE-0.15.0 libs/wamr
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;popd
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cp defconfigs/qemu-x86_64-initrd .config
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make olddefconfig
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;If everything goes well, the unikernel binary should be placed in
+&lt;code&gt;${PWD}/workdir/build/wamr_qemu-x86_64&lt;/code&gt;. In the case of Unikraft the WASM module
+can be a typical WASM file and it should be placed in the initrd. In
+the &lt;code&gt;app-wamr&lt;/code&gt; example, Unikraft already has a hello world WASM module, under
+the &lt;code&gt;rootfs&lt;/code&gt; directory. Therefore, we will transform the contents of this
+directory to a initrd. We can do that with the following commands:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;pushd rootfs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;find -depth -print | tac | bsdcpio -o --format newc &amp;gt; ../rootfs.cpio
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;popd
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The initrd file will be saved in the &lt;code&gt;rootfs.cpio&lt;/code&gt; file.&lt;/p&gt;
+&lt;p&gt;At last, we can package the Unikraft unikernel with &lt;code&gt;pun&lt;/code&gt;. For that purpose, we
+will use the following &lt;code&gt;Containerfile&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;#syntax=harbor.nbfc.io/nubificus/pun:latest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;FROM scratch
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;COPY workdir/build/wamr_qemu-x86_64 /unikernel/wamr_qemu-x86_64
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;COPY rootfs.cpio /unikernel/initrd
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL com.urunc.unikernel.binary=&amp;#34;/unikernel/wamr_qemu-x86_64&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.cmdline&amp;#34;=&amp;#34;/main.wasm&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.initrd&amp;#34;=&amp;#34;/unikernel/initrd&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.unikernelType&amp;#34;=&amp;#34;unikraft&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.hypervisor&amp;#34;=&amp;#34;qemu&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;LABEL &amp;#34;com.urunc.unikernel.version&amp;#34;=&amp;#34;0.15.0&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We can now build and package our Unikraft unikernel with:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker build -f Containerfile -t nubificus/urunc/hello-wasm-unikraft-qemu:test .
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="running-wasm-over-unikraft-unikernels-with-urunc"&gt;Running WASM over Unikraft unikernels with &lt;code&gt;urunc&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;At last we can run the Unikraft unikernel we created as any other container:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;docker run --rm -ti --runtime io.containerd.urunc.v2 harbor.nbfc.io/nubificus/urunc/hello-wasm-unikraft-qemu:test
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="summary-and-next-steps"&gt;Summary and next steps&lt;/h2&gt;
+&lt;p&gt;WASM offers unparalleled portability and near-native execution,
+establishing itself as a key evolutionary technology in the cloud-native
+ecosystem. However, despite its sandboxed execution model, security
+vulnerabilities highlight the need for stronger isolation between workloads. In
+this context, we explore the potential of using unikernels to isolate WASM
+applications within VMs. By combining WASM’s portability with the
+fast boot times and robust isolation offered by unikernels, we can create a
+highly efficient and secure execution environment.&lt;/p&gt;
+&lt;p&gt;Furthermore, the ability of &lt;code&gt;urunc&lt;/code&gt; to act as a container runtime for
+unikernels, streamlines the deployment and management of WASM applications
+running on unikernels. This enables us to deploy WASM applications with the same
+ease as containers, while simultaneously ensuring strong isolation with minimal
+overhead.&lt;/p&gt;
+&lt;p&gt;In this post, we reviewed two unikernel frameworks that already support WASM.
+Looking ahead, we plan to also provide more info regarding OSv as well.
+Additionally, we identified the need for a unified approach to &lt;em&gt;building&lt;/em&gt; and
+&lt;em&gt;packaging&lt;/em&gt; WASM unikernels as OCI images; for now, &lt;code&gt;pun&lt;/code&gt; only addresses the
+latter. To address the former, we intend to complement &lt;code&gt;pun&lt;/code&gt; with a new tool
+that will streamline the process of building and bundling all the binary
+artifacts into a single application kernel, ready to be deployed.&lt;/p&gt;
+&lt;p&gt;Stay tuned for more updates! In the meantime, please share your
+comments/suggestions/findings on &lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;github&lt;/a&gt;.&lt;/p&gt;</description></item></channel></rss>

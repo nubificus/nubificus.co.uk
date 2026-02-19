@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Actions | Nubificus</title><link>/tag/actions/</link><atom:link href="/tag/actions/index.xml" rel="self" type="application/rss+xml"/><description>Actions</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Tue, 03 Dec 2024 14:28:46 +0000</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Actions</title><link>/tag/actions/</link></image><item><title>Horror Story: The Fiasco of armv7l GHA Self-hosted Runners for Ubuntu 24.04</title><link>/blog/github-runner-armv7l/</link><pubDate>Tue, 03 Dec 2024 14:28:46 +0000</pubDate><guid>/blog/github-runner-armv7l/</guid><description>&lt;p&gt;In the world of DevOps and CI/CD pipelines, GitHub Actions stands out as a
+powerful tool for automation. However, as with all tools, the devil lies in the
+details; or in this case, the dependency chain. This post dives into the recent
+horror story we faced when we realized that our &lt;code&gt;armv7l&lt;/code&gt;-based self-hosted
+runners cannot connect to Github in Ubuntu 24.04.&lt;/p&gt;
+&lt;h2 id="the-root-of-the-problem-y2038-and-net-compatibility"&gt;The Root of the Problem: &lt;code&gt;Y2038&lt;/code&gt; and &lt;code&gt;.NET&lt;/code&gt; Compatibility&lt;/h2&gt;
+&lt;p&gt;Ubuntu 24.04 introduced a critical fix to the &lt;code&gt;Y2038&lt;/code&gt; problem for &lt;code&gt;armv7l&lt;/code&gt;. By
+shifting to 64-bit time values, it rendered many older libraries and binaries
+incompatible. One such casualty was the GitHub Actions runner.&lt;/p&gt;
+&lt;p&gt;GitHub’s runner for &lt;code&gt;armv7l&lt;/code&gt; is built using &lt;code&gt;.NET&lt;/code&gt; 8.0, which remains
+incompatible with the &lt;code&gt;Y2038&lt;/code&gt; fix. This manifests as SSL connection failures
+with errors like:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-csharp" data-lang="csharp"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;The&lt;/span&gt; &lt;span class="n"&gt;remote&lt;/span&gt; &lt;span class="n"&gt;certificate&lt;/span&gt; &lt;span class="k"&gt;is&lt;/span&gt; &lt;span class="n"&gt;invalid&lt;/span&gt; &lt;span class="n"&gt;because&lt;/span&gt; &lt;span class="n"&gt;of&lt;/span&gt; &lt;span class="n"&gt;errors&lt;/span&gt; &lt;span class="k"&gt;in&lt;/span&gt; &lt;span class="n"&gt;the&lt;/span&gt; &lt;span class="n"&gt;certificate&lt;/span&gt; &lt;span class="n"&gt;chain&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="n"&gt;NotTimeValid&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The problem stems from outdated libraries in &lt;code&gt;.NET&lt;/code&gt; 8.0 that don&amp;rsquo;t handle the
+updated time format correctly. While &lt;code&gt;.NET&lt;/code&gt; 9.0 has introduced &lt;code&gt;Y2038&lt;/code&gt;
+compatibility, backports to &lt;code&gt;.NET&lt;/code&gt; 8.0 are not planned, as confirmed in the
+dotnet/core discussions.&lt;/p&gt;
+&lt;h2 id="diy-solution-rebuilding-the-runner"&gt;DIY Solution: Rebuilding the Runner&lt;/h2&gt;
+&lt;p&gt;The immediate workaround involves rebuilding the GitHub Actions runner with
+&lt;code&gt;.NET&lt;/code&gt; 9.0. However, this is easier said than done. The official documentation
+lacks guidance for such rebuilds, and even attempts with &lt;code&gt;.NET&lt;/code&gt; 9.0 &lt;code&gt;SDK&lt;/code&gt;s often
+result in the same issues persisting.&lt;/p&gt;
+&lt;p&gt;Fortunately, the community stepped in; &lt;a href="https://github.com/satmandu" target="_blank" rel="noopener"&gt;&lt;code&gt;satmandu&lt;/code&gt;&lt;/a&gt;
+provided a pre-built binary release compatible with Ubuntu 24.04, which can be
+found &lt;a href="https://github.com/satmandu/runner/releases/tag/v2.321.1" target="_blank" rel="noopener"&gt;here&lt;/a&gt;. Testing
+confirmed that this binary works where manually rebuilt runners failed.&lt;/p&gt;
+&lt;h2 id="the-broader-implications"&gt;The Broader Implications&lt;/h2&gt;
+&lt;p&gt;This issue highlights the challenges of operating in a diverse ecosystem.
+Moving to &lt;code&gt;Y2038&lt;/code&gt;-compatible time values was a necessary but disruptive step,
+breaking backward compatibility in critical infrastructure. The reliance on
+older &lt;code&gt;.NET&lt;/code&gt; versions by GitHub Actions created a brittle link in the chain.
+Luckily, the open-source community played a crucial role in bridging the gap
+with patches and pre-built binaries.&lt;/p&gt;
+&lt;p&gt;If you&amp;rsquo;re managing self-hosted runners, test against the latest operating
+systems and library versions regularly. Be aware of the technology stack
+underpinning critical systems. As demonstrated here, the interaction between
+&lt;code&gt;.NET&lt;/code&gt; and Ubuntu was at the heart of the issue. Follow GitHub and &lt;code&gt;.NET&lt;/code&gt;
+release notes closely. Breaking changes like those in &lt;code&gt;.NET&lt;/code&gt; 9.0 can have
+far-reaching effects.&lt;/p&gt;
+&lt;p&gt;The &lt;code&gt;armv7l&lt;/code&gt; runner saga is a cautionary tale for the DevOps community. While
+the path forward involves embracing &lt;code&gt;.NET&lt;/code&gt; 9.0 and its support for Ubuntu
+24.04, the transition highlights the complexities of maintaining compatibility
+across evolving platforms.&lt;/p&gt;
+&lt;p&gt;For now, if you&amp;rsquo;re running Ubuntu 24.04 on &lt;code&gt;armv7l&lt;/code&gt;, &lt;a href="https://github.com/satmandu/runner/releases/tag/v2.321.1" target="_blank" rel="noopener"&gt;grab the patched
+binary&lt;/a&gt; or dive into
+the rebuilding process - just be prepared for some manual effort.&lt;/p&gt;
+&lt;p&gt;If you’ve faced similar challenges or have alternative solutions, feel free to
+share and drop us a line!&lt;/p&gt;</description></item></channel></rss>

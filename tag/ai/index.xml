@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>AI | Nubificus</title><link>/tag/ai/</link><atom:link href="/tag/ai/index.xml" rel="self" type="application/rss+xml"/><description>AI</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Sun, 26 Oct 2025 00:00:00 +0000</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>AI</title><link>/tag/ai/</link></image><item><title>A Lightweight C Library for Fetching OCI Artifacts</title><link>/blog/fetch_models_in_c/</link><pubDate>Sun, 26 Oct 2025 00:00:00 +0000</pubDate><guid>/blog/fetch_models_in_c/</guid><description>&lt;h1 id="from-containers-to-kserve-and-vaccel"&gt;From Containers to &lt;code&gt;KServe&lt;/code&gt; and &lt;code&gt;vAccel&lt;/code&gt;&lt;/h1&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/vaccel-oci-c.png" alt="" loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+Container images have become the standard unit of software packaging and
+deployment. They’re everywhere: in the cloud, on edge devices, and even in AI
+inference pipelines. Yet, despite the ubiquity of OCI (Open Container
+Initiative) registries and image formats, there hasn’t been a clean,
+lightweight &lt;strong&gt;C library&lt;/strong&gt; for fetching and unpacking OCI images.&lt;/p&gt;
+&lt;p&gt;We’ve built exactly that: a &lt;a href="https://github.com/nubificus/oci-c" target="_blank" rel="noopener"&gt;minimalist C client library for OCI
+registries&lt;/a&gt;, designed for embedding in
+systems software, unikernel runtimes, and edge-native inference frameworks. The
+inspiration was &lt;a href="https://github.com/modelpack/model-spec" target="_blank" rel="noopener"&gt;ModelPack&lt;/a&gt;, a recent
+CNCF sandbox project that establishes open standards for packaging,
+distributing and running AI artifacts in the cloud-native environment.&lt;/p&gt;
+&lt;h2 id="why-a-c-oci-client"&gt;Why a C OCI Client?&lt;/h2&gt;
+&lt;p&gt;Most existing OCI tooling, such as
+&lt;a href="https://github.com/containers/skopeo" target="_blank" rel="noopener"&gt;skopeo&lt;/a&gt;, &lt;a href="https://oras.land/" target="_blank" rel="noopener"&gt;ORAS&lt;/a&gt;, or
+&lt;a href="https://www.docker.com/" target="_blank" rel="noopener"&gt;Docker&lt;/a&gt;, is written in Go or Python. While these
+tools are excellent for command-line and automation tasks, they’re heavy,
+dynamically linked, and not suitable for embedding into low-level runtimes or
+constrained environments.&lt;/p&gt;
+&lt;p&gt;When you want to pull container artifacts directly into a C codebase, say,
+a unikernel launcher, an inference runtime, or an edge orchestrator, your
+options are limited. You’d need to shell out to external tools or reimplement
+the OCI registry protocol from scratch.&lt;/p&gt;
+&lt;p&gt;That’s where our &lt;strong&gt;OCI Client Library&lt;/strong&gt; comes in.&lt;/p&gt;
+&lt;h2 id="about-the-project"&gt;About the Project&lt;/h2&gt;
+&lt;p&gt;The library provides a clean, almost dependency-free API for interacting with
+OCI-compliant registries. It can:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Retrieve manifests (including multi-architecture ones)&lt;/li&gt;
+&lt;li&gt;Download layer blobs by digest&lt;/li&gt;
+&lt;li&gt;Extract &lt;code&gt;.tar.gz&lt;/code&gt; layers to a filesystem&lt;/li&gt;
+&lt;li&gt;Even handle fetch authentication tokens from registries (yes, even for public
+registry repos, you need an auth token!)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Under the hood, it uses &lt;a href="https://github.com/curl/curl" target="_blank" rel="noopener"&gt;&lt;strong&gt;libcurl&lt;/strong&gt;&lt;/a&gt;,
+&lt;a href="https://github.com/tspspi/libcjson" target="_blank" rel="noopener"&gt;&lt;strong&gt;cJSON&lt;/strong&gt;&lt;/a&gt;, and
+&lt;a href="https://github.com/libarchive/libarchive" target="_blank" rel="noopener"&gt;&lt;strong&gt;libarchive&lt;/strong&gt;&lt;/a&gt;, but all those
+details are hidden. Applications link against a single, self-contained library
+and call a handful of (we hope) intuitive functions.&lt;/p&gt;
+&lt;h2 id="a-simpler-api"&gt;A Simpler API&lt;/h2&gt;
+&lt;p&gt;The library’s design philosophy is straightforward: &lt;strong&gt;fetching and unpacking
+container images should be as simple as fetching a file&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Here’s what using it looks like:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-c" data-lang="c"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nf"&gt;oci_client_init&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="kt"&gt;char&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;token&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;fetch_token&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;#34;https://harbor.nbfc.io&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s"&gt;&amp;#34;models/resnet101-v2.7&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt; &lt;span class="c1"&gt;// get a token
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="kt"&gt;char&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;manifest&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;fetch_manifest&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;#34;https://harbor.nbfc.io&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="c1"&gt;// registry
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="s"&gt;&amp;#34;models/resnet101-v2.7&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="c1"&gt;// repo
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="s"&gt;&amp;#34;tvm&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="c1"&gt;// tag
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="s"&gt;&amp;#34;amd64&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="c1"&gt;// arch
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="s"&gt;&amp;#34;linux&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="c1"&gt;// os
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;token&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt; &lt;span class="c1"&gt;// auth
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="k"&gt;struct&lt;/span&gt; &lt;span class="n"&gt;OciLayer&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;layers&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="kt"&gt;int&lt;/span&gt; &lt;span class="n"&gt;n&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;oci_manifest_parse_layers&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;manifest&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&lt;/span&gt;&lt;span class="n"&gt;layers&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt; &lt;span class="c1"&gt;// helper function to parse the layers
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;// Get the layers one by one, and extract them
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;int&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;&lt;/span&gt; &lt;span class="n"&gt;n&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="o"&gt;++&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="k"&gt;struct&lt;/span&gt; &lt;span class="n"&gt;Memory&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;blob&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;fetch_blob&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;#34;https://harbor.nbfc.io&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="s"&gt;&amp;#34;models/resnet101-v2.7&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;layers&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;].&lt;/span&gt;&lt;span class="n"&gt;digest&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="n"&gt;token&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nb"&gt;NULL&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nf"&gt;extract_tar_gz&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;layers&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;].&lt;/span&gt;&lt;span class="n"&gt;filename&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s"&gt;&amp;#34;output&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nf"&gt;oci_layers_free&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;layers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;n&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt; &lt;span class="c1"&gt;// cleanup
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nf"&gt;oci_client_cleanup&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt; &lt;span class="c1"&gt;// cleanup
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;That’s all it takes to pull and extract an OCI image layer-by-layer in native C code.&lt;/p&gt;
+&lt;h2 id="integration-with-kserve-and-vaccel"&gt;Integration with &lt;code&gt;KServe&lt;/code&gt; and &lt;code&gt;vAccel&lt;/code&gt;&lt;/h2&gt;
+&lt;p&gt;This library isn’t just for experiments, it’s becoming a key part of our
+cloud-native acceleration stack. Specifically, in
+&lt;a href="https://github.com/nubificus/vaccel" target="_blank" rel="noopener"&gt;&lt;code&gt;vAccel&lt;/code&gt;&lt;/a&gt; we &lt;a href="https://github.com/nubificus/vaccel/pull/137" target="_blank" rel="noopener"&gt;refactored the &lt;code&gt;vAccel Resource&lt;/code&gt; handling&lt;/a&gt;
+to allow:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;local files (as before),&lt;/li&gt;
+&lt;li&gt;remote files (from URIs), to fetch models/TVM shared objects etc.&lt;/li&gt;
+&lt;li&gt;multiple files (either archives or compressed archives), to account for TF
+saved models&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The plan is to add an extra, OCI option, to &lt;code&gt;vAccel&lt;/code&gt;, to facilitate software
+delivery of models to &lt;code&gt;vAccel&lt;/code&gt; instances (agents or applications).&lt;/p&gt;
+&lt;p&gt;This functionality, will enable efficient model fetching in &lt;code&gt;KServe&lt;/code&gt; deployments
+that use &lt;code&gt;vAccel&lt;/code&gt;. Thus, instead of relying on &lt;code&gt;KServe&lt;/code&gt;&amp;rsquo;s &lt;code&gt;STORAGE_URI&lt;/code&gt; and
+side-car containers to fetch the models and make them available to the
+inference service container, we just specify the OCI URI
+(&lt;code&gt;oci://harbor.nbfc.io/models/resnet101-v2.7:tvm&lt;/code&gt;) and the binary artifact is
+available to &lt;code&gt;vAccel&lt;/code&gt; as a &lt;code&gt;Resource&lt;/code&gt;, ready to be loaded by the relevant
+plugin/backend.&lt;/p&gt;
+&lt;p&gt;Additionally, to leverage &lt;code&gt;KServe&lt;/code&gt;&amp;rsquo;s simplified workflow, we could patch the code
+to allow for a custom side-car that just fetches the model like that, without
+relying on heavy-weight containers in Python/Go. This way, we make deployments
+faster, more portable, and suitable for edge devices with limited resources.&lt;/p&gt;
+&lt;h2 id="why-store-models-in-oci-registries-"&gt;Why store models in OCI Registries ?&lt;/h2&gt;
+&lt;p&gt;Storing models as OCI artifacts transforms them into first-class, verifiable,
+and portable software units, aligning ML deployment with modern DevOps and
+GitOps practices. Using OCI registries to store ML models provides several
+important benefits:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Immutability: Once pushed, layers and manifests are immutable. This ensures
+that models cannot be tampered with after release.&lt;/li&gt;
+&lt;li&gt;Verification &amp;amp; Trust: Tools like &lt;code&gt;cosign&lt;/code&gt; allow signing and verifying models,
+ensuring integrity and origin.&lt;/li&gt;
+&lt;li&gt;Provenance: Registry manifests track digests, timestamps, and annotations,
+making it easy to track model versions.&lt;/li&gt;
+&lt;li&gt;Compatibility: OCI is an open standard, widely supported across cloud
+providers, edge runtimes, and orchestration systems.&lt;/li&gt;
+&lt;li&gt;Layered Storage &amp;amp; Reuse: Common dependencies can be shared across models,
+reducing storage and bandwidth usage. Tooling such as runtime dependencies
+(eg the TVM runtime, alongside the shared object, or labels, alongside a ResNet
+torchscript model).&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="building-and-running"&gt;Building and Running&lt;/h2&gt;
+&lt;p&gt;To build the library, you need Meson and Ninja:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo apt install build-essential meson ninja-build libcurl4-openssl-dev libcjson-dev libarchive-dev
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;meson setup builddir -Dlibrary_type&lt;span class="o"&gt;=&lt;/span&gt;shared
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;meson compile -C builddir
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Then try the included demo program:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;./builddir/oci_client_demo \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; -r https://harbor.nbfc.io \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; -R models/resnet101-v2.7 \
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; -t tvm -a amd64 -o linux -d output
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;It will pull and extract a TVM-enabled shared object for ResNet101 under output/.&lt;/p&gt;
+&lt;h2 id="towards-oci-native-acceleration"&gt;Towards OCI-Native Acceleration&lt;/h2&gt;
+&lt;p&gt;With this library, we’re filling a missing gap in the OCI ecosystem: a native,
+embeddable, dependency-minimal C client for fetching container artifacts.&lt;/p&gt;
+&lt;p&gt;We’re excited about what this unlocks for edge computing and AI model lifecycle management.&lt;/p&gt;
+&lt;h2 id="get-involved"&gt;Get Involved&lt;/h2&gt;
+&lt;p&gt;The code is open source, licensed under Apache-2.0, and available on &lt;a href="https://github.com/nubificus/oci-c" target="_blank" rel="noopener"&gt;GitHub&lt;/a&gt;.&lt;br&gt;
+Contributions, feedback, and integrations are welcome!&lt;/p&gt;</description></item></channel></rss>

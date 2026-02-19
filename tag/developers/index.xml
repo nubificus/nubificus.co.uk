@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Developers | Nubificus</title><link>/tag/developers/</link><atom:link href="/tag/developers/index.xml" rel="self" type="application/rss+xml"/><description>Developers</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Mon, 11 Nov 2024 08:10:38 +0000</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Developers</title><link>/tag/developers/</link></image><item><title>Fosscomm 2024</title><link>/blog/fosscomm-2024/</link><pubDate>Mon, 11 Nov 2024 08:10:38 +0000</pubDate><guid>/blog/fosscomm-2024/</guid><description>&lt;p&gt;If you’re into open-source and tech meetups, FOSSCOMM is the event to be at. This year, it was held in Thessaloniki, organized by the open-source community of the University of Macedonia (UoM), and they absolutely crushed it with the setup and vibe!&lt;/p&gt;
+&lt;figure id="figure-main-entrance----uom-building"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/fosscomm2.jpg#center" alt="Main Entrance -- UoM building" loading="lazy" data-zoomable width="50%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Main Entrance &amp;ndash; UoM building
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;The atmosphere was awesome—super inclusive and welcoming, with folks from all over Greece and beyond coming together to celebrate open-source software. Whether you were a newcomer or a seasoned developer, everyone felt part of the community, sharing knowledge, projects, and ideas.&lt;/p&gt;
+&lt;p&gt;We were lucky to give two talks at this year’s FOSSCOMM! The first one was about k8s, CRDs, and how we’re using them to tailor k8s clusters to fit our projects&amp;rsquo; needs. If you’re curious, here’s the &lt;a href="https://s3.nephos.gr/fosscomm/2024/FOSSCOMM-2024-NUBIS-k8s-crd.pdf" target="_blank" rel="noopener"&gt;slide deck&lt;/a&gt; for that session. We also demoed some of our work—check out the video &lt;a href="https://docs.google.com/file/d/1KJ5ikE4ndNd1TPvWpjCBKVfhscbKMBGk/preview" target="_blank" rel="noopener"&gt;here&lt;/a&gt;. Additionally, we built a step-by-step tutorial for this at &lt;a href="https://killercoda.com/nubis/scenario/CRD_Etherpad" target="_blank" rel="noopener"&gt;&lt;code&gt;Killercoda&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+&lt;figure id="figure-panos-mavrikos-talking-about-k8s-operators--crds"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/fosscomm1.jpg#center" alt="Panos Mavrikos talking about k8s operators &amp; CRDs" loading="lazy" data-zoomable width="50%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Panos Mavrikos talking about k8s operators &amp;amp; CRDs
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;The second talk tackled sandboxing workloads in cloud-edge environments, exploring flexibility and performance, the role of hardware accelerators, and how these all impact cloud-edge use cases. It was an exciting session, sparking lots of ideas around security and efficiency. Here’s the &lt;a href="https://s3.nephos.gr/fosscomm/2024/FOSSCOMM-2024-NUBIS-hwaccel.pdf" target="_blank" rel="noopener"&gt;slide deck&lt;/a&gt; and three demo videos for this talk: &lt;a href="https://s3.nephos.gr/fosscomm/2024/Bert-torch-vaccel-correct.mp4" target="_blank" rel="noopener"&gt;Demo 1&lt;/a&gt;, &lt;a href="https://s3.nephos.gr/fosscomm/2024/SOL-torch-vaccel.mp4" target="_blank" rel="noopener"&gt;Demo 2&lt;/a&gt;, and &lt;a href="https://s3.nephos.gr/fosscomm/2024/vaccel-tvm.mov" target="_blank" rel="noopener"&gt;Demo 3&lt;/a&gt;.&lt;/p&gt;
+&lt;figure id="figure-anastassios-nanos-talking-about-hardware-acceleration-in-sandboxed-environments"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/fosscomm4.jpg#center" alt="Anastassios Nanos talking about hardware acceleration in sandboxed environments" loading="lazy" data-zoomable width="50%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Anastassios Nanos talking about hardware acceleration in sandboxed environments
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;The program was absolutely packed this year, with tons of insightful sessions for anyone into open-source, cloud, DevOps, education, IoT, and more! Here are just a couple of standout talks from the packed weekend that really captured the spirit of innovation and open knowledge sharing:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&amp;ldquo;Lessons from the Unix History&amp;rdquo; by Professor Diomidis Spinellis from AUEB: A must-see for any history and tech lovers, this talk walked us through the evolution of Unix, exploring its massive influence on modern operating systems and open-source culture. If you’ve ever wondered how Unix’s legacy continues to impact today’s software, this was the place to be.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&amp;ldquo;Running a Company on Free Software: The First 20 Years&amp;rdquo; by Apollon Oikonomopoulos, CIO of Skroutz: Apollon shared an inspiring journey of building and managing the core infrastructure of a successful business using free software for over two decades. This talk was especially interesting for anyone wondering about the practicalities of relying on open-source tools in a business setting.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&amp;ldquo;How to Build a Sustainable Open Source Company&amp;rdquo; by Frank Karlitschek, CEO of NextCloud: Frank brought tons of insight into what it takes to not just create open-source software but to build a thriving, sustainable business around it. This session had great takeaways on balancing open-source ideals with business realities.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&amp;ldquo;Quo Vadis, Free Software? Quo Vadis, Society?&amp;rdquo; by Luis Falcon, Founder of GNU Solidario: A thought-provoking talk on the societal role of free software, and the vision of a world where open-source tech powers humanitarian causes. This session looked at how free software can impact issues like healthcare and education and was a great reminder of the deeper purpose driving open-source communities.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&amp;ldquo;EdgeAI: A HW-SW Codesign Approach&amp;rdquo; by George Keramidas from Aristotle University of Thessaloniki: This one was a treat for those interested in the cutting-edge (literally!) of AI at the hardware level. George explored the integration of hardware and software for AI at the edge, showing how open-source innovation is shaping this critical area.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/images/fosscomm3.jpg#floatleft" alt="" loading="lazy" data-zoomable width="50%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;p&gt;But it wasn’t just about the talks. FOSSCOMM this year was a hub of energy, ideas, and connections! The booth setups were fantastic, ranging from beginner-friendly intros to cutting-edge tech demos. And the people—wow. We met a huge range of enthusiasts, from students trying open-source for the first time to veterans in the field sharing their latest work.&lt;/p&gt;
+&lt;p&gt;Big shoutout to the entire organizing team for a smooth, engaging event. Everything ran like clockwork, and you could really tell how much care went into making it a positive, collaborative space. If you’re thinking of attending next year, don’t hesitate—FOSSCOMM always delivers, and we can’t wait to see what’s in store for next time!&lt;/p&gt;
+&lt;p&gt;Looking forward to FOSSCOMM 2025!&lt;/p&gt;</description></item><item><title>Fosdem 2020</title><link>/blog/fosdem-2020/</link><pubDate>Wed, 26 Feb 2020 20:10:38 +0000</pubDate><guid>/blog/fosdem-2020/</guid><description>&lt;p&gt;Earlier this month we visited &lt;a href="https://fosdem.org/2020/" target="_blank" rel="noopener"&gt;FOSDEM&lt;/a&gt;, an absolutely open and free event
+for developers, open-source vendors and enthusiasts to meet, share their ideas
+and news, and discuss the latest in open source. Talks at FOSDEM are usually
+organized within several sections: Keynotes, Main tracks, Developer rooms and
+Lightning talks.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/fosdem34.png#center" alt="" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;/p&gt;
+&lt;p&gt;Some people from our team had visited before, but for most of us first timers
+it was really exciting. Packed keynotes, busy dev rooms, people chatting
+outside, over coffee, beer, or snacks!&lt;/p&gt;
+&lt;p&gt;The conference was held in &lt;a href="https://www.ulb.be/en/maps-directions/solbosch" target="_blank" rel="noopener"&gt;ULB Solbosch Campus&lt;/a&gt;, a very old, but also very
+modern student campus. The conference itself is free entry, without any
+registration necessary, so naturally, everyone interested can easily attend.
+Regarding food and drink at FOSDEM, there are few coffee shops inside the
+campus, and there&amp;rsquo;s always a few stands there serving coffee, beer,
+sausages, fries, and of course, Belgian waffles of all flavors, shapes and
+sizes.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/fosdem5.jpg#center" alt="" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;/p&gt;
+&lt;p&gt;We attended a couple of &lt;a href="https://fosdem.org/2020/schedule/event/kernel_address_space_isolation/" target="_blank" rel="noopener"&gt;main&lt;/a&gt; track &lt;a href="https://fosdem.org/2020/schedule/event/early_unix/" target="_blank" rel="noopener"&gt;talks&lt;/a&gt; and &lt;a href="https://fosdem.org/2020/schedule/event/linux_kernel/" target="_blank" rel="noopener"&gt;keynotes&lt;/a&gt; which we
+found super interesting, but our heart belongs to the devrooms :D We were
+overwhelmed by the diversity of topics covered, especially with regards to
+containers, their ecosystem and related technologies: &lt;a href="https://fosdem.org/2020/schedule/track/containers/" target="_blank" rel="noopener"&gt;Container&lt;/a&gt; devroom,
+&lt;a href="https://fosdem.org/2020/schedule/track/software_defined_networking/" target="_blank" rel="noopener"&gt;SDN&lt;/a&gt; or &lt;a href="https://fosdem.org/2020/schedule/track/software_defined_storage/" target="_blank" rel="noopener"&gt;SDS&lt;/a&gt; devrooms, &lt;a href="https://fosdem.org/2020/schedule/track/microkernels_and_component_based_os/" target="_blank" rel="noopener"&gt;Microkernels&lt;/a&gt; or &lt;a href="https://fosdem.org/2020/schedule/track/virtualization_and_iaas/" target="_blank" rel="noopener"&gt;Virtualization&lt;/a&gt;.
+During the sessions, as well as during the breaks and evenings we had the
+opportunity to chat with interesting people, working on exciting projects.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/fosdem2.jpg#center" alt="" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;/p&gt;
+&lt;p&gt;Our contribution to FOSDEM this year was a &lt;a href="https://fosdem.org/2020/schedule/event/vai_lightweight_virt_at_the_edge/" target="_blank" rel="noopener"&gt;talk&lt;/a&gt; on lightweight
+virtualization, focusing on a simple hypervisor we&amp;rsquo;ve crafted, and our
+upstreaming effort for running Amazon&amp;rsquo;s &lt;a href="https://github.com/firecracker-microvm/firecracker" target="_blank" rel="noopener"&gt;Firecracker&lt;/a&gt; on a Raspberry Pi 4.
+People found it quite interesting, and we&amp;rsquo;re glad it stimulated insightful
+discussions for feedback, as well as next steps.&lt;/p&gt;
+&lt;p&gt;The event was quite big; attendees were estimated to be 5500 this year, whereas
+last year they were estimated to be around 6000. Network traffic statistics are
+available &lt;a href="https://dashboard.fosdem.org/d/000000001/wifi?orgId=1&amp;amp;from=1580533200000&amp;amp;to=1580673600000" target="_blank" rel="noopener"&gt;here&lt;/a&gt; and a detailed analysis &lt;a href="https://blogs.cisco.com/getyourbuildon/fosdem-2020-trends-and-analysis" target="_blank" rel="noopener"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;All in all it was a great experience, we loved talking to people about
+interesting projects, and we are super excited to showcase some of the things
+we&amp;rsquo;ve got piled up for next year! Brussels is a fun place to be, let alone the
+fine beer available from local and international breweries!&lt;/p&gt;
+&lt;p&gt;Looking forward to FOSDEM 2021!
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/fosdem1.jpg#center" alt="" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;/p&gt;</description></item></channel></rss>

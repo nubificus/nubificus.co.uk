@@ -859,7 +859,166 @@ and interoperability with containerised and unikernel-based workloads.
 &lt;a href="https://docs.vaccel.org/" target="_blank" rel="noopener" class="sol-cta-btn va"&gt;
 &lt;i class="fas fa-external-link-alt"&gt;&lt;/i&gt; Visit vAccel Docs
 &lt;/a&gt;
-&lt;/div&gt;</description></item><item><title>EMPYREAN</title><link>/projects/empyrean/</link><pubDate>Fri, 01 Jan 2027 00:00:00 +0000</pubDate><guid>/projects/empyrean/</guid><description>&lt;p&gt;&lt;strong&gt;NUBIS contribution:&lt;/strong&gt; NUBIS develops the secure and efficient interoperable execution of workloads across the IoT-Edge-Cloud continuum.&lt;/p&gt;</description></item><item><title>TEXTaiLES</title><link>/projects/textailes/</link><pubDate>Fri, 01 Jan 2027 00:00:00 +0000</pubDate><guid>/projects/textailes/</guid><description>&lt;p&gt;&lt;strong&gt;NUBIS contribution:&lt;/strong&gt; As WP6 leader, NUBIS orchestrates the integration of all TexTailes digital tools into a coherent portal. Additionally, NUBIS leads the API integration effort with ECHOES and ECCCH.&lt;/p&gt;</description></item><item><title>AMBITIOUS</title><link>/projects/ambitious/</link><pubDate>Tue, 01 Dec 2026 00:00:00 +0000</pubDate><guid>/projects/ambitious/</guid><description>&lt;p&gt;&lt;strong&gt;NUBIS contribution:&lt;/strong&gt; NUBIS contributes expertise in cloud-native computing and edge infrastructure, supporting the deployment of advanced computing continuum solutions across heterogeneous 5G testbeds.&lt;/p&gt;</description></item><item><title>AI Agents? Not on my host</title><link>/blog/urunc_agent/</link><pubDate>Wed, 11 Feb 2026 00:22:12 +0000</pubDate><guid>/blog/urunc_agent/</guid><description>&lt;p&gt;Over the past few years, Large Language Models (LLMs) have changed how we
+&lt;/div&gt;</description></item><item><title>EMPYREAN</title><link>/projects/empyrean/</link><pubDate>Fri, 01 Jan 2027 00:00:00 +0000</pubDate><guid>/projects/empyrean/</guid><description>&lt;p&gt;&lt;strong&gt;NUBIS contribution:&lt;/strong&gt; NUBIS develops the secure and efficient interoperable execution of workloads across the IoT-Edge-Cloud continuum.&lt;/p&gt;</description></item><item><title>TEXTaiLES</title><link>/projects/textailes/</link><pubDate>Fri, 01 Jan 2027 00:00:00 +0000</pubDate><guid>/projects/textailes/</guid><description>&lt;p&gt;&lt;strong&gt;NUBIS contribution:&lt;/strong&gt; As WP6 leader, NUBIS orchestrates the integration of all TexTailes digital tools into a coherent portal. Additionally, NUBIS leads the API integration effort with ECHOES and ECCCH.&lt;/p&gt;</description></item><item><title>AMBITIOUS</title><link>/projects/ambitious/</link><pubDate>Tue, 01 Dec 2026 00:00:00 +0000</pubDate><guid>/projects/ambitious/</guid><description>&lt;p&gt;&lt;strong&gt;NUBIS contribution:&lt;/strong&gt; NUBIS contributes expertise in cloud-native computing and edge infrastructure, supporting the deployment of advanced computing continuum solutions across heterogeneous 5G testbeds.&lt;/p&gt;</description></item><item><title>When ETCD Crashes, Check Your Disks First: A Pod CrashLoopBack Debugging Story</title><link>/blog/etcd/</link><pubDate>Thu, 19 Feb 2026 00:22:12 +0000</pubDate><guid>/blog/etcd/</guid><description>&lt;p&gt;Setting up a cloud-edge continuum testbed for a computer vision demo taught us
+something fundamental about distributed systems: &lt;code&gt;etcd&lt;/code&gt; doesn&amp;rsquo;t forgive slow
+storage.&lt;/p&gt;
+&lt;h2 id="the-demo-setup"&gt;The Demo Setup&lt;/h2&gt;
+&lt;p&gt;We&amp;rsquo;ve been building a demonstration for &lt;a href="https://mlsysops.eu" target="_blank" rel="noopener"&gt;MLSysOps&lt;/a&gt; — a
+framework that enables custom policies (simple or ML-based) to customize the
+deployment and runtime behavior of applications across the Cloud-Edge-IoT
+continuum. The idea is to show how telemetry-driven policies can dynamically
+adapt where and how an application runs, without the developer or operator
+having to intervene manually.&lt;/p&gt;
+&lt;p&gt;The demo stack is straightforward: Karmada as the continuum orchestrator
+sitting on top of individual k3s clusters. The application is a computer vision
+pipeline doing real-time object detection. The hardware? A NUC, a Raspberry Pi,
+and a Jetson AGX Orin. More info on setting up the testbed can be found in the
+&lt;a href="https://github.com/mlsysops-eu/mlsysops-framework" target="_blank" rel="noopener"&gt;MLSysOps github repository&lt;/a&gt;&lt;/p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/cluster.png" alt="" loading="lazy" data-zoomable width="60%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;p&gt;The demo flow goes like this: the object detection
+workload deploys and runs locally on the Raspberry Pi. As the Pi starts to
+struggle, frame rate drops, inference latency climbs, the MLSysOps agents picks
+this up through telemetry and transparently switches the vAccel backend to
+point at the Jetson AGX Orin. Suddenly the workload is offloaded to serious GPU
+hardware, real-time object detection kicks-in, and the policy change is the only
+thing that made it happen. No redeployment, no manual intervention. That&amp;rsquo;s the
+story we want to tell.&lt;/p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/vaccel-offload.png" alt="" loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;p&gt;But before we could tell that story, we had to actually get the cluster
+running. And that turned out to be more interesting than expected.&lt;/p&gt;
+&lt;h2 id="a-four-node-cluster-on-three-physical-machines"&gt;A Four-Node Cluster on Three Physical Machines&lt;/h2&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/cluster-vms.png" alt="" loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;p&gt;Here&amp;rsquo;s the constraint we were working with. Karmada uses &lt;code&gt;etcd&lt;/code&gt; to persist its
+own state, separate from the &lt;code&gt;etcd&lt;/code&gt; instances backing individual Kubernetes
+clusters. In k3s this is embedded in the k3s binary (no need to manually handle
+&lt;code&gt;etcd&lt;/code&gt; instances). This means the Karmada host effectively needs to be its own
+node, distinct from the clusters it&amp;rsquo;s orchestrating. With only three physical
+machines and a desire to keep the demo self-contained, we spun up two VMs on
+the NUC: one to act as the Karmada host and one to serve as the control plane
+for the k3s cluster, with the Raspberry Pi and the Jetson as worker nodes.
+Logical, pragmatic, and as it turned out, the source of a very subtle problem.&lt;/p&gt;
+&lt;h2 id="the-symptom-pods-that-wouldnt-stay-up"&gt;The Symptom: Pods That Wouldn&amp;rsquo;t Stay Up&lt;/h2&gt;
+&lt;p&gt;After getting Karmada installed, we started noticing that Karmada&amp;rsquo;s own pods
+were crashing every five to ten minutes. Regularly. Predictably. Maddening.&lt;/p&gt;
+&lt;p&gt;The crashes weren&amp;rsquo;t immediately informative. The pods would come back up, run
+for a while, and crash again. Nothing in the application layer seemed wrong.
+The k3s clusters themselves looked healthy. We went through the usual suspects,
+resource limits, networking, configuration drift between restarts, and came
+up empty.&lt;/p&gt;
+&lt;p&gt;The investigation got genuinely pedantic. We started pulling on every thread we
+could find in the logs, correlating timestamps, looking for patterns in what
+was dying and when.&lt;/p&gt;
+&lt;h2 id="the-root-cause-etcd-and-io-latency"&gt;The Root Cause: &lt;code&gt;etcd&lt;/code&gt; and I/O Latency&lt;/h2&gt;
+&lt;p&gt;Eventually the logs pointed somewhere unexpected: &lt;code&gt;etcd&lt;/code&gt; was timing out. Not
+crashing due to a bug or misconfiguration in the Karmada setup itself, but
+because the underlying storage wasn&amp;rsquo;t responding fast enough for &lt;code&gt;etcd&lt;/code&gt;&amp;rsquo;s
+expectations.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;etcd&lt;/code&gt; is a strongly consistent, distributed key-value store, and that
+consistency comes at a cost: it is extraordinarily sensitive to I/O latency.
+&lt;code&gt;etcd&lt;/code&gt; uses a write-ahead log and relies on fsync calls completing within tight
+time windows. When storage is slow, even intermittently, &lt;code&gt;etcd&lt;/code&gt; starts missing
+its internal heartbeat and election deadlines. Leader elections fail. The
+cluster loses quorum. Pods that depend on the API server start dying.&lt;/p&gt;
+&lt;p&gt;The VMs on the NUC were sharing the host&amp;rsquo;s storage, and under the default
+configuration, the I/O performance wasn&amp;rsquo;t consistent enough to keep &lt;code&gt;etcd&lt;/code&gt;
+happy. Bumping the &lt;code&gt;etcd&lt;/code&gt; timeout thresholds helped a little but didn&amp;rsquo;t solve
+the problem, it just moved the failure threshold slightly. The root issue was
+the storage itself.&lt;/p&gt;
+&lt;p&gt;The fix came from a different direction: ZFS tuning on the nuc. After
+optimizing the ZFS storage backend, adjusting settings that affect how
+aggressively writes are committed and how I/O is scheduled, the latency
+profile improved enough that &lt;code&gt;etcd&lt;/code&gt; stopped timing out. The pod crashes
+stopped. The cluster became stable. FWIW, we used the following:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;zfs &lt;span class="nb"&gt;set&lt;/span&gt; &lt;span class="nv"&gt;sync&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;disabled default &lt;span class="c1"&gt;# Disable sync writes&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;zfs &lt;span class="nb"&gt;set&lt;/span&gt; &lt;span class="nv"&gt;compression&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;lz4 default &lt;span class="c1"&gt;# use LZ4 compression&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;zfs &lt;span class="nb"&gt;set&lt;/span&gt; &lt;span class="nv"&gt;atime&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;off default &lt;span class="c1"&gt;# No atime&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;zfs &lt;span class="nb"&gt;set&lt;/span&gt; &lt;span class="nv"&gt;recordsize&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;8k default &lt;span class="c1"&gt;# Better for small etcd writes&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;sync=disabled&lt;/code&gt;: Normally ZFS waits for data to be physically written to disk
+before confirming a write operation to the application (synchronous writes).
+Disabling sync means ZFS acknowledges writes immediately without waiting, which
+dramatically reduces write latency. This is why etcd stopped timing out: fsync
+calls returned instantly instead of blocking. The tradeoff is that in a power
+loss scenario, the last few seconds of writes could be lost. For a demo VM,
+that&amp;rsquo;s an acceptable risk; for production etcd storing critical state, you&amp;rsquo;d
+think harder about it.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;compression=lz4&lt;/code&gt;: Enables transparent compression on all data using the &lt;code&gt;lz4&lt;/code&gt;
+algorithm. &lt;code&gt;lz4&lt;/code&gt; is specifically chosen here because it&amp;rsquo;s extremely fast: fast
+enough that the CPU overhead of compressing/decompressing is usually outweighed
+by the reduction in I/O, since you&amp;rsquo;re reading and writing less data to disk.
+For a VM image with lots of repetitive data (filesystem metadata, logs,
+Kubernetes objects), this typically gives decent compression ratios with
+negligible performance cost.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;atime=off&lt;/code&gt;: By default, filesystems record the last access time on every
+file every time it&amp;rsquo;s read. This turns every read into a write, which doubles
+I/O pressure for read-heavy workloads. Disabling atime means reads are just
+reads. Almost every performance-tuned Linux system does this.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;recordsize=8k&lt;/code&gt;: ZFS uses a configurable record size (default 128K) when
+writing data. etcd&amp;rsquo;s underlying storage engine (bbolt) works with small,
+random reads and writes. Setting recordsize to 8K aligns ZFS&amp;rsquo;s I/O unit closer
+to what etcd actually does, reducing write amplification — instead of reading
+and rewriting a 128K block to change a few bytes, ZFS only touches an 8K block.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Taken together these four settings basically tell ZFS: stop being cautious, be
+fast. The &lt;code&gt;sync=disabled&lt;/code&gt; setting is the one that almost certainly stopped the
+etcd crashes on its own, the other three are good housekeeping that reduce
+overall I/O pressure and keep things humming. In a production setting you&amp;rsquo;d
+want to be more careful, particularly with &lt;code&gt;sync=disabled&lt;/code&gt;, but for a demo
+environment running on shared VM storage it&amp;rsquo;s a very pragmatic solution.&lt;/p&gt;
+&lt;h2 id="the-lesson-when-etcd-crashes-look-at-your-disks"&gt;The Lesson: When &lt;code&gt;etcd&lt;/code&gt; Crashes, Look at Your Disks&lt;/h2&gt;
+&lt;p&gt;This is the pattern worth internalizing. If you&amp;rsquo;re running Karmada (or any
+Kubernetes-adjacent system that embeds &lt;code&gt;etcd&lt;/code&gt;) and you&amp;rsquo;re seeing periodic pod
+crashes that don&amp;rsquo;t have an obvious application-level cause, the first question
+to ask is: how is the storage performing under &lt;code&gt;etcd&lt;/code&gt;&amp;rsquo;s workload?&lt;/p&gt;
+&lt;p&gt;The &lt;code&gt;etcd&lt;/code&gt; documentation actually calls this out: it recommends SSDs and warns
+against running &lt;code&gt;etcd&lt;/code&gt; on storage that&amp;rsquo;s shared with other I/O-heavy workloads.
+In a production cluster you&amp;rsquo;d typically have dedicated storage for &lt;code&gt;etcd&lt;/code&gt;
+nodes. In a demo environment running VMs on shared hardware, that&amp;rsquo;s easy to
+overlook.&lt;/p&gt;
+&lt;p&gt;A few diagnostics worth running if you suspect this problem: &lt;code&gt;etcd&lt;/code&gt; exposes
+metrics via Prometheus. The ones to watch are
+&lt;code&gt;etcd_disk_wal_fsync_duration_seconds&lt;/code&gt; and
+&lt;code&gt;etcd_disk_backend_commit_duration_seconds&lt;/code&gt;. If the 99th percentile on either
+of these is consistently above 100ms, you have a storage problem, not a
+configuration problem.&lt;/p&gt;
+&lt;p&gt;You can also run a quick benchmark against the storage path &lt;code&gt;etcd&lt;/code&gt; uses with a
+tool like &lt;code&gt;fio&lt;/code&gt; to get a baseline read/write latency profile before you ever
+install &lt;code&gt;etcd&lt;/code&gt; on a machine.&lt;/p&gt;
+&lt;h2 id="back-to-the-demo"&gt;Back to the Demo&lt;/h2&gt;
+&lt;p&gt;Once the cluster was stable, the actual demo came together quickly. The
+MLSysOps policy layer does what it&amp;rsquo;s supposed to do, telemetry comes in
+showing the Raspberry Pi falling behind on frame rate, the policy fires, the
+vAccel backend switches to the Jetson AGX Orin, and object detection snaps to
+real time. The network hop is there but the GPU makes it irrelevant. It&amp;rsquo;s a
+compelling demonstration of what adaptive policy-driven orchestration can do in
+a heterogeneous edge environment. We just had to fight through a disk I/O
+problem to get there.&lt;/p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/demo.png" alt="" loading="lazy" data-zoomable width="100%" /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;p&gt;Sometimes the most useful debugging sessions are the ones where the answer
+turns out to be completely orthogonal to where you were looking. &lt;code&gt;etcd&lt;/code&gt; taught
+us that distributed systems have strong opinions about their infrastructure.
+It&amp;rsquo;s worth listening to them.&lt;/p&gt;
+&lt;p&gt;Checkout our demo: &lt;iframe width="560" height="315" src="https://www.youtube.com/embed/LJ-6Qv9fk5c?si=lUNs1iFI3ygo1Ep7" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen&gt;&lt;/iframe&gt;&lt;/p&gt;</description></item><item><title>AI Agents? Not on my host</title><link>/blog/urunc_agent/</link><pubDate>Wed, 11 Feb 2026 00:22:12 +0000</pubDate><guid>/blog/urunc_agent/</guid><description>&lt;p&gt;Over the past few years, Large Language Models (LLMs) have changed how we
 interact with computers. Instead of navigating interfaces or reading
 documentation, we simply describe what we want in natural language.&lt;/p&gt;
 &lt;p&gt;The next step, agentic AI, goes further: Agents do not just respond to

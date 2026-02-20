@@ -26,7 +26,7 @@ Container images have become the standard unit of software packaging and
 deployment. They’re everywhere: in the cloud, on edge devices, and even in AI
 inference pipelines. Yet, despite the ubiquity of OCI (Open Container
 Initiative) registries and image formats, there hasn’t been a clean,
-lightweight C library for fetching and unpacking OCI images."><link rel=alternate hreflang=en-us href=/blog/fetch_models_in_c/><link rel=canonical href=/blog/fetch_models_in_c/><link rel=manifest href=/manifest.webmanifest><link rel=icon type=image/png href=/media/icon_hu_997e0522978c46c6.png><link rel=apple-touch-icon type=image/png href=/media/icon_hu_409bdbda4e241619.png><meta name=theme-color content="#1565c0"><meta property="twitter:card" content="summary"><meta property="twitter:site" content="@GetResearchDev"><meta property="twitter:creator" content="@GetResearchDev"><meta property="twitter:image" content="/media/logo_hu_866fdf07312224c.png"><meta property="og:type" content="website"><meta property="og:site_name" content="Nubificus"><meta property="og:url" content="/blog/fetch_models_in_c/"><meta property="og:title" content="A Lightweight C Library for Fetching OCI Artifacts | Nubificus"><meta property="og:description" content="From Containers to KServe and vAccel
+lightweight C library for fetching and unpacking OCI images."><link rel=alternate hreflang=en-us href=/blog/fetch_models_in_c/><link rel=canonical href=/blog/fetch_models_in_c/><link rel=manifest href=/manifest.webmanifest><link rel=icon type=image/png href=/media/icon_hu_997e0522978c46c6.png><link rel=apple-touch-icon type=image/png href=/media/icon_hu_409bdbda4e241619.png><meta name=theme-color content="#1565c0"><meta property="twitter:card" content="summary"><meta property="twitter:site" content="@nubificus"><meta property="twitter:creator" content="@nubificus"><meta property="twitter:image" content="/media/logo_hu_866fdf07312224c.png"><meta property="og:type" content="website"><meta property="og:site_name" content="Nubificus"><meta property="og:url" content="/blog/fetch_models_in_c/"><meta property="og:title" content="A Lightweight C Library for Fetching OCI Artifacts | Nubificus"><meta property="og:description" content="From Containers to KServe and vAccel
 
 
 
@@ -148,7 +148,7 @@ torchscript model).</li></ul><h2 id=building-and-running>Building and Running</h
 </span></span><span class=line><span class=cl>    -t tvm -a amd64 -o linux -d output
 </span></span></code></pre></div><p>It will pull and extract a TVM-enabled shared object for ResNet101 under output/.</p><h2 id=towards-oci-native-acceleration>Towards OCI-Native Acceleration</h2><p>With this library, we’re filling a missing gap in the OCI ecosystem: a native,
 embeddable, dependency-minimal C client for fetching container artifacts.</p><p>We’re excited about what this unlocks for edge computing and AI model lifecycle management.</p><h2 id=get-involved>Get Involved</h2><p>The code is open source, licensed under Apache-2.0, and available on <a href=https://github.com/nubificus/oci-c target=_blank rel=noopener>GitHub</a>.<br>Contributions, feedback, and integrations are welcome!</p></div><div class=article-tags><a class="badge badge-light" href=/tag/kserve/>Kserve</a>
-<a class="badge badge-light" href=/tag/vaccel/>VAccel</a>
+<a class="badge badge-light" href=/tag/vaccel/>Vaccel</a>
 <a class="badge badge-light" href=/tag/ai/>AI</a>
 <a class="badge badge-light" href=/tag/inference/>Inference</a>
 <a class="badge badge-light" href=/tag/models/>Models</a>

@@ -313,11 +313,15 @@ might not be enough. Virtual machines provide the right boundary and with
 sandboxed container runtimes like &lt;code&gt;urunc&lt;/code&gt;, they can be managed as easily as
 containers.&lt;/p&gt;
 &lt;p&gt;If agents are going to run code on our system, they should not run on our host.&lt;/p&gt;
-&lt;p&gt;Use them with caution.&lt;/p&gt;</description></item><item><title>ContainerDays Hamburg 2025: Unikernel Deployment Made Easy: A CRI-Compatible Runtime for Secure Cloud Deployments</title><link>/event/containerdays2025/</link><pubDate>Wed, 03 Sep 2025 17:30:00 +0000</pubDate><guid>/event/containerdays2025/</guid><description>&lt;h2 id="further-reading"&gt;Further Reading&lt;/h2&gt;
+&lt;p&gt;Use them with caution.&lt;/p&gt;</description></item><item><title>Bringing BSD Applications on Linux container platforms with urunc</title><link>/event/fosdem2026-1/</link><pubDate>Sat, 31 Jan 2026 17:15:00 +0100</pubDate><guid>/event/fosdem2026-1/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://github.com/urunc-dev/urunc" target="_blank" rel="noopener"&gt;urunc - Container Runtime Repository&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/nubificus/bunny" target="_blank" rel="noopener"&gt;bunny - Building Tool Repository&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>Unikernel Deployment Made Easy: A CRI-Compatible Runtime for Secure Cloud Deployments</title><link>/event/containerdays2025/</link><pubDate>Wed, 03 Sep 2025 17:30:00 +0000</pubDate><guid>/event/containerdays2025/</guid><description>&lt;h2 id="further-reading"&gt;Further Reading&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://blog.cloudkernels.net/posts/urunc/" target="_blank" rel="noopener"&gt;urunc - A Container Runtime for Unikernels&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href="https://blog.cloudkernels.net/posts/wasm-urunc/" target="_blank" rel="noopener"&gt;WebAssembly and urunc Integration&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;</description></item><item><title>Container Plumbing Days - urunc: A Container runtime for unikernels and single application kernels</title><link>/event/containerplumbing2025/</link><pubDate>Thu, 28 Aug 2025 13:50:00 +0000</pubDate><guid>/event/containerplumbing2025/</guid><description/></item><item><title>FOSDEM 2025: WASM Meets Unikernels - Secure and Efficient Cloud-Native Deployments</title><link>/event/fosdem2025-1/</link><pubDate>Sun, 02 Feb 2025 09:00:00 +0000</pubDate><guid>/event/fosdem2025-1/</guid><description>&lt;h2 id="further-reading"&gt;Further Reading&lt;/h2&gt;
+&lt;/ul&gt;</description></item><item><title>urunc: A Container runtime for unikernels and single application kernels</title><link>/event/containerplumbing2025/</link><pubDate>Thu, 28 Aug 2025 13:50:00 +0000</pubDate><guid>/event/containerplumbing2025/</guid><description/></item><item><title>WASM Meets Unikernels - Secure and Efficient Cloud-Native Deployments</title><link>/event/fosdem2025-1/</link><pubDate>Sun, 02 Feb 2025 09:00:00 +0000</pubDate><guid>/event/fosdem2025-1/</guid><description>&lt;h2 id="further-reading"&gt;Further Reading&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://blog.cloudkernels.net/posts/wasm-urunc/" target="_blank" rel="noopener"&gt;WASM and urunc Integration&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
@@ -325,7 +329,7 @@ containers.&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://github.com/urunc-dev/urunc" target="_blank" rel="noopener"&gt;urunc - Container Runtime Repository&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href="https://github.com/nubificus/bunny" target="_blank" rel="noopener"&gt;bunny - Building Tool Repository&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;</description></item><item><title>FOSDEM 2025: Less Overhead, Strong Isolation - Running Containers in Minimal Specialized Linux VMs</title><link>/event/fosdem2025-2/</link><pubDate>Sat, 01 Feb 2025 16:20:00 +0000</pubDate><guid>/event/fosdem2025-2/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
+&lt;/ul&gt;</description></item><item><title>Less Overhead, Strong Isolation - Running Containers in Minimal Specialized Linux VMs</title><link>/event/fosdem2025-2/</link><pubDate>Sat, 01 Feb 2025 16:20:00 +0000</pubDate><guid>/event/fosdem2025-2/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://github.com/urunc-dev/urunc" target="_blank" rel="noopener"&gt;urunc - Container Runtime Repository&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href="https://github.com/nubificus/bunny" target="_blank" rel="noopener"&gt;bunny - Kernel Building Tool&lt;/a&gt;&lt;/li&gt;
@@ -610,7 +614,7 @@ latter. To address the former, we intend to complement &lt;code&gt;pun&lt;/code&
 that will streamline the process of building and bundling all the binary
 artifacts into a single application kernel, ready to be deployed.&lt;/p&gt;
 &lt;p&gt;Stay tuned for more updates! In the meantime, please share your
-comments/suggestions/findings on &lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;github&lt;/a&gt;.&lt;/p&gt;</description></item><item><title>KubeCon + CloudNativeCon Europe 2024: Unikernels in K8s - Performance and Isolation for Serverless Computing with Knative</title><link>/event/kubeconeu2024/</link><pubDate>Fri, 22 Mar 2024 13:00:00 +0000</pubDate><guid>/event/kubeconeu2024/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
+comments/suggestions/findings on &lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;github&lt;/a&gt;.&lt;/p&gt;</description></item><item><title>Unikernels in K8s - Performance and Isolation for Serverless Computing with Knative</title><link>/event/kubeconeu2024/</link><pubDate>Fri, 22 Mar 2024 13:00:00 +0000</pubDate><guid>/event/kubeconeu2024/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://github.com/urunc-dev/urunc" target="_blank" rel="noopener"&gt;urunc - Container Runtime Repository&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;</description></item><item><title>Optimizing Performance with Unikernels: Exploring Container Runtimes for Serverless Workloads with Knative Benchmarking</title><link>/blog/knative-runtime-eval/</link><pubDate>Fri, 24 Nov 2023 11:28:46 +0000</pubDate><guid>/blog/knative-runtime-eval/</guid><description>&lt;!-- [Knative](https://knative.dev/docs/concepts/#what-is-knative) --&gt;
@@ -1237,11 +1241,11 @@ Figure 6: A redis rumprun unikernel over solo5 spawned with &lt;code&gt;nerdctl&
 &lt;p&gt;&lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;&lt;code&gt;urunc&lt;/code&gt;&lt;/a&gt; is open-source software, licensed
 under &lt;a href="https://github.com/nubificus/urunc/blob/main/LICENSE" target="_blank" rel="noopener"&gt;Apache-2.0&lt;/a&gt;. &lt;a href="https://github.com/nubificus/urunc" target="_blank" rel="noopener"&gt;Get
 the code&lt;/a&gt; and start hacking!&lt;/p&gt;
-&lt;p&gt;Stay tuned for a hands-on post on how to run your own unikernel using &lt;code&gt;urunc&lt;/code&gt;!&lt;/p&gt;</description></item><item><title>OSS 2023: URUNC - A Unikernel Container Runtime</title><link>/event/oss2023/</link><pubDate>Wed, 20 Sep 2023 12:40:00 +0000</pubDate><guid>/event/oss2023/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
+&lt;p&gt;Stay tuned for a hands-on post on how to run your own unikernel using &lt;code&gt;urunc&lt;/code&gt;!&lt;/p&gt;</description></item><item><title>URUNC - A Unikernel Container Runtime</title><link>/event/oss2023/</link><pubDate>Wed, 20 Sep 2023 12:40:00 +0000</pubDate><guid>/event/oss2023/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://github.com/urunc-dev/urunc" target="_blank" rel="noopener"&gt;urunc - Container Runtime Repository&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href="https://github.com/nubificus/bima" target="_blank" rel="noopener"&gt;bima - Unikernel Containerization Tool&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;</description></item><item><title>FOSDEM 2023: Hardware Acceleration for Unikernels - A Status Update of vAccel</title><link>/event/fosdem2023/</link><pubDate>Sun, 05 Feb 2023 14:00:00 +0000</pubDate><guid>/event/fosdem2023/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
+&lt;/ul&gt;</description></item><item><title>Hardware Acceleration for Unikernels - A Status Update of vAccel</title><link>/event/fosdem2023/</link><pubDate>Sun, 05 Feb 2023 14:00:00 +0000</pubDate><guid>/event/fosdem2023/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://docs.vaccel.org/latest/" target="_blank" rel="noopener"&gt;vAccel Documentation&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href="https://github.com/nubificus/vaccel" target="_blank" rel="noopener"&gt;vAccel Core Library Source&lt;/a&gt;&lt;/li&gt;

@@ -2036,7 +2036,7 @@ on sandboxed containers using &lt;a href="https://katacontainers.io" target="_bl
 &lt;a href="https://vaccel.org" target="_blank" rel="noopener"&gt;vAccel&lt;/a&gt;. Take a sneak peek on what we are working on
 &lt;a href="https://docs.vaccel.org/container_runtimes" target="_blank" rel="noopener"&gt;here&lt;/a&gt; and stay tuned for the next
 post where we describe the process to build and run a vAccel-enabled sandboxed
-container on a Jetson Orin!&lt;/p&gt;</description></item><item><title>FOSDEM 2023: Hardware Acceleration for Unikernels - A Status Update of vAccel</title><link>/event/fosdem2023/</link><pubDate>Sun, 05 Feb 2023 14:00:00 +0000</pubDate><guid>/event/fosdem2023/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
+container on a Jetson Orin!&lt;/p&gt;</description></item><item><title>Hardware Acceleration for Unikernels - A Status Update of vAccel</title><link>/event/fosdem2023/</link><pubDate>Sun, 05 Feb 2023 14:00:00 +0000</pubDate><guid>/event/fosdem2023/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://docs.vaccel.org/latest/" target="_blank" rel="noopener"&gt;vAccel Documentation&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href="https://github.com/nubificus/vaccel" target="_blank" rel="noopener"&gt;vAccel Core Library Source&lt;/a&gt;&lt;/li&gt;
@@ -2357,12 +2357,12 @@ Tensil&lt;/a&gt;)
 and use this as a backend for vAccel&amp;rsquo;s Image inference API ;)&lt;/p&gt;
 &lt;p&gt;Give us a shout at &lt;a href="mailto:team@cloudkernels.net"&gt;team@cloudkernels.net&lt;/a&gt; if you liked it, or visit the
 &lt;a href="https://vaccel.org" target="_blank" rel="noopener"&gt;vAccel&lt;/a&gt; website and drop us a note at
-&lt;a href="mailto:vaccel@nubificus.co.uk"&gt;vaccel@nubificus.co.uk&lt;/a&gt; for more info!&lt;/p&gt;</description></item><item><title>DUAC 2022: vAccel - Interoperable Application Hardware Acceleration</title><link>/event/duac2022/</link><pubDate>Thu, 01 Sep 2022 09:00:00 +0000</pubDate><guid>/event/duac2022/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
+&lt;a href="mailto:vaccel@nubificus.co.uk"&gt;vaccel@nubificus.co.uk&lt;/a&gt; for more info!&lt;/p&gt;</description></item><item><title>vAccel - Interoperable Application Hardware Acceleration</title><link>/event/duac2022/</link><pubDate>Thu, 01 Sep 2022 09:00:00 +0000</pubDate><guid>/event/duac2022/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://docs.vaccel.org/latest/" target="_blank" rel="noopener"&gt;vAccel Documentation&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href="https://github.com/nubificus/vaccel" target="_blank" rel="noopener"&gt;vAccel Core Library Source&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href="https://www.youtube.com/watch?v=-_mgEVP4Dnc" target="_blank" rel="noopener"&gt;vAccel Demo&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;</description></item><item><title>OpenInfra Summit 2022: Interoperable Hardware Acceleration for Serverless</title><link>/event/openinfra2022/</link><pubDate>Wed, 08 Jun 2022 09:00:00 +0000</pubDate><guid>/event/openinfra2022/</guid><description/></item><item><title>Hardware acceleration in the Age of Functions (vol II)</title><link>/blog/vaccel_v2/</link><pubDate>Fri, 04 Dec 2020 14:14:04 +0100</pubDate><guid>/blog/vaccel_v2/</guid><description>&lt;p&gt;In our &lt;a href="https://blog.cloudkernels.net/posts/vaccel/" target="_blank" rel="noopener"&gt;previous post&lt;/a&gt; we spoke about the potential solutions for
+&lt;/ul&gt;</description></item><item><title>Interoperable Hardware Acceleration for Serverless</title><link>/event/openinfra2022/</link><pubDate>Wed, 08 Jun 2022 09:00:00 +0000</pubDate><guid>/event/openinfra2022/</guid><description/></item><item><title>Hardware acceleration in the Age of Functions (vol II)</title><link>/blog/vaccel_v2/</link><pubDate>Fri, 04 Dec 2020 14:14:04 +0100</pubDate><guid>/blog/vaccel_v2/</guid><description>&lt;p&gt;In our &lt;a href="https://blog.cloudkernels.net/posts/vaccel/" target="_blank" rel="noopener"&gt;previous post&lt;/a&gt; we spoke about the potential solutions for
 deploying serverless offerings with hardware acceleration support. With the
 increasing adoption of the serverless and FaaS paradigms, providers will need
 to offer some form of hardware acceleration semantics.&lt;/p&gt;

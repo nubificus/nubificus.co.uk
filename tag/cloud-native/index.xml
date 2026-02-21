@@ -2,6 +2,10 @@
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://github.com/urunc-dev/urunc" target="_blank" rel="noopener"&gt;urunc - Container Runtime Repository&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href="https://github.com/nubificus/bunny" target="_blank" rel="noopener"&gt;bunny - Building Tool Repository&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>Beyond TinyML: Balance inference accuracy and latency on MCUs</title><link>/event/fosdem2026-2/</link><pubDate>Sat, 31 Jan 2026 11:50:00 +0100</pubDate><guid>/event/fosdem2026-2/</guid><description>&lt;h2 id="code--resources"&gt;Code &amp;amp; Resources&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://github.com/urunc-dev/urunc" target="_blank" rel="noopener"&gt;urunc - Container Runtime Repository&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/nubificus/bunny" target="_blank" rel="noopener"&gt;bunny - Building Tool Repository&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;</description></item><item><title>WASM Meets Unikernels - Secure and Efficient Cloud-Native Deployments</title><link>/event/fosdem2025-1/</link><pubDate>Sun, 02 Feb 2025 09:00:00 +0000</pubDate><guid>/event/fosdem2025-1/</guid><description>&lt;h2 id="further-reading"&gt;Further Reading&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://blog.cloudkernels.net/posts/wasm-urunc/" target="_blank" rel="noopener"&gt;WASM and urunc Integration&lt;/a&gt;&lt;/li&gt;

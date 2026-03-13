@@ -1,4 +1,179 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Latest Posts | Nubificus</title><link>/blog/</link><atom:link href="/blog/index.xml" rel="self" type="application/rss+xml"/><description>Latest Posts</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Thu, 19 Feb 2026 00:22:12 +0000</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Latest Posts</title><link>/blog/</link></image><item><title>When ETCD Crashes, Check Your Disks First: A Pod CrashLoopBack Debugging Story</title><link>/blog/etcd/</link><pubDate>Thu, 19 Feb 2026 00:22:12 +0000</pubDate><guid>/blog/etcd/</guid><description>&lt;p&gt;Setting up a cloud-edge continuum testbed for a computer vision demo taught us
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Latest Posts | Nubificus</title><link>/blog/</link><atom:link href="/blog/index.xml" rel="self" type="application/rss+xml"/><description>Latest Posts</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>en-us</language><lastBuildDate>Tue, 10 Mar 2026 00:30:00 +0200</lastBuildDate><image><url>/media/logo_hu_866fdf07312224c.png</url><title>Latest Posts</title><link>/blog/</link></image><item><title>Running gVisor on Raspberry Pi 5: A Kernel Configuration Adventure</title><link>/blog/gvisor-rpi5/</link><pubDate>Tue, 10 Mar 2026 00:30:00 +0200</pubDate><guid>/blog/gvisor-rpi5/</guid><description>&lt;p&gt;If you&amp;rsquo;ve ever tried to run &lt;a href="https://gvisor.dev/" target="_blank" rel="noopener"&gt;gVisor&lt;/a&gt; on a Raspberry Pi 5 and hit a cryptic failure, you&amp;rsquo;re not alone. The root cause turns out to be a single kernel configuration option, one that most people have never heard of. Let&amp;rsquo;s dig into what it is, why it matters, and how to fix it.&lt;/p&gt;
+&lt;h2 id="what-is-gvisor-and-why-should-you-care"&gt;What Is gVisor, and Why Should You Care?&lt;/h2&gt;
+&lt;p&gt;Before we get into the weeds of virtual address spaces, a quick refresher on what gVisor actually does.&lt;/p&gt;
+&lt;p&gt;Regular containers (Docker, containerd, etc.) are fast and lightweight, but they share the host kernel. That means a compromised container could potentially attack the host OS, a real concern in multi-tenant or security-sensitive environments. Virtual machines solve this with strong isolation, but at the cost of booting a full separate kernel, pre-allocating memory, and added overhead.&lt;/p&gt;
+&lt;p&gt;gVisor sits in between these two worlds. It implements a Linux kernel entirely in userspace (called the &lt;strong&gt;Sentry&lt;/strong&gt;) and intercepts all syscalls from your container, handling them in its own sandboxed kernel rather than passing them to the host. Your container thinks it&amp;rsquo;s talking to a normal Linux kernel; in reality, it&amp;rsquo;s talking to gVisor. Only a very small, carefully filtered set of host syscalls ever reaches the real kernel. The result is VM-like isolation with container-like efficiency.&lt;/p&gt;
+&lt;figure id="figure-figure-1-gvisor-architecture-the-sentry-intercepts-all-container-syscalls-and-mediates-access-to-the-host-kernel-through-a-minimal-interface-source-cncf"&gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="https://www.cncf.io/wp-content/uploads/2022/09/intro-gvisor-falco-02.png" alt="Figure 1: gVisor architecture: the Sentry intercepts all container syscalls and mediates access to the host kernel through a minimal interface (Source: CNCF)" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;figcaption&gt;
+Figure 1: gVisor architecture: the Sentry intercepts all container syscalls and mediates access to the host kernel through a minimal interface (Source: CNCF)
+&lt;/figcaption&gt;&lt;/figure&gt;
+&lt;p&gt;To put it differently: with KVM or Xen, your workload runs inside a hardware-enforced virtual machine managed by a hypervisor. With gVisor, your workload runs inside a userspace-enforced sandbox managed by a software kernel. No VM overhead, no pre-allocated guest memory, no separate boot sequence, but a very strong security boundary.&lt;/p&gt;
+&lt;p&gt;This makes gVisor a great fit for running untrusted workloads, adding defense-in-depth around sensitive services, or just experimenting with sandboxed containers on edge hardware like a Raspberry Pi 5.&lt;/p&gt;
+&lt;h2 id="a-quick-detour-how-virtual-memory-addressing-works"&gt;A Quick Detour: How Virtual Memory Addressing Works&lt;/h2&gt;
+&lt;p&gt;Now, about that kernel configuration option. To understand why it matters, we need to take a short detour into how virtual memory works on 64-bit ARM.&lt;/p&gt;
+&lt;p&gt;When a process runs on your system, it doesn&amp;rsquo;t work directly with physical RAM addresses. Instead, the CPU and OS cooperate to give each process its own private &lt;strong&gt;virtual address space&lt;/strong&gt;, a range of addresses that the kernel maps to actual physical memory behind the scenes. This is the magic that lets two processes each think they &amp;ldquo;own&amp;rdquo; the same address, and prevents them from stomping on each other&amp;rsquo;s memory.&lt;/p&gt;
+&lt;p&gt;On 64-bit hardware, you technically have 64 bits to play with, which would give you an astronomical 18 exabytes of address space per process. Nobody actually needs that much, so ARM64 Linux uses only a subset of those bits for addressing:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Configuration&lt;/th&gt;
+&lt;th&gt;VA Bits&lt;/th&gt;
+&lt;th&gt;Virtual Address Space&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;VA_BITS_39&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;39 bits&lt;/td&gt;
+&lt;td&gt;512 GB&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;VA_BITS_48&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;48 bits&lt;/td&gt;
+&lt;td&gt;256 TB&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;The number of VA bits also determines how many levels of &lt;strong&gt;page tables&lt;/strong&gt; the kernel needs to maintain. With 39-bit VA, you get 3 levels of page tables. With 48-bit, you get 4 levels. More levels means more bookkeeping overhead, but massively more addressable space.&lt;/p&gt;
+&lt;p&gt;Think of page tables like a filing system. A 3-level filing system (39-bit) is faster to traverse for a small library, but if you need to organize a city&amp;rsquo;s worth of books, you need a 4-level system (48-bit). gVisor is the kind of software that needs to organize a city&amp;rsquo;s worth of books.&lt;/p&gt;
+&lt;h3 id="why-does-gvisor-need-the-extra-bits"&gt;Why Does gVisor Need the Extra Bits?&lt;/h3&gt;
+&lt;p&gt;gVisor runs as a userspace process but it &lt;em&gt;behaves&lt;/em&gt; like a kernel, it has to manage its own internal memory layout, track guest virtual address mappings, maintain page table structures for each sandboxed process, and map its own code alongside all of that.&lt;/p&gt;
+&lt;p&gt;Consider what lives inside the gVisor Sentry&amp;rsquo;s address space:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Its own code and runtime memory&lt;/strong&gt;: the Go runtime, gVisor&amp;rsquo;s kernel emulation code, internal data structures.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Guest memory mappings&lt;/strong&gt;: the sandboxed container&amp;rsquo;s virtual memory, mapped into the Sentry&amp;rsquo;s address space so it can inspect and manage it.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Shadow page tables&lt;/strong&gt;: gVisor maintains its own representation of the guest&amp;rsquo;s page table hierarchy to intercept and validate memory accesses.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Per-goroutine stacks&lt;/strong&gt;: the Go runtime uses many concurrent goroutines to handle syscalls, timers, and I/O, each needing its own stack region.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;With only 39 bits (512 GB) of virtual address space available, the kernel&amp;rsquo;s own structures already eat into a substantial chunk of that budget. What&amp;rsquo;s left for gVisor&amp;rsquo;s internal allocations, guest memory mappings, and page table structures is simply not enough. The sandbox can&amp;rsquo;t set itself up and fails, often with a cryptic &lt;code&gt;cannot allocate memory in static TLS block&lt;/code&gt; panic or a silent exit.&lt;/p&gt;
+&lt;p&gt;With 48 bits (256 TB), there&amp;rsquo;s an enormous amount of headroom. The kernel takes its share, and gVisor has plenty of room to work with.&lt;/p&gt;
+&lt;h3 id="how-does-this-compare-to-kvm-or-xen"&gt;How Does This Compare to KVM or Xen?&lt;/h3&gt;
+&lt;p&gt;This is a fair question to ask: do traditional hypervisors like &lt;strong&gt;KVM&lt;/strong&gt; or &lt;strong&gt;Xen&lt;/strong&gt; have the same requirement?&lt;/p&gt;
+&lt;p&gt;Sort of, but it shows up differently.&lt;/p&gt;
+&lt;p&gt;With &lt;strong&gt;KVM&lt;/strong&gt;, the hypervisor needs to map the entire guest physical memory into the host process&amp;rsquo;s virtual address space. Each vCPU and its memory regions live as &lt;code&gt;mmap&lt;/code&gt;-ed regions in the KVM process. The more RAM your VM has, the more virtual address space the host process needs. On ARM64, KVM itself runs in a hardware-enforced privileged mode (EL2), so it has its own separate address space and is less tightly squeezed, but individual KVM-based VMs still need to fit their memory maps within the host VA range.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Xen&lt;/strong&gt; operates similarly: it runs at the highest privilege level (EL2 on ARM64) as a bare-metal hypervisor and manages guest physical memory directly. Guest kernels run in EL1, and Xen maps guest memory regions independently. Because Xen controls the hardware from the start, it isn&amp;rsquo;t subject to the same userspace VA constraints that gVisor faces.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;gVisor&lt;/strong&gt;, by contrast, is just a userspace process. It must fit everything, its own code, guest memory mappings, shadow page tables, into a single process&amp;rsquo;s virtual address space as seen by the host kernel. This is precisely why the VA size matters so much more for gVisor than for KVM or Xen. It&amp;rsquo;s not running at a privileged hardware level; it&amp;rsquo;s doing kernel-like things in a space that was originally designed for regular applications.&lt;/p&gt;
+&lt;h2 id="the-raspbian-vs-ubuntu-difference"&gt;The Raspbian vs. Ubuntu Difference&lt;/h2&gt;
+&lt;p&gt;Now we arrive at the actual problem on Raspberry Pi 5.&lt;/p&gt;
+&lt;p&gt;When Raspbian (the default OS for the Pi) compiles its kernel, it targets broad compatibility, specifically, it wants to support 32-bit ARMv7 userspace applications running on a 64-bit kernel. Supporting 32-bit applications on a 64-bit kernel means the kernel has to accommodate two different address space models simultaneously, and using 39-bit VA reduces TLB pressure on hardware that wasn&amp;rsquo;t designed for massive address spaces. It&amp;rsquo;s a sensible default for a general-purpose embedded OS, but it comes at a cost for cloud-native software like gVisor.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Raspbian Bookworm (broken for gVisor):&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;CONFIG_ARM64_VA_BITS_39&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;y
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# CONFIG_ARM64_VA_BITS_48 is not set&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Ubuntu&amp;rsquo;s ARM64 kernel, on the other hand, targets server and cloud workloads where a full 48-bit address space is expected:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Ubuntu (works fine with gVisor):&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;CONFIG_ARM64_VA_BITS_48&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;y
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;CONFIG_ARM64_VA_BITS&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;48&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;This is why gVisor works out of the box on Ubuntu for Raspberry Pi, and silently (or not-so-silently) fails on the default Raspbian kernel.&lt;/p&gt;
+&lt;h2 id="checking-your-setup"&gt;Checking Your Setup&lt;/h2&gt;
+&lt;h3 id="verify-your-kernels-va-configuration"&gt;Verify Your Kernel&amp;rsquo;s VA Configuration&lt;/h3&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat /boot/config-&lt;span class="k"&gt;$(&lt;/span&gt;uname -r&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="p"&gt;|&lt;/span&gt; grep CONFIG_ARM64_VA_BITS
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;If you see &lt;code&gt;CONFIG_ARM64_VA_BITS_39=y&lt;/code&gt;, you&amp;rsquo;re running the 39-bit kernel and will have trouble with gVisor. If you see &lt;code&gt;CONFIG_ARM64_VA_BITS_48=y&lt;/code&gt;, you&amp;rsquo;re good to go.&lt;/p&gt;
+&lt;h3 id="install-gvisor-runsc"&gt;Install gVisor (runsc)&lt;/h3&gt;
+&lt;p&gt;If you haven&amp;rsquo;t installed &lt;code&gt;runsc&lt;/code&gt; yet, the quickest way is:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Download and install the latest runsc binary&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;ARCH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;uname -m&lt;span class="k"&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;URL&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;https://storage.googleapis.com/gvisor/releases/release/latest/&lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;ARCH&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;wget &lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;URL&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;/runsc &lt;span class="si"&gt;${&lt;/span&gt;&lt;span class="nv"&gt;URL&lt;/span&gt;&lt;span class="si"&gt;}&lt;/span&gt;/runsc.sha512
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sha512sum -c runsc.sha512
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;chmod a+rx runsc
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo mv runsc /usr/local/bin/
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Then configure containerd to use it by adding to &lt;code&gt;/etc/containerd/config.toml&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-toml" data-lang="toml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nx"&gt;plugins&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;io.containerd.grpc.v1.cri&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;containerd&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;runtimes&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;runsc&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nx"&gt;runtime_type&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;io.containerd.runsc.v1&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Restart containerd:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo systemctl restart containerd
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;Note for K3s users&lt;/strong&gt;: The containerd socket lives at &lt;code&gt;/run/k3s/containerd/containerd.sock&lt;/code&gt; rather than the default path. Keep this in mind when using &lt;code&gt;nerdctl&lt;/code&gt; or other containerd CLI tools, you&amp;rsquo;ll need to pass &lt;code&gt;--address /run/k3s/containerd/containerd.sock&lt;/code&gt; explicitly.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h3 id="trying-to-run-a-container-with-gvisor"&gt;Trying to Run a Container with gVisor&lt;/h3&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo nerdctl --address /run/k3s/containerd/containerd.sock &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; run --rm -it --runtime io.containerd.runsc.v1 &lt;span class="se"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; harbor.nbfc.io/nubificus/urunc/chttp-normal-aarch64:latest
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;On a 39-bit kernel&lt;/strong&gt;, you&amp;rsquo;ll likely see something like:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-gdscript3" data-lang="gdscript3"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;F0303&lt;/span&gt; &lt;span class="o"&gt;...&lt;/span&gt; &lt;span class="n"&gt;loader&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;go&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;...&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="n"&gt;panic&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="n"&gt;cannot&lt;/span&gt; &lt;span class="n"&gt;allocate&lt;/span&gt; &lt;span class="n"&gt;memory&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="k"&gt;static&lt;/span&gt; &lt;span class="n"&gt;TLS&lt;/span&gt; &lt;span class="n"&gt;block&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;goroutine&lt;/span&gt; &lt;span class="mi"&gt;1&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;running&lt;/span&gt;&lt;span class="p"&gt;]:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="o"&gt;...&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;FATAL&lt;/span&gt; &lt;span class="n"&gt;error&lt;/span&gt; &lt;span class="n"&gt;occurred&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt; &lt;span class="n"&gt;Check&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;tmp&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;runsc&lt;/span&gt;&lt;span class="o"&gt;*/&lt;/span&gt;&lt;span class="n"&gt;logs&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt; &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;more&lt;/span&gt; &lt;span class="n"&gt;details&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Or gVisor may fail to initialize its address space at all and exit without a clear error. The underlying cause is always the same: not enough virtual address space.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;On a 48-bit kernel&lt;/strong&gt;, the container starts cleanly:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;WARN[0000] cannot set cgroup manager to &amp;#34;systemd&amp;#34; for runtime &amp;#34;io.containerd.runsc.v1&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Listening on http://localhost:80
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="quick-sanity-check-with-runsc"&gt;Quick Sanity Check with runsc&lt;/h3&gt;
+&lt;p&gt;You can also verify directly without a full container runtime:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Check version&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo runsc --version
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Run a trivial sandboxed command (no container runtime needed)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo runsc --network&lt;span class="o"&gt;=&lt;/span&gt;none &lt;span class="k"&gt;do&lt;/span&gt; /bin/ls /
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;If the last command works and lists the root directory, your setup is healthy. If it panics or hangs, your VA bits are likely the culprit.&lt;/p&gt;
+&lt;h2 id="the-fix-rebuilding-the-kernel-with-va_bits_48"&gt;The Fix: Rebuilding the Kernel with &lt;code&gt;VA_BITS_48&lt;/code&gt;&lt;/h2&gt;
+&lt;p&gt;There&amp;rsquo;s no quick config toggle to change this at runtime, it&amp;rsquo;s a compile-time decision baked into the kernel binary. You need to build a new kernel with 48-bit VA support.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;Fair warning&lt;/strong&gt;: compiling a kernel on the Pi itself takes several hours. Cross-compiling on a faster x86 machine is highly recommended.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h3 id="option-a-build-on-the-pi-the-slow-way"&gt;Option A: Build on the Pi (the slow way)&lt;/h3&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Clone the RPi kernel source&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone --depth&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;1&lt;/span&gt; --branch rpi-6.12.y https://github.com/raspberrypi/linux
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; linux
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Start with the default RPi config&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;KERNEL&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;kernel8
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make bcm2711_defconfig
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Open the config menu and change VA bits&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make menuconfig
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Navigate to: Kernel Features -&amp;gt; Virtual address space size&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Select: 48-bit virtual address space&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Or do it non-interactively:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;scripts/config --disable CONFIG_ARM64_VA_BITS_39
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;scripts/config --enable CONFIG_ARM64_VA_BITS_48
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;scripts/config --set-val CONFIG_ARM64_VA_BITS &lt;span class="m"&gt;48&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Build (grab a coffee, this takes a while)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make -j4 Image modules dtbs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Install&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo make modules_install
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo cp arch/arm64/boot/dts/broadcom/*.dtb /boot/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo cp arch/arm64/boot/dts/overlays/*.dtb* /boot/overlays/
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo cp arch/arm64/boot/Image /boot/&lt;span class="nv"&gt;$KERNEL&lt;/span&gt;.img
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo reboot
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="option-b-cross-compile-on-x86-much-faster"&gt;Option B: Cross-compile on x86 (much faster)&lt;/h3&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Install cross-compiler on your x86 machine&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo apt install gcc-aarch64-linux-gnu
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Clone and configure&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;git clone --depth&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;1&lt;/span&gt; --branch rpi-6.12.y https://github.com/raspberrypi/linux
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nb"&gt;cd&lt;/span&gt; linux
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;KERNEL&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;kernel8
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;ARCH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;arm64 &lt;span class="nv"&gt;CROSS_COMPILE&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;aarch64-linux-gnu- make bcm2711_defconfig
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Set VA_BITS_48&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;scripts/config --disable CONFIG_ARM64_VA_BITS_39
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;scripts/config --enable CONFIG_ARM64_VA_BITS_48
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;scripts/config --set-val CONFIG_ARM64_VA_BITS &lt;span class="m"&gt;48&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Build (parallel with all your cores)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nv"&gt;ARCH&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;arm64 &lt;span class="nv"&gt;CROSS_COMPILE&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;aarch64-linux-gnu- make -j&lt;span class="k"&gt;$(&lt;/span&gt;nproc&lt;span class="k"&gt;)&lt;/span&gt; Image modules dtbs
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Copy the output to your Pi and install there&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="verifying-the-new-kernel-after-reboot"&gt;Verifying the New Kernel After Reboot&lt;/h3&gt;
+&lt;p&gt;Once you&amp;rsquo;ve rebooted into the new kernel:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Confirm the new VA configuration&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;cat /boot/config-&lt;span class="k"&gt;$(&lt;/span&gt;uname -r&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="p"&gt;|&lt;/span&gt; grep CONFIG_ARM64_VA_BITS
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Should show: CONFIG_ARM64_VA_BITS_48=y&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c1"&gt;# Re-run your gVisor test&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;sudo runsc --network&lt;span class="o"&gt;=&lt;/span&gt;none &lt;span class="k"&gt;do&lt;/span&gt; /bin/ls /
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;The &lt;code&gt;CONFIG_ARM64_VA_BITS&lt;/code&gt; kernel option might sound obscure, but it has a surprisingly large impact on what software you can run. gVisor needs 48-bit virtual addresses because it operates as a full userspace kernel, managing its own memory layout, page tables, and guest mappings all within a single process. With only 39 bits (512 GB) of virtual address space, there simply isn&amp;rsquo;t room to do that job.&lt;/p&gt;
+&lt;p&gt;This is a fundamentally different constraint from traditional hypervisors like KVM or Xen, which run at privileged hardware levels and manage memory through separate mechanisms. gVisor is doing something more audacious: emulating an entire kernel inside a regular process, which means it lives and dies by the same address space limits as any other userspace application.&lt;/p&gt;
+&lt;p&gt;Raspbian&amp;rsquo;s choice of 39-bit VA is a reasonable tradeoff for a general-purpose, 32-bit-compatible embedded OS kernel. But if you&amp;rsquo;re running gVisor, K3s, or other cloud-native tooling on your Pi 5, you&amp;rsquo;ll want to rebuild with 48-bit VA, or switch to Ubuntu for Pi, where this is already taken care of.&lt;/p&gt;
+&lt;p&gt;The Raspberry Pi 5 is rapidly becoming a preferred platform for edge computing experiments. Understanding kernel-level constraints like VA bits will give you an edge when building secure, scalable systems on resource-constrained hardware: this fix isn&amp;rsquo;t just about &amp;ldquo;making gVisor work&amp;rdquo;, it&amp;rsquo;s about unlocking the full potential of edge devices for next-generation applications.&lt;/p&gt;</description></item><item><title>When ETCD Crashes, Check Your Disks First: A Pod CrashLoopBack Debugging Story</title><link>/blog/etcd/</link><pubDate>Thu, 19 Feb 2026 00:22:12 +0000</pubDate><guid>/blog/etcd/</guid><description>&lt;p&gt;Setting up a cloud-edge continuum testbed for a computer vision demo taught us
 something fundamental about distributed systems: &lt;code&gt;etcd&lt;/code&gt; doesn&amp;rsquo;t forgive slow
 storage.&lt;/p&gt;
 &lt;h2 id="the-demo-setup"&gt;The Demo Setup&lt;/h2&gt;

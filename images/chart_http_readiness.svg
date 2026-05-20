@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 660" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="1040" height="660" fill="#ffffff"/>
+<text x="520.0" y="44" text-anchor="middle" font-size="26" font-weight="700" fill="#0f172a" letter-spacing="0.2">HTTP readiness latency by runtime</text>
+<text x="520.0" y="72" text-anchor="middle" font-size="17" fill="#475569">Deployment → first successful HTTP response, then first response → all pods responding</text>
+<rect x="249.0" y="96" width="18" height="18" fill="#1e3a8a"/>
+<text x="277.0" y="111" font-size="17" fill="#0f172a">Deploy → first HTTP reply</text>
+<rect x="538.0" y="96" width="18" height="18" fill="#6d28d9"/>
+<text x="566.0" y="111" font-size="17" fill="#0f172a">First reply → all replies</text>
+<rect x="290" y="140" width="560" height="412" fill="none" stroke="#e2e8f0" stroke-width="1"/>
+<line x1="290.00" y1="140" x2="290.00" y2="552" stroke="#e2e8f0" stroke-width="1"/>
+<text x="290.00" y="578" text-anchor="middle" font-size="16" fill="#64748b">0</text>
+<line x1="360.00" y1="140" x2="360.00" y2="552" stroke="#e2e8f0" stroke-width="1"/>
+<text x="360.00" y="578" text-anchor="middle" font-size="16" fill="#64748b">20</text>
+<line x1="430.00" y1="140" x2="430.00" y2="552" stroke="#e2e8f0" stroke-width="1"/>
+<text x="430.00" y="578" text-anchor="middle" font-size="16" fill="#64748b">40</text>
+<line x1="500.00" y1="140" x2="500.00" y2="552" stroke="#e2e8f0" stroke-width="1"/>
+<text x="500.00" y="578" text-anchor="middle" font-size="16" fill="#64748b">60</text>
+<line x1="570.00" y1="140" x2="570.00" y2="552" stroke="#e2e8f0" stroke-width="1"/>
+<text x="570.00" y="578" text-anchor="middle" font-size="16" fill="#64748b">80</text>
+<line x1="640.00" y1="140" x2="640.00" y2="552" stroke="#e2e8f0" stroke-width="1"/>
+<text x="640.00" y="578" text-anchor="middle" font-size="16" fill="#64748b">100</text>
+<line x1="710.00" y1="140" x2="710.00" y2="552" stroke="#e2e8f0" stroke-width="1"/>
+<text x="710.00" y="578" text-anchor="middle" font-size="16" fill="#64748b">120</text>
+<line x1="780.00" y1="140" x2="780.00" y2="552" stroke="#e2e8f0" stroke-width="1"/>
+<text x="780.00" y="578" text-anchor="middle" font-size="16" fill="#64748b">140</text>
+<line x1="850.00" y1="140" x2="850.00" y2="552" stroke="#e2e8f0" stroke-width="1"/>
+<text x="850.00" y="578" text-anchor="middle" font-size="16" fill="#64748b">160</text>
+<line x1="290" y1="552" x2="850" y2="552" stroke="#94a3b8" stroke-width="1"/>
+<line x1="290" y1="140" x2="290" y2="552" stroke="#94a3b8" stroke-width="1"/>
+<text x="570.0" y="614" text-anchor="middle" font-size="16" fill="#334155">Seconds</text>
+<text x="42" y="346.0" text-anchor="middle" font-size="16" fill="#334155" transform="rotate(-90 42 346.0)">Runtime / variant</text>
+<text x="276" y="164.7" text-anchor="end" font-size="15" fill="#0f172a">runc</text>
+<rect x="290.00" y="144.73" width="35.00" height="28" fill="#1e3a8a"/>
+<rect x="325.00" y="144.73" width="75.25" height="28" fill="#6d28d9"/>
+<text x="307.50" y="164.7" text-anchor="middle" font-size="15" fill="#ffffff">10.0s</text>
+<text x="362.62" y="164.7" text-anchor="middle" font-size="15" fill="#ffffff">21.5s</text>
+<text x="408.25" y="164.7" font-size="15" font-weight="700" fill="#0f172a">31.5s</text>
+<text x="276" y="202.2" text-anchor="end" font-size="15" fill="#0f172a">runsc (gVisor)</text>
+<rect x="290.00" y="182.18" width="59.50" height="28" fill="#1e3a8a"/>
+<rect x="349.50" y="182.18" width="199.50" height="28" fill="#6d28d9"/>
+<text x="319.75" y="202.2" text-anchor="middle" font-size="15" fill="#ffffff">17.0s</text>
+<text x="449.25" y="202.2" text-anchor="middle" font-size="15" fill="#ffffff">57.0s</text>
+<text x="557.00" y="202.2" font-size="15" font-weight="700" fill="#0f172a">74.0s</text>
+<text x="276" y="239.6" text-anchor="end" font-size="15" fill="#0f172a">kata-qemu</text>
+<rect x="290.00" y="219.64" width="106.75" height="28" fill="#1e3a8a"/>
+<rect x="396.75" y="219.64" width="28.00" height="28" fill="#6d28d9"/>
+<text x="343.38" y="239.6" text-anchor="middle" font-size="15" fill="#ffffff">30.5s</text>
+<text x="432.75" y="239.6" font-size="15" font-weight="700" fill="#0f172a">39.0s</text>
+<text x="276" y="277.1" text-anchor="end" font-size="15" fill="#0f172a">kata-fc</text>
+<rect x="290.00" y="257.09" width="117.25" height="28" fill="#1e3a8a"/>
+<rect x="407.25" y="257.09" width="420.00" height="28" fill="#6d28d9"/>
+<text x="348.62" y="277.1" text-anchor="middle" font-size="15" fill="#ffffff">33.5s</text>
+<text x="617.25" y="277.1" text-anchor="middle" font-size="15" fill="#ffffff">120.0s</text>
+<text x="835.25" y="277.1" font-size="15" font-weight="700" fill="#0f172a">153.5s</text>
+<text x="276" y="314.5" text-anchor="end" font-size="15" fill="#0f172a">urunc/qemu-unikraft</text>
+<rect x="290.00" y="294.55" width="47.25" height="28" fill="#1e3a8a"/>
+<rect x="337.25" y="294.55" width="57.75" height="28" fill="#6d28d9"/>
+<text x="313.62" y="314.5" text-anchor="middle" font-size="15" fill="#ffffff">13.5s</text>
+<text x="366.12" y="314.5" text-anchor="middle" font-size="15" fill="#ffffff">16.5s</text>
+<text x="403.00" y="314.5" font-size="15" font-weight="700" fill="#0f172a">29.5s</text>
+<text x="276" y="352.0" text-anchor="end" font-size="15" fill="#0f172a">urunc/qemu-linux</text>
+<rect x="290.00" y="332.00" width="56.00" height="28" fill="#1e3a8a"/>
+<rect x="346.00" y="332.00" width="70.00" height="28" fill="#6d28d9"/>
+<text x="318.00" y="352.0" text-anchor="middle" font-size="15" fill="#ffffff">16.0s</text>
+<text x="381.00" y="352.0" text-anchor="middle" font-size="15" fill="#ffffff">20.0s</text>
+<text x="424.00" y="352.0" font-size="15" font-weight="700" fill="#0f172a">36.0s</text>
+<text x="276" y="389.5" text-anchor="end" font-size="15" fill="#0f172a">urunc/fc-linux</text>
+<rect x="290.00" y="369.45" width="71.75" height="28" fill="#1e3a8a"/>
+<rect x="361.75" y="369.45" width="49.00" height="28" fill="#6d28d9"/>
+<text x="325.88" y="389.5" text-anchor="middle" font-size="15" fill="#ffffff">20.5s</text>
+<text x="386.25" y="389.5" text-anchor="middle" font-size="15" fill="#ffffff">14.0s</text>
+<text x="418.75" y="389.5" font-size="15" font-weight="700" fill="#0f172a">34.5s</text>
+<text x="276" y="426.9" text-anchor="end" font-size="15" fill="#0f172a">urunc/spt-mirage</text>
+<rect x="290.00" y="406.91" width="52.50" height="28" fill="#1e3a8a"/>
+<rect x="342.50" y="406.91" width="49.00" height="28" fill="#6d28d9"/>
+<text x="316.25" y="426.9" text-anchor="middle" font-size="15" fill="#ffffff">15.0s</text>
+<text x="367.00" y="426.9" text-anchor="middle" font-size="15" fill="#ffffff">14.0s</text>
+<text x="399.50" y="426.9" font-size="15" font-weight="700" fill="#0f172a">29.0s</text>
+<text x="276" y="464.4" text-anchor="end" font-size="15" fill="#0f172a">urunc/hvt-mirage</text>
+<rect x="290.00" y="444.36" width="66.50" height="28" fill="#1e3a8a"/>
+<rect x="356.50" y="444.36" width="35.00" height="28" fill="#6d28d9"/>
+<text x="323.25" y="464.4" text-anchor="middle" font-size="15" fill="#ffffff">19.0s</text>
+<text x="374.00" y="464.4" text-anchor="middle" font-size="15" fill="#ffffff">10.0s</text>
+<text x="399.50" y="464.4" font-size="15" font-weight="700" fill="#0f172a">29.0s</text>
+<text x="276" y="501.8" text-anchor="end" font-size="15" fill="#0f172a">urunc/spt-rumprun</text>
+<rect x="290.00" y="481.82" width="64.75" height="28" fill="#1e3a8a"/>
+<rect x="354.75" y="481.82" width="52.50" height="28" fill="#6d28d9"/>
+<text x="322.38" y="501.8" text-anchor="middle" font-size="15" fill="#ffffff">18.5s</text>
+<text x="381.00" y="501.8" text-anchor="middle" font-size="15" fill="#ffffff">15.0s</text>
+<text x="415.25" y="501.8" font-size="15" font-weight="700" fill="#0f172a">33.5s</text>
+<text x="276" y="539.3" text-anchor="end" font-size="15" fill="#0f172a">urunc/hvt-rumprun</text>
+<rect x="290.00" y="519.27" width="64.75" height="28" fill="#1e3a8a"/>
+<rect x="354.75" y="519.27" width="59.50" height="28" fill="#6d28d9"/>
+<text x="322.38" y="539.3" text-anchor="middle" font-size="15" fill="#ffffff">18.5s</text>
+<text x="384.50" y="539.3" text-anchor="middle" font-size="15" fill="#ffffff">17.0s</text>
+<text x="422.25" y="539.3" font-size="15" font-weight="700" fill="#0f172a">35.0s</text>
+</svg>

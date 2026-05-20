@@ -859,7 +859,383 @@ and interoperability with containerised and unikernel-based workloads.
 &lt;a href="https://docs.vaccel.org/" target="_blank" rel="noopener" class="sol-cta-btn va"&gt;
 &lt;i class="fas fa-external-link-alt"&gt;&lt;/i&gt; Visit vAccel Docs
 &lt;/a&gt;
-&lt;/div&gt;</description></item><item><title>EMPYREAN</title><link>/projects/empyrean/</link><pubDate>Fri, 01 Jan 2027 00:00:00 +0000</pubDate><guid>/projects/empyrean/</guid><description>&lt;p&gt;&lt;strong&gt;NUBIS contribution:&lt;/strong&gt; NUBIS develops the secure and efficient interoperable execution of workloads across the IoT-Edge-Cloud continuum.&lt;/p&gt;</description></item><item><title>TEXTaiLES</title><link>/projects/textailes/</link><pubDate>Fri, 01 Jan 2027 00:00:00 +0000</pubDate><guid>/projects/textailes/</guid><description>&lt;p&gt;&lt;strong&gt;NUBIS contribution:&lt;/strong&gt; As WP6 leader, NUBIS orchestrates the integration of all TexTailes digital tools into a coherent portal. Additionally, NUBIS leads the API integration effort with ECHOES and ECCCH.&lt;/p&gt;</description></item><item><title>AMBITIOUS</title><link>/projects/ambitious/</link><pubDate>Tue, 01 Dec 2026 00:00:00 +0000</pubDate><guid>/projects/ambitious/</guid><description>&lt;p&gt;&lt;strong&gt;NUBIS contribution:&lt;/strong&gt; NUBIS contributes expertise in cloud-native computing and edge infrastructure, supporting the deployment of advanced computing continuum solutions across heterogeneous 5G testbeds.&lt;/p&gt;</description></item><item><title>Running gVisor on Raspberry Pi 5: A Kernel Configuration Adventure</title><link>/blog/gvisor-rpi5/</link><pubDate>Tue, 10 Mar 2026 00:30:00 +0200</pubDate><guid>/blog/gvisor-rpi5/</guid><description>&lt;p&gt;If you&amp;rsquo;ve ever tried to run &lt;a href="https://gvisor.dev/" target="_blank" rel="noopener"&gt;gVisor&lt;/a&gt; on a Raspberry Pi 5 and hit a cryptic failure, you&amp;rsquo;re not alone. The root cause turns out to be a single kernel configuration option, one that most people have never heard of. Let&amp;rsquo;s dig into what it is, why it matters, and how to fix it.&lt;/p&gt;
+&lt;/div&gt;</description></item><item><title>EMPYREAN</title><link>/projects/empyrean/</link><pubDate>Fri, 01 Jan 2027 00:00:00 +0000</pubDate><guid>/projects/empyrean/</guid><description>&lt;p&gt;&lt;strong&gt;NUBIS contribution:&lt;/strong&gt; NUBIS develops the secure and efficient interoperable execution of workloads across the IoT-Edge-Cloud continuum.&lt;/p&gt;</description></item><item><title>TEXTaiLES</title><link>/projects/textailes/</link><pubDate>Fri, 01 Jan 2027 00:00:00 +0000</pubDate><guid>/projects/textailes/</guid><description>&lt;p&gt;&lt;strong&gt;NUBIS contribution:&lt;/strong&gt; As WP6 leader, NUBIS orchestrates the integration of all TexTailes digital tools into a coherent portal. Additionally, NUBIS leads the API integration effort with ECHOES and ECCCH.&lt;/p&gt;</description></item><item><title>AMBITIOUS</title><link>/projects/ambitious/</link><pubDate>Tue, 01 Dec 2026 00:00:00 +0000</pubDate><guid>/projects/ambitious/</guid><description>&lt;p&gt;&lt;strong&gt;NUBIS contribution:&lt;/strong&gt; NUBIS contributes expertise in cloud-native computing and edge infrastructure, supporting the deployment of advanced computing continuum solutions across heterogeneous 5G testbeds.&lt;/p&gt;</description></item><item><title>How many sandboxed pods can fit in a Pi?</title><link>/blog/runtime_benchmarking_rpi/</link><pubDate>Wed, 20 May 2026 00:00:00 +0000</pubDate><guid>/blog/runtime_benchmarking_rpi/</guid><description>&lt;p&gt;The rationale of edge computing is simple: instead of moving data to
+centralized data centers, computation is brought closer to where data is
+produced. In practice, this means deploying software on hardware that lives in
+factory floors, retail stores, cell towers, and remote infrastructure.&lt;/p&gt;
+&lt;p&gt;However, these systems are no longer single-purpose. Modern edge nodes
+host multiple workloads from different sources: a computer vision model
+from one vendor, a telemetry pipeline from another, a customer-facing
+microservice maintained by a third team, etc. On top of that, the AI wave
+introduces new risks: code with subtle vulnerabilities, supply chain attacks,
+and AI-driven exploitation techniques.&lt;/p&gt;
+&lt;p&gt;As a result, even systems that appear single-tenant behave in practice like
+multi-tenant environments. Workloads with different trust assumptions coexist on
+the same node, making isolation a baseline requirement rather than an optional
+feature.&lt;/p&gt;
+&lt;p&gt;At the same time, edge devices operate under strict resource constraints,
+typically limited to single-digit GBs of RAM and few CPU cores, where every megabyte
+consumed by isolation mechanisms directly reduces capacity for actual workloads.
+Traditional cloud-centric assumptions about isolation overhead collapse in this
+environment; a technique adding 100MB per pod might be acceptable in a data
+center but becomes prohibitive when the entire node has only 8GB available.&lt;/p&gt;
+&lt;p&gt;This raises a practical question that cloud-based benchmarks cannot answer: how
+do sandbox runtimes perform on resource-constrained edge hardware? What is the
+real cost of strong isolation when resources are limited?&lt;/p&gt;
+&lt;p&gt;In this post, we answer this question empirically. We evaluate
+multiple sandbox runtimes on a humble Raspberry Pi 5, measuring
+the impact on startup latency, scalability, and resource efficiency.&lt;/p&gt;
+&lt;img src="/images/clown-car.png" alt="Pods in a Pi" style="width:50%; max-width:800px; display:block; margin:auto;" /&gt;
+&lt;p&gt;&lt;em&gt;Figure 1: Edge environments often host multiple workloads on resource-constrained hardware. We evaluate the overhead of different runtime isolation approaches on a Raspberry Pi 5 node.&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="the-container-runtimes-under-evaluation"&gt;The container runtimes under evaluation&lt;/h2&gt;
+&lt;p&gt;In this small experiment, we evaluate four different container runtimes: a)
+runc, b) gVisor, c) Kata Containers and d) urunc.&lt;/p&gt;
+&lt;h3 id="runc-the-standard-container-runtime"&gt;runc: the standard container runtime&lt;/h3&gt;
+&lt;p&gt;A typical container is just a Linux process running in a different &amp;ldquo;view&amp;rdquo; of the
+host environment. The mechanisms that facilitate this separation are Linux
+kernel features, such as namespaces, cgroups access control mechanisms, etc.
+While this approach can be as lightweight as a normal Linux process, it has the
+drawback of sharing the same host kernel. Therefore, a container escape can have
+extremely unpleasant results, such as compromising the entire node, other
+containers and many more.&lt;/p&gt;
+&lt;h3 id="gvisor-a-userspace-kernel-as-an-intermediate-layer"&gt;gVisor: a userspace kernel as an intermediate layer&lt;/h3&gt;
+&lt;p&gt;In an effort to reduce the exposure of the host kernel to the containers, gVisor
+intercepts all system calls performed by the container and tries to handle as
+many system calls as possible in a userspace kernel. The ones that cannot be handled,
+for instance I/O, are redirected to the host kernel.&lt;/p&gt;
+&lt;p&gt;This model reduces the exposure of the host kernel to the containerized
+workload, but it adds extra overhead due to the userspace
+kernel, and the additional components result in extra resource
+utilization.&lt;/p&gt;
+&lt;h3 id="kata-containers-containers-inside-microvms"&gt;Kata Containers: containers inside microVMs&lt;/h3&gt;
+&lt;p&gt;Kata Containers go even further than gVisor and execute a microVM inside which
+the container will execute. Kata Containers integrate the lifecycle management
+of the microVM with the container and hence reduce the burden from the user.
+The use of Virtual Machines has been the gold standard for isolation in the
+same host. A workload running inside a VM does not interact at all with the host
+kernel. Instead, a guest kernel serves all system calls and interacts with a VMM
+for I/O.&lt;/p&gt;
+&lt;p&gt;However, Kata Containers execute a microVM, which, even if much smaller than
+traditional VMs, it still consumes a lot of resources and adds extra overhead.
+Furthermore, Kata Containers require specific features from the guest kernel and
+an agent running inside the microVM to manage the containers inside it.&lt;/p&gt;
+&lt;h3 id="urunc-the-container-runtime-for-unikernels-and-single-application-kernels"&gt;urunc: the container runtime for unikernels and single application kernels&lt;/h3&gt;
+&lt;p&gt;Unikernels are single address space machine images specialized for a single
+application. They sound like a good fit for resource constrained environments, since
+they add little overhead and require fewer resources. However, deploying
+unikernels was not straightforward; until the introduction of urunc,
+a container runtime which is able to manage unikernels as typical containers.
+Apart from unikernels, urunc also supports single application kernels, which
+are just applications running on top of a generic kernel, like Linux or BSDs.
+However, urunc does not have any requirement from the kernel and does not
+require any component running inside the guest. Therefore, the kernel can be
+extremely small and inside the VM running one and only one application.&lt;/p&gt;
+&lt;p&gt;Yet, the extra layers of the VMM or software-based sandbox add extra
+overhead and require additional resources. Or maybe not.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/runtimes_comparison.svg" alt="Runtime architecture comparison" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;em&gt;Figure 2: Runtime architecture comparison. runc shares the host kernel, gVisor interposes a userspace kernel, Kata Containers runs a full guest kernel inside a microVM, and urunc runs a unikernel or single application kernel with no agent or guest OS overhead.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;Let&amp;rsquo;s find out!&lt;/p&gt;
+&lt;h2 id="experimental-setup"&gt;Experimental setup&lt;/h2&gt;
+&lt;p&gt;All experiments were conducted on a Raspberry Pi 5 8GB RAM, running a
+single-node K3s cluster, with flannel as CNI. The RPi5 hosts both the
+Kubernetes control plane and the workloads. Since we only want to measure the
+overhead the container runtime adds, we use a simple HTTP server, which
+just responds to GET requests with 200 OK.&lt;/p&gt;
+&lt;p&gt;The server is written in C and built statically, creating a single binary
+container image able to execute on top of runc, gVisor and Kata. For the
+urunc Linux guest equivalent, the image also contains a minimal Linux kernel
+and the application is placed inside initrd. The same C HTTP application is
+also built as a unikernel over Unikraft and Rumprun while for MirageOS we create
+an equivalent OCaml version of the HTTP server.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/rpi_evaluation_experminet_setup.svg" alt="Experimental setup" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;em&gt;Figure 3: Experimental setup of the Raspberry Pi 5 runtime benchmarking environment. Workload pods are deployed using a different runtimeClass for each run, while blackbox exporter probes HTTP availability.&lt;/em&gt;&lt;/p&gt;
+&lt;h3 id="container-runtime-versions-and-configuration"&gt;Container runtime versions and configuration&lt;/h3&gt;
+&lt;p&gt;The versions used for each container runtime are the following ones:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;K3s: v1.35.4+k3s1 (5dc8fe68)&lt;/li&gt;
+&lt;li&gt;runc: 1.1.5+ds1-1+deb12u1&lt;/li&gt;
+&lt;li&gt;gVisor: release-20260223.0&lt;/li&gt;
+&lt;li&gt;Kata-QEMU: 3.19.1, commit: acae4480ac84701d7354e679714cc9d084b37f44&lt;/li&gt;
+&lt;li&gt;Kata-Firecracker: 3.28.0, commit: fa6a26c04d6153db6861b20556756294c373f1e4&lt;/li&gt;
+&lt;li&gt;urunc: 0.7.0-f5e67fb&lt;/li&gt;
+&lt;/ul&gt;
+&lt;blockquote&gt;
+&lt;p&gt;NOTE: In Kata Containers, we experienced frequent pod restarts when using Firecracker
+in v3.19.1. We therefore updated to v3.28.0 (the Rust-based runtime), which was
+more stable with Firecracker. However, this newer version was unstable with QEMU,
+so we used v3.19.1 for QEMU and v3.28.0 for Firecracker.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;For urunc the monitors under evaluation had the following versions:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;QEMU: 10.2.1 (kata-static)&lt;/li&gt;
+&lt;li&gt;Firecracker: v1.7.0&lt;/li&gt;
+&lt;li&gt;Solo5-hvt: version v0.9.0&lt;/li&gt;
+&lt;li&gt;Solo5-spt: version v0.9.0&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;In all container runtimes the snapshotter in use was overlayfs except for Kata
+Firecracker version which required a block-based snapshotter (used devmapper).&lt;/p&gt;
+&lt;p&gt;The configuration of the runtimes was the default one, except for the following changes:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;In gVisor, we set KVM as the platform&lt;/li&gt;
+&lt;li&gt;In Kata QEMU, we set &lt;code&gt;default_memory&lt;/code&gt; as 256, 1 in &lt;code&gt;memory_slots&lt;/code&gt; and 256 as the &lt;code&gt;default_maxmemory&lt;/code&gt;. Still, Kata was assigning the following memory in the VM &lt;code&gt;-m 256M,slots=1,maxmem=1280M&lt;/code&gt;. We were unable to have a working Kata Qemu version with less memory.&lt;/li&gt;
+&lt;li&gt;In Kata Firecracker, we set &lt;code&gt;default_memory&lt;/code&gt; as 128, 10 in &lt;code&gt;memory_slots&lt;/code&gt; and 128 as the &lt;code&gt;default_maxmemory&lt;/code&gt;. We were unable to have a working Kata Firecracker version with less memory.&lt;/li&gt;
+&lt;li&gt;In urunc, we set the default memory for each monitor as 16 MiB. Therefore, unless overridden by the pod deployment resource configuration, the sandbox will be allocated 16 MiB of memory.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;blockquote&gt;
+&lt;p&gt;NOTE: All configurations are available in the repository.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h3 id="methodology"&gt;Methodology&lt;/h3&gt;
+&lt;p&gt;The experiment setup is straightforward. We deploy the same application across all container runtimes while varying the number of replicas.&lt;/p&gt;
+&lt;p&gt;A Python benchmarking script polls the Kubernetes API to track pod state
+transitions (Running and Ready conditions) and in the same loop, it also polls
+the Blackbox service to get the HTTP availability of the pods. By combining
+these two sources, we were able to compare:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;When pods were reported as Ready and Running by K3s&lt;/li&gt;
+&lt;li&gt;When they actually responded successfully to HTTP requests&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;All timings are measured relative to deployment start and recorded &lt;strong&gt;every 0.5
+seconds&lt;/strong&gt;. This means the timelines show overall trends and differences between
+runtimes, not exact sub-second timings. Each timestamp reflects when an event
+was first observed within that 0.5-second window.&lt;/p&gt;
+&lt;p&gt;For readiness, the script polls the Kubernetes API and counts pods that are
+&lt;code&gt;Running&lt;/code&gt; and &lt;code&gt;Ready=True&lt;/code&gt;. For HTTP availability, we use blackbox probe results
+grouped in the same intervals. Kubernetes readiness reflects the system&amp;rsquo;s
+internal state, while blackbox probing reflects externally observable service
+availability. These are related, but not identical.&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="evaluation-and-results"&gt;Evaluation and Results&lt;/h2&gt;
+&lt;h3 id="1-pod-capacity-scalability"&gt;1. Pod capacity (scalability)&lt;/h3&gt;
+&lt;p&gt;In this experiment, we measure the maximum number of pods that can be deployed
+concurrently for each runtime.&lt;/p&gt;
+&lt;p&gt;For each configuration, we gradually increased the number of replicas until the
+system could no longer schedule additional pods reliably. In practice, this
+limit is determined by memory consumption and runtime overhead on the Raspberry
+Pi.&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Runtime&lt;/th&gt;
+&lt;th&gt;Variant&lt;/th&gt;
+&lt;th&gt;Max Pods Supported&lt;/th&gt;
+&lt;th&gt;Pods Used&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;runc&lt;/td&gt;
+&lt;td&gt;-&lt;/td&gt;
+&lt;td&gt;487*&lt;/td&gt;
+&lt;td&gt;100&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;kata&lt;/td&gt;
+&lt;td&gt;qemu&lt;/td&gt;
+&lt;td&gt;21&lt;/td&gt;
+&lt;td&gt;21&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;kata&lt;/td&gt;
+&lt;td&gt;fc&lt;/td&gt;
+&lt;td&gt;65&lt;/td&gt;
+&lt;td&gt;65&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;gVisor&lt;/td&gt;
+&lt;td&gt;-&lt;/td&gt;
+&lt;td&gt;176&lt;/td&gt;
+&lt;td&gt;100&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;urunc&lt;/td&gt;
+&lt;td&gt;unikraft/qemu&lt;/td&gt;
+&lt;td&gt;265*&lt;/td&gt;
+&lt;td&gt;100&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;urunc&lt;/td&gt;
+&lt;td&gt;linux/qemu&lt;/td&gt;
+&lt;td&gt;165&lt;/td&gt;
+&lt;td&gt;100&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;urunc&lt;/td&gt;
+&lt;td&gt;linux/fc&lt;/td&gt;
+&lt;td&gt;210&lt;/td&gt;
+&lt;td&gt;100&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;urunc&lt;/td&gt;
+&lt;td&gt;rumprun/spt&lt;/td&gt;
+&lt;td&gt;430*&lt;/td&gt;
+&lt;td&gt;100&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;urunc&lt;/td&gt;
+&lt;td&gt;rumprun/hvt&lt;/td&gt;
+&lt;td&gt;380*&lt;/td&gt;
+&lt;td&gt;100&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;urunc&lt;/td&gt;
+&lt;td&gt;mirage/spt&lt;/td&gt;
+&lt;td&gt;330*&lt;/td&gt;
+&lt;td&gt;100&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;urunc&lt;/td&gt;
+&lt;td&gt;mirage/hvt&lt;/td&gt;
+&lt;td&gt;330*&lt;/td&gt;
+&lt;td&gt;100&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;*&lt;/strong&gt; We are able to deploy even more pods if we further decrease the memory to less than 16 MiB.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/absolute_relative_pods_plot.svg" alt="Per-pod overhead by runtime" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;em&gt;Figure 4: Per-pod overhead relative to runc (1.0x baseline) on an 8GB Raspberry Pi 5. Longer bars mean more overhead per pod and fewer pods on the node.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;The overhead breakdown explains the density differences. Since Kata Containers
+require at least 256MiB and 128MiB of memory for QEMU and Firecracker VMs
+respectively, they incur the highest per-pod cost, with Kata QEMU reaching
+23.2x the overhead of runc. while Kata Firecracker is lighter at 7.5x overhead.
+gVisor lands at 2.8x, but its userspace kernel and I/O proxy still add up. The
+urunc unikernel variants tell a different story: rumprun/spt sits at just 1.1x
+overhead (430 pods), and even MirageOS and Unikraft stay between 1.5-1.8x. Even
+with Linux as a guest kernel and with no in-VM components, urunc manages to
+outperform gVisor using Firecracker as a VMM 2.3x and stay quite close with
+QEMU as a VMM, while still providing a dedicated kernel per pod.&lt;/p&gt;
+&lt;p&gt;runc serves as the baseline, achieving the highest pod density, capable of
+executing more than 487 pods. However, this comes at the cost of sharing the
+host kernel across all workloads; a single kernel vulnerability can
+compromise every pod on the node.&lt;/p&gt;
+&lt;h3 id="2-readiness-latency-kubernetes-view"&gt;2. Readiness latency (Kubernetes view)&lt;/h3&gt;
+&lt;p&gt;In this experiment, we deploy 100 pods over each container runtime and
+variants, but for Kata Containers we limit the pods to the max pods found in
+the density experiment before. Then, we track pod readiness by polling the
+Kubernetes API and counting pods that are both in the &lt;code&gt;Running&lt;/code&gt; phase and have
+the &lt;code&gt;Ready=True&lt;/code&gt; condition.&lt;/p&gt;
+&lt;p&gt;From this, we derive when the first pod becomes Ready, when all pods become Ready
+and how pods become ready for each container runtime and variants.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/chart_pod_readiness.svg" alt="Ready latency breakdown (stacked bar)" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;em&gt;Figure 5: Readiness latency split into time-to-first-ready and first-to-all-ready intervals.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;Despite providing VM-level isolation, urunc matches or even outperforms runc in
+time-to-all-ready for several variants. This means that on edge hardware,
+strong isolation does not have to come at a startup penalty. gVisor and Kata
+Containers, on the other hand, pay a significant cost: their sandbox overhead
+stretches the total deployment time considerably, which matters when pods need
+to scale quickly in response to demand.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/chart_pods_ready_timeline.svg" alt="Pods Ready over time" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;em&gt;Figure 6: Number of Ready replicas over time, sampled every 0.5 seconds.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;Up to around 20 pods, most runtimes behave similarly, There is enough
+headroom to absorb the per-pod overhead. Beyond that point, the cost of each
+additional sandbox accumulates and the runtimes diverge: urunc and runc
+continue scaling at a similar pace, while gVisor and Kata Firecracker slow
+down noticeably. Kata QEMU is the outlier, falling behind almost immediately
+due to its heavier VMM footprint.&lt;/p&gt;
+&lt;h3 id="3-http-availability-latency"&gt;3. HTTP availability latency&lt;/h3&gt;
+&lt;p&gt;Nevertheless, a container in Ready and Running state does not necessarily mean
+that it is responsive. For that reason, we also measure when pods become
+reachable, probing blackbox exporter for &lt;code&gt;probe_success&lt;/code&gt; over every pod IP.&lt;/p&gt;
+&lt;p&gt;From this experiment, we derive when the first pod is able to respond, when all
+pods are responding and the progression over time for each container runtime
+and variant.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/chart_mean_first_http_per_pod.svg" alt="Mean HTTP latency per pod" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;em&gt;Figure 7: Mean time for each pod to become reachable over HTTP, based on the first successful blackbox probe per pod.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;The pattern mirrors the readiness results: urunc variants stay close to runc,
+with the Linux/QEMU combination showing the largest overhead among them.
+gVisor and Kata Containers are significantly slower. Kata QEMU appears
+faster than gVisor and Kata Firecracker here, but this is misleading, since it
+only had to bring up 21 pods, not 100, so its per-pod cost is masked by the
+smaller workload.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/chart_http_readiness.svg" alt="HTTP latency breakdown" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;em&gt;Figure 8: HTTP availability split into time-to-first-response and first-to-all-response intervals.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;Due to the similar results with the readiness experiment and the interval of
+sampling at 0.5s, we can easily observe that the gap between a pod becoming
+Ready and actually responding to HTTP requests is consistently less than 0.5s
+across all runtimes. Capturing the exact sub-second difference would require a
+finer-grained probing mechanism.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/chart_pods_http_timeline.svg" alt="Pods HTTP-available over time" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;em&gt;Figure 9: Number of HTTP-responding replicas over time, sampled every 0.5 seconds.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;The HTTP availability timeline closely tracks the readiness timeline with no
+runtime showing a significant additional delay between becoming Ready and
+serving traffic.&lt;/p&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/chart_pods_http_timeline_subset.svg" alt="Pods HTTP timeline (simplified)" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;em&gt;Figure 10: Simplified HTTP availability timeline showing one representative runtime per category.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;Comparing the best-performing variant per category makes the overall picture
+clear: all runtimes get their first pod responding at roughly the same time,
+but the tail, how long it takes for &lt;em&gt;all&lt;/em&gt; replicas to become reachable,
+varies dramatically. This tail latency is extremely important in cases
+where partial availability is not enough.&lt;/p&gt;
+&lt;h2 id="discussion-and-conclusion"&gt;Discussion and Conclusion&lt;/h2&gt;
+&lt;p&gt;
+&lt;figure &gt;
+&lt;div class="d-flex justify-content-center"&gt;
+&lt;div class="w-100" &gt;&lt;img src="/images/curve.png" alt="Isolation vs. resource efficiency" loading="lazy" data-zoomable /&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/figure&gt;
+&lt;em&gt;Figure 11: Isolation vs. resource efficiency. urunc breaks the expected tradeoff curve, achieving strong (VM-level) isolation while maintaining high pod density.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;In this post we performed a small evaluation of multiple container runtimes on
+a Raspberry Pi 5, focusing on their behavior under resource constraints.&lt;/p&gt;
+&lt;p&gt;The conventional wisdom is that stronger isolation costs more resources. Our
+results confirm this for most runtimes: Kata Containers provide VM-level
+isolation but max out at 21–65 pods, gVisor offers a middle ground at 176
+pods, and runc scales the furthest at 487+ pods but shares the host kernel
+across all workloads; meaning a single kernel vulnerability can compromise
+every pod on the node.&lt;/p&gt;
+&lt;p&gt;urunc breaks this tradeoff. By running unikernels or minimal single-application
+kernels directly inside lightweight VMMs, it minimizes the resource consumption
+of the additional isolation layers and reduces the overall overhead of the
+sandbox. The result: urunc achieves VM-level isolation, each container gets its
+own VM sandbox, while matching runc in startup latency and approaching it in
+pod density. Specifically, with unikernels, urunc scales to 265-430 pods
+depending on the variant; even with stripped-down generic kernels like Linux,
+it still reaches 165-210 pods, comparable to or better than gVisor, while
+retaining full VM-level isolation.&lt;/p&gt;
+&lt;p&gt;This matters for edge deployments where the choice between security and
+capacity has real consequences. With runc, operators accept kernel-sharing
+risk to fit more workloads. With Kata or gVisor, they pay a steep resource
+tax for isolation. urunc shows that this is a false dilemma: strong isolation
+and high density can coexist on the same resource-constrained hardware.&lt;/p&gt;
+&lt;p&gt;In short, strong isolation on resource-constrained edge hardware is not only feasible but, with the right runtime, comes at a surprisingly low cost.&lt;/p&gt;
+&lt;p&gt;The full setup, scripts, and source code used in this post are available at:
+&lt;a href="https://github.com/nubificus/runtime-benchmarking-rpi5" target="_blank" rel="noopener"&gt;https://github.com/nubificus/runtime-benchmarking-rpi5&lt;/a&gt;.
+We invite everyone to play around and reproduce the results.&lt;/p&gt;</description></item><item><title>Running gVisor on Raspberry Pi 5: A Kernel Configuration Adventure</title><link>/blog/gvisor-rpi5/</link><pubDate>Tue, 10 Mar 2026 00:30:00 +0200</pubDate><guid>/blog/gvisor-rpi5/</guid><description>&lt;p&gt;If you&amp;rsquo;ve ever tried to run &lt;a href="https://gvisor.dev/" target="_blank" rel="noopener"&gt;gVisor&lt;/a&gt; on a Raspberry Pi 5 and hit a cryptic failure, you&amp;rsquo;re not alone. The root cause turns out to be a single kernel configuration option, one that most people have never heard of. Let&amp;rsquo;s dig into what it is, why it matters, and how to fix it.&lt;/p&gt;
 &lt;h2 id="what-is-gvisor-and-why-should-you-care"&gt;What Is gVisor, and Why Should You Care?&lt;/h2&gt;
 &lt;p&gt;Before we get into the weeds of virtual address spaces, a quick refresher on what gVisor actually does.&lt;/p&gt;
 &lt;p&gt;Regular containers (Docker, containerd, etc.) are fast and lightweight, but they share the host kernel. That means a compromised container could potentially attack the host OS, a real concern in multi-tenant or security-sensitive environments. Virtual machines solve this with strong isolation, but at the cost of booting a full separate kernel, pre-allocating memory, and added overhead.&lt;/p&gt;

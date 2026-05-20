@@ -374,7 +374,9 @@ and high density can coexist on the same resource-constrained hardware.&lt;/p&gt
 &lt;p&gt;In short, strong isolation on resource-constrained edge hardware is not only feasible but, with the right runtime, comes at a surprisingly low cost.&lt;/p&gt;
 &lt;p&gt;The full setup, scripts, and source code used in this post are available at:
 &lt;a href="https://github.com/nubificus/runtime-benchmarking-rpi5" target="_blank" rel="noopener"&gt;https://github.com/nubificus/runtime-benchmarking-rpi5&lt;/a&gt;.
-We invite everyone to play around and reproduce the results.&lt;/p&gt;</description></item><item><title>Fosscomm 2024</title><link>/blog/fosscomm-2024/</link><pubDate>Mon, 11 Nov 2024 08:10:38 +0000</pubDate><guid>/blog/fosscomm-2024/</guid><description>&lt;p&gt;If you’re into open-source and tech meetups, FOSSCOMM is the event to be at. This year, it was held in Thessaloniki, organized by the open-source community of the University of Macedonia (UoM), and they absolutely crushed it with the setup and vibe!&lt;/p&gt;
+We invite everyone to play around and reproduce the results.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;em&gt;Discuss this post on &lt;a href="https://news.ycombinator.com/item?id=48205767" target="_blank" rel="noopener"&gt;Hacker News&lt;/a&gt;.&lt;/em&gt;&lt;/p&gt;</description></item><item><title>Fosscomm 2024</title><link>/blog/fosscomm-2024/</link><pubDate>Mon, 11 Nov 2024 08:10:38 +0000</pubDate><guid>/blog/fosscomm-2024/</guid><description>&lt;p&gt;If you’re into open-source and tech meetups, FOSSCOMM is the event to be at. This year, it was held in Thessaloniki, organized by the open-source community of the University of Macedonia (UoM), and they absolutely crushed it with the setup and vibe!&lt;/p&gt;
 &lt;figure id="figure-main-entrance----uom-building"&gt;
 &lt;div class="d-flex justify-content-center"&gt;
 &lt;div class="w-100" &gt;&lt;img src="/images/images/fosscomm2.jpg#center" alt="Main Entrance -- UoM building" loading="lazy" data-zoomable width="50%" /&gt;&lt;/div&gt;

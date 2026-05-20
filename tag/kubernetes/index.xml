@@ -374,7 +374,9 @@ and high density can coexist on the same resource-constrained hardware.&lt;/p&gt
 &lt;p&gt;In short, strong isolation on resource-constrained edge hardware is not only feasible but, with the right runtime, comes at a surprisingly low cost.&lt;/p&gt;
 &lt;p&gt;The full setup, scripts, and source code used in this post are available at:
 &lt;a href="https://github.com/nubificus/runtime-benchmarking-rpi5" target="_blank" rel="noopener"&gt;https://github.com/nubificus/runtime-benchmarking-rpi5&lt;/a&gt;.
-We invite everyone to play around and reproduce the results.&lt;/p&gt;</description></item><item><title>AI Agents? Not on my host</title><link>/blog/urunc_agent/</link><pubDate>Wed, 11 Feb 2026 00:22:12 +0000</pubDate><guid>/blog/urunc_agent/</guid><description>&lt;p&gt;Over the past few years, Large Language Models (LLMs) have changed how we
+We invite everyone to play around and reproduce the results.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;em&gt;Discuss this post on &lt;a href="https://news.ycombinator.com/item?id=48205767" target="_blank" rel="noopener"&gt;Hacker News&lt;/a&gt;.&lt;/em&gt;&lt;/p&gt;</description></item><item><title>AI Agents? Not on my host</title><link>/blog/urunc_agent/</link><pubDate>Wed, 11 Feb 2026 00:22:12 +0000</pubDate><guid>/blog/urunc_agent/</guid><description>&lt;p&gt;Over the past few years, Large Language Models (LLMs) have changed how we
 interact with computers. Instead of navigating interfaces or reading
 documentation, we simply describe what we want in natural language.&lt;/p&gt;
 &lt;p&gt;The next step, agentic AI, goes further: Agents do not just respond to

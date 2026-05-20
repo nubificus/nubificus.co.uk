@@ -374,4 +374,6 @@ and high density can coexist on the same resource-constrained hardware.&lt;/p&gt
 &lt;p&gt;In short, strong isolation on resource-constrained edge hardware is not only feasible but, with the right runtime, comes at a surprisingly low cost.&lt;/p&gt;
 &lt;p&gt;The full setup, scripts, and source code used in this post are available at:
 &lt;a href="https://github.com/nubificus/runtime-benchmarking-rpi5" target="_blank" rel="noopener"&gt;https://github.com/nubificus/runtime-benchmarking-rpi5&lt;/a&gt;.
-We invite everyone to play around and reproduce the results.&lt;/p&gt;</description></item></channel></rss>
+We invite everyone to play around and reproduce the results.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;em&gt;Discuss this post on &lt;a href="https://news.ycombinator.com/item?id=48205767" target="_blank" rel="noopener"&gt;Hacker News&lt;/a&gt;.&lt;/em&gt;&lt;/p&gt;</description></item></channel></rss>

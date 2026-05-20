@@ -36,7 +36,7 @@ center but becomes prohibitive when the entire node has only 8GB available.</p><
 do sandbox runtimes perform on resource-constrained edge hardware? What is the
 real cost of strong isolation when resources are limited?</p><p>In this post, we answer this question empirically. We evaluate
 multiple sandbox runtimes on a humble Raspberry Pi 5, measuring
-the impact on startup latency, scalability, and resource efficiency.</p><img src=/images/clown-car.png alt="Pods in a Pi" style=width:50%;max-width:800px;display:block;margin:auto><p><em>Figure 1: Edge environments often host multiple workloads on resource-constrained hardware. We evaluate the overhead of different runtime isolation approaches on a Raspberry Pi 5 node.</em></p><h2 id=the-container-runtimes-under-evaluation>The container runtimes under evaluation</h2><p>In this small experiment, we evaluate four different container runtimes: a)
+the impact on startup latency, scalability, and resource efficiency.</p><img src=/images/clown-car.png alt="Pods in a Pi" style=width:50%;max-width:800px;display:block;margin:auto><p><em>Figure 1: Edge nodes resemble clown cars: many sandboxed workloads squeezing into limited resources.</em></p><h2 id=the-container-runtimes-under-evaluation>The container runtimes under evaluation</h2><p>In this small experiment, we evaluate four different container runtimes: a)
 runc, b) gVisor, c) Kata Containers and d) urunc.</p><h3 id=runc-the-standard-container-runtime>runc: the standard container runtime</h3><p>A typical container is just a Linux process running in a different &ldquo;view&rdquo; of the
 host environment. The mechanisms that facilitate this separation are Linux
 kernel features, such as namespaces, cgroups access control mechanisms, etc.

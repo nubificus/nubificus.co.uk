@@ -25,7 +25,7 @@ real cost of strong isolation when resources are limited?&lt;/p&gt;
 multiple sandbox runtimes on a humble Raspberry Pi 5, measuring
 the impact on startup latency, scalability, and resource efficiency.&lt;/p&gt;
 &lt;img src="/images/clown-car.png" alt="Pods in a Pi" style="width:50%; max-width:800px; display:block; margin:auto;" /&gt;
-&lt;p&gt;&lt;em&gt;Figure 1: Edge environments often host multiple workloads on resource-constrained hardware. We evaluate the overhead of different runtime isolation approaches on a Raspberry Pi 5 node.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;Figure 1: Edge nodes resemble clown cars: many sandboxed workloads squeezing into limited resources.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="the-container-runtimes-under-evaluation"&gt;The container runtimes under evaluation&lt;/h2&gt;
 &lt;p&gt;In this small experiment, we evaluate four different container runtimes: a)
 runc, b) gVisor, c) Kata Containers and d) urunc.&lt;/p&gt;
